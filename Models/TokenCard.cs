@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using BreakersOfE.Services;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.IO;
 using System.Windows.Media;
@@ -34,14 +35,16 @@ namespace BreakersOfE.Models
         public string LocalImagePath { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
 
-        [NotMapped]
-        public string PowerToughness =>
-            !string.IsNullOrWhiteSpace(Power) && !string.IsNullOrWhiteSpace(Toughness)
-                ? $"{Power}/{Toughness}"
-                : string.Empty;
+        [NotMapped] public int RowIndex { get; set; }
 
         [NotMapped]
-        public string RarityCode => Rarity switch
+        public string PowerToughness =>
+            !string.IsNullOrWhiteSpace(Power) &&
+            !string.IsNullOrWhiteSpace(Toughness)
+                ? $"{Power}/{Toughness}" : string.Empty;
+
+        [NotMapped]
+        public string RarityCode => Rarity?.ToLower() switch
         {
             "common" => "C",
             "uncommon" => "U",
@@ -56,38 +59,34 @@ namespace BreakersOfE.Models
         public string FavoriteGlyph => IsFavorite ? "★" : string.Empty;
 
         [NotMapped]
+        public string ManaCost => string.Empty;
+        [NotMapped]
+        public double ManaValue => 0;
+
+        [NotMapped]
         public string SetSymbolPath
         {
             get
             {
                 string folder = Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory, "SetSymbols");
-                string path = Path.Combine(folder, $"{SetCode.ToLower()}.png");
+                string path = Path.Combine(
+                    folder, $"{SetCode.ToLower()}.png");
                 return File.Exists(path) ? path : string.Empty;
             }
         }
 
         [NotMapped]
-        public Brush RowForegroundBrush
-        {
-            get
-            {
-                if (string.IsNullOrWhiteSpace(ColorIdentity)) return Brushes.Silver;
-                if (ColorIdentity.Length > 1) return Brushes.Gold;
-                return ColorIdentity switch
-                {
-                    "W" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D2B48C")),
-                    "U" => Brushes.DeepSkyBlue,
-                    "B" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D0D0D0")),
-                    "R" => Brushes.Red,
-                    "G" => Brushes.LimeGreen,
-                    _ => Brushes.Gold
-                };
-            }
-        }
+        public Brush RowForegroundBrush =>
+            CardColorService.GetForeground(
+                ColorIdentity, TypeLine, IsFoil);
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
+            CardColorService.GetBackground(IsFoil, RowIndex);
+
+        [NotMapped]
+        public Brush CellBorderBrush =>
+            CardColorService.GetCellBorderBrush();
     }
 }

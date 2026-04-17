@@ -1,5 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using BreakersOfE.Services;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.IO;
 using System.Windows.Media;
 
 namespace BreakersOfE.Models
@@ -41,16 +43,18 @@ namespace BreakersOfE.Models
         public bool IsFavorite { get; set; }
         public string Keywords { get; set; } = string.Empty;
 
-        // ── Computed display helpers ────────────────────────────────────────
+        // ── Row index set by MainWindow for alternating colors ───────────────
+        [NotMapped] public int RowIndex { get; set; }
 
+        // ── Computed display ─────────────────────────────────────────────────
         [NotMapped]
         public string PowerToughness =>
-            !string.IsNullOrWhiteSpace(Power) && !string.IsNullOrWhiteSpace(Toughness)
-                ? $"{Power}/{Toughness}"
-                : string.Empty;
+            !string.IsNullOrWhiteSpace(Power) &&
+            !string.IsNullOrWhiteSpace(Toughness)
+                ? $"{Power}/{Toughness}" : string.Empty;
 
         [NotMapped]
-        public string RarityCode => Rarity switch
+        public string RarityCode => Rarity?.ToLower() switch
         {
             "common" => "C",
             "uncommon" => "U",
@@ -62,81 +66,6 @@ namespace BreakersOfE.Models
         };
 
         [NotMapped]
-        public Brush RarityBrush => Rarity switch
-        {
-            "mythic" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF6600")),
-            "rare" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A58E4A")),
-            "uncommon" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C0C0C0")),
-            _ => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A0A0A0"))
-        };
-
-        [NotMapped]
-        public Brush RowForegroundBrush
-        {
-            get
-            {
-                bool isLight = IsFoil;
-
-                if (!string.IsNullOrWhiteSpace(TypeLine) && TypeLine.Contains("Land"))
-                    return isLight
-                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#7A4A1F"))
-                        : Brushes.Tan;
-
-                if ((!string.IsNullOrWhiteSpace(TypeLine) && TypeLine.Contains("Artifact")) ||
-                    string.IsNullOrWhiteSpace(ColorIdentity))
-                    return isLight ? Brushes.DimGray : Brushes.Silver;
-
-                // Multi-color
-                if (ColorIdentity.Length > 1)
-                    return isLight
-                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#996515"))
-                        : Brushes.Gold;
-
-                return ColorIdentity switch
-                {
-                    "W" => isLight
-                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#6B5E00"))
-                        : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D2B48C")),
-                    "U" => isLight ? Brushes.DarkBlue : Brushes.DeepSkyBlue,
-                    "B" => isLight ? Brushes.Black
-                        : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D0D0D0")),
-                    "R" => isLight ? Brushes.DarkRed : Brushes.Red,
-                    "G" => isLight
-                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#006400"))
-                        : Brushes.LimeGreen,
-                    _ => isLight
-                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#996515"))
-                        : Brushes.Gold
-                };
-            }
-        }
-
-        [NotMapped]
-        public Brush RowBackgroundBrush
-        {
-            get
-            {
-                if (IsFoil)
-                {
-                    var gradient = new LinearGradientBrush
-                    {
-                        StartPoint = new System.Windows.Point(0.5, 0),
-                        EndPoint = new System.Windows.Point(0.5, 1)
-                    };
-                    gradient.GradientStops.Add(new GradientStop(
-                        (Color)ColorConverter.ConvertFromString("#B5B5B5"), 0.0));
-                    gradient.GradientStops.Add(new GradientStop(
-                        (Color)ColorConverter.ConvertFromString("#F2F2F2"), 0.5));
-                    gradient.GradientStops.Add(new GradientStop(
-                        (Color)ColorConverter.ConvertFromString("#B5B5B5"), 1.0));
-                    return gradient;
-                }
-
-                return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
-            }
-        }
-
-        [NotMapped]
         public string FavoriteGlyph => IsFavorite ? "★" : string.Empty;
 
         [NotMapped]
@@ -144,12 +73,71 @@ namespace BreakersOfE.Models
         {
             get
             {
-                string folder = System.IO.Path.Combine(
+                string folder = Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory, "SetSymbols");
-                string path = System.IO.Path.Combine(folder,
-                    $"{SetCode.ToLower()}.png");
-                return System.IO.File.Exists(path) ? path : string.Empty;
+                string path = Path.Combine(
+                    folder, $"{SetCode.ToLower()}.png");
+                return File.Exists(path) ? path : string.Empty;
             }
         }
+
+        // ── Legality columns ─────────────────────────────────────────────────
+        [NotMapped]
+        public string LegalityStandard =>
+            GetLegality("standard");
+        [NotMapped]
+        public string LegalityPioneer =>
+            GetLegality("pioneer");
+        [NotMapped]
+        public string LegalityModern =>
+            GetLegality("modern");
+        [NotMapped]
+        public string LegalityLegacy =>
+            GetLegality("legacy");
+        [NotMapped]
+        public string LegalityVintage =>
+            GetLegality("vintage");
+        [NotMapped]
+        public string LegalityCommander =>
+            GetLegality("commander");
+        [NotMapped]
+        public string LegalityPauper =>
+            GetLegality("pauper");
+
+        private string GetLegality(string format)
+        {
+            if (string.IsNullOrWhiteSpace(LegalitiesJson))
+                return string.Empty;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument
+                    .Parse(LegalitiesJson);
+                if (doc.RootElement.TryGetProperty(format, out var v))
+                {
+                    return v.GetString()?.ToLower() switch
+                    {
+                        "legal" => "✅",
+                        "restricted" => "🔵",
+                        _ => "❌"
+                    };
+                }
+            }
+            catch { }
+            return string.Empty;
+        }
+
+        // ── Theme-aware colors ───────────────────────────────────────────────
+        [NotMapped]
+        public Brush RowForegroundBrush =>
+            CardColorService.GetForeground(
+                ColorIdentity, TypeLine, IsFoil);
+
+        [NotMapped]
+        public Brush RowBackgroundBrush =>
+            CardColorService.GetBackground(IsFoil, RowIndex);
+
+        [NotMapped]
+        public Brush CellBorderBrush =>
+            CardColorService.GetCellBorderBrush();
     }
 }

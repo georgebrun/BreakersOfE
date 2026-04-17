@@ -1,15 +1,19 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using BreakersOfE.Services;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.IO;
 using System.Windows.Media;
 
 namespace BreakersOfE.Models
 {
-    // ── Planechase ──────────────────────────────────────────────────────────
+    // ── Shared base display properties ───────────────────────────────────────
+    // Each special card type has its own class but shares the same
+    // display property pattern
+
+    // ── Planechase ───────────────────────────────────────────────────────────
     public class PlanarCard
     {
-        [Key]
-        public int PlanarId { get; set; }
+        [Key] public int PlanarId { get; set; }
 
         public string ScryfallId { get; set; } = string.Empty;
         public string OracleId { get; set; } = string.Empty;
@@ -31,6 +35,7 @@ namespace BreakersOfE.Models
         public string LocalImagePath { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
 
+        [NotMapped] public int RowIndex { get; set; }
         [NotMapped] public string ManaCost => string.Empty;
         [NotMapped] public double ManaValue => 0;
         [NotMapped] public string Power => string.Empty;
@@ -40,7 +45,7 @@ namespace BreakersOfE.Models
         [NotMapped] public string Colors => string.Empty;
 
         [NotMapped]
-        public string RarityCode => Rarity switch
+        public string RarityCode => Rarity?.ToLower() switch
         {
             "common" => "C",
             "uncommon" => "U",
@@ -57,27 +62,30 @@ namespace BreakersOfE.Models
         {
             get
             {
-                string folder = Path.Combine(
+                string f = Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory, "SetSymbols");
-                string path = Path.Combine(folder, $"{SetCode.ToLower()}.png");
-                return File.Exists(path) ? path : string.Empty;
+                string p = Path.Combine(f, $"{SetCode.ToLower()}.png");
+                return File.Exists(p) ? p : string.Empty;
             }
         }
 
         [NotMapped]
         public Brush RowForegroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D4AF37"));
+            CardColorService.GetForeground(string.Empty, TypeLine, IsFoil);
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
+            CardColorService.GetBackground(IsFoil, RowIndex);
+
+        [NotMapped]
+        public Brush CellBorderBrush =>
+            CardColorService.GetCellBorderBrush();
     }
 
-    // ── Archenemy Schemes ───────────────────────────────────────────────────
+    // ── Archenemy Schemes ────────────────────────────────────────────────────
     public class SchemeCard
     {
-        [Key]
-        public int SchemeId { get; set; }
+        [Key] public int SchemeId { get; set; }
 
         public string ScryfallId { get; set; } = string.Empty;
         public string OracleId { get; set; } = string.Empty;
@@ -99,6 +107,7 @@ namespace BreakersOfE.Models
         public string LocalImagePath { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
 
+        [NotMapped] public int RowIndex { get; set; }
         [NotMapped] public string ManaCost => string.Empty;
         [NotMapped] public double ManaValue => 0;
         [NotMapped] public string Power => string.Empty;
@@ -108,7 +117,7 @@ namespace BreakersOfE.Models
         [NotMapped] public string Colors => string.Empty;
 
         [NotMapped]
-        public string RarityCode => Rarity switch
+        public string RarityCode => Rarity?.ToLower() switch
         {
             "common" => "C",
             "uncommon" => "U",
@@ -125,27 +134,30 @@ namespace BreakersOfE.Models
         {
             get
             {
-                string folder = Path.Combine(
+                string f = Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory, "SetSymbols");
-                string path = Path.Combine(folder, $"{SetCode.ToLower()}.png");
-                return File.Exists(path) ? path : string.Empty;
+                string p = Path.Combine(f, $"{SetCode.ToLower()}.png");
+                return File.Exists(p) ? p : string.Empty;
             }
         }
 
         [NotMapped]
         public Brush RowForegroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CC2200"));
+            CardColorService.GetForeground(string.Empty, TypeLine, IsFoil);
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
+            CardColorService.GetBackground(IsFoil, RowIndex);
+
+        [NotMapped]
+        public Brush CellBorderBrush =>
+            CardColorService.GetCellBorderBrush();
     }
 
-    // ── Vanguard ────────────────────────────────────────────────────────────
+    // ── Vanguard ─────────────────────────────────────────────────────────────
     public class VanguardCard
     {
-        [Key]
-        public int VanguardId { get; set; }
+        [Key] public int VanguardId { get; set; }
 
         public string ScryfallId { get; set; } = string.Empty;
         public string OracleId { get; set; } = string.Empty;
@@ -169,6 +181,7 @@ namespace BreakersOfE.Models
         public string HandModifier { get; set; } = string.Empty;
         public string LifeModifier { get; set; } = string.Empty;
 
+        [NotMapped] public int RowIndex { get; set; }
         [NotMapped] public string ManaCost => string.Empty;
         [NotMapped] public double ManaValue => 0;
         [NotMapped] public string Power => string.Empty;
@@ -178,7 +191,7 @@ namespace BreakersOfE.Models
         [NotMapped] public string Colors => string.Empty;
 
         [NotMapped]
-        public string RarityCode => Rarity switch
+        public string RarityCode => Rarity?.ToLower() switch
         {
             "common" => "C",
             "uncommon" => "U",
@@ -195,27 +208,30 @@ namespace BreakersOfE.Models
         {
             get
             {
-                string folder = Path.Combine(
+                string f = Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory, "SetSymbols");
-                string path = Path.Combine(folder, $"{SetCode.ToLower()}.png");
-                return File.Exists(path) ? path : string.Empty;
+                string p = Path.Combine(f, $"{SetCode.ToLower()}.png");
+                return File.Exists(p) ? p : string.Empty;
             }
         }
 
         [NotMapped]
         public Brush RowForegroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#9B59B6"));
+            CardColorService.GetForeground(string.Empty, TypeLine, IsFoil);
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
+            CardColorService.GetBackground(IsFoil, RowIndex);
+
+        [NotMapped]
+        public Brush CellBorderBrush =>
+            CardColorService.GetCellBorderBrush();
     }
 
-    // ── Conspiracy ──────────────────────────────────────────────────────────
+    // ── Conspiracy ───────────────────────────────────────────────────────────
     public class ConspiracyCard
     {
-        [Key]
-        public int ConspiracyId { get; set; }
+        [Key] public int ConspiracyId { get; set; }
 
         public string ScryfallId { get; set; } = string.Empty;
         public string OracleId { get; set; } = string.Empty;
@@ -237,6 +253,7 @@ namespace BreakersOfE.Models
         public string LocalImagePath { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
 
+        [NotMapped] public int RowIndex { get; set; }
         [NotMapped] public string ManaCost => string.Empty;
         [NotMapped] public double ManaValue => 0;
         [NotMapped] public string Power => string.Empty;
@@ -246,7 +263,7 @@ namespace BreakersOfE.Models
         [NotMapped] public string Colors => string.Empty;
 
         [NotMapped]
-        public string RarityCode => Rarity switch
+        public string RarityCode => Rarity?.ToLower() switch
         {
             "common" => "C",
             "uncommon" => "U",
@@ -263,27 +280,30 @@ namespace BreakersOfE.Models
         {
             get
             {
-                string folder = Path.Combine(
+                string f = Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory, "SetSymbols");
-                string path = Path.Combine(folder, $"{SetCode.ToLower()}.png");
-                return File.Exists(path) ? path : string.Empty;
+                string p = Path.Combine(f, $"{SetCode.ToLower()}.png");
+                return File.Exists(p) ? p : string.Empty;
             }
         }
 
         [NotMapped]
         public Brush RowForegroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1ABC9C"));
+            CardColorService.GetForeground(string.Empty, TypeLine, IsFoil);
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
+            CardColorService.GetBackground(IsFoil, RowIndex);
+
+        [NotMapped]
+        public Brush CellBorderBrush =>
+            CardColorService.GetCellBorderBrush();
     }
 
-    // ── Art Series ──────────────────────────────────────────────────────────
+    // ── Art Series ───────────────────────────────────────────────────────────
     public class ArtSeriesCard
     {
-        [Key]
-        public int ArtSeriesId { get; set; }
+        [Key] public int ArtSeriesId { get; set; }
 
         public string ScryfallId { get; set; } = string.Empty;
         public string OracleId { get; set; } = string.Empty;
@@ -304,6 +324,7 @@ namespace BreakersOfE.Models
         public string LocalImagePath { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
 
+        [NotMapped] public int RowIndex { get; set; }
         [NotMapped] public string ManaCost => string.Empty;
         [NotMapped] public double ManaValue => 0;
         [NotMapped] public string Power => string.Empty;
@@ -314,7 +335,7 @@ namespace BreakersOfE.Models
         [NotMapped] public string OracleText => string.Empty;
 
         [NotMapped]
-        public string RarityCode => Rarity switch
+        public string RarityCode => Rarity?.ToLower() switch
         {
             "common" => "C",
             "uncommon" => "U",
@@ -331,19 +352,23 @@ namespace BreakersOfE.Models
         {
             get
             {
-                string folder = Path.Combine(
+                string f = Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory, "SetSymbols");
-                string path = Path.Combine(folder, $"{SetCode.ToLower()}.png");
-                return File.Exists(path) ? path : string.Empty;
+                string p = Path.Combine(f, $"{SetCode.ToLower()}.png");
+                return File.Exists(p) ? p : string.Empty;
             }
         }
 
         [NotMapped]
         public Brush RowForegroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E8C97A"));
+            CardColorService.GetForeground(string.Empty, TypeLine, IsFoil);
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
+            CardColorService.GetBackground(IsFoil, RowIndex);
+
+        [NotMapped]
+        public Brush CellBorderBrush =>
+            CardColorService.GetCellBorderBrush();
     }
 }
