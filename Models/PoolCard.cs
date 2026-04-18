@@ -26,6 +26,7 @@ namespace BreakersOfE.Models
         public string ColorIdentity { get; set; } = string.Empty;
         public string SetCode { get; set; } = string.Empty;
         public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
         public string CollectorNumber { get; set; } = string.Empty;
         public string Rarity { get; set; } = string.Empty;
         public string Artist { get; set; } = string.Empty;
@@ -37,13 +38,23 @@ namespace BreakersOfE.Models
         public bool IsToken { get; set; }
         public bool IsMeld { get; set; }
         public string ReleasedAt { get; set; } = string.Empty;
-        public string PricesJson { get; set; } = string.Empty;
         public string LegalitiesJson { get; set; } = string.Empty;
         public string LocalImagePath { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
         public string Keywords { get; set; } = string.Empty;
 
-        // ── Row index set by MainWindow for alternating colors ───────────────
+        // ── Pricing fields ───────────────────────────────────────────────────
+        public decimal? PriceUsd { get; set; }
+        public decimal? PriceUsdFoil { get; set; }
+        public decimal? PriceUsdEtched { get; set; }
+        public decimal? PriceEur { get; set; }
+        public decimal? PriceEurFoil { get; set; }
+        public decimal? PriceTix { get; set; }
+
+        // Keep raw JSON as backup
+        public string PricesJson { get; set; } = string.Empty;
+
+        // ── Row index for alternating colors ─────────────────────────────────
         [NotMapped] public int RowIndex { get; set; }
 
         // ── Computed display ─────────────────────────────────────────────────
@@ -81,28 +92,23 @@ namespace BreakersOfE.Models
             }
         }
 
+        // ── Price display ────────────────────────────────────────────────────
+        [NotMapped]
+        public string PriceUsdDisplay =>
+            PriceUsd.HasValue ? $"${PriceUsd.Value:F2}" : "—";
+
+        [NotMapped]
+        public string PriceUsdFoilDisplay =>
+            PriceUsdFoil.HasValue ? $"${PriceUsdFoil.Value:F2}" : "—";
+
         // ── Legality columns ─────────────────────────────────────────────────
-        [NotMapped]
-        public string LegalityStandard =>
-            GetLegality("standard");
-        [NotMapped]
-        public string LegalityPioneer =>
-            GetLegality("pioneer");
-        [NotMapped]
-        public string LegalityModern =>
-            GetLegality("modern");
-        [NotMapped]
-        public string LegalityLegacy =>
-            GetLegality("legacy");
-        [NotMapped]
-        public string LegalityVintage =>
-            GetLegality("vintage");
-        [NotMapped]
-        public string LegalityCommander =>
-            GetLegality("commander");
-        [NotMapped]
-        public string LegalityPauper =>
-            GetLegality("pauper");
+        [NotMapped] public string LegalityStandard => GetLegality("standard");
+        [NotMapped] public string LegalityPioneer => GetLegality("pioneer");
+        [NotMapped] public string LegalityModern => GetLegality("modern");
+        [NotMapped] public string LegalityLegacy => GetLegality("legacy");
+        [NotMapped] public string LegalityVintage => GetLegality("vintage");
+        [NotMapped] public string LegalityCommander => GetLegality("commander");
+        [NotMapped] public string LegalityPauper => GetLegality("pauper");
 
         private string GetLegality(string format)
         {
@@ -113,14 +119,12 @@ namespace BreakersOfE.Models
                 using var doc = System.Text.Json.JsonDocument
                     .Parse(LegalitiesJson);
                 if (doc.RootElement.TryGetProperty(format, out var v))
-                {
                     return v.GetString()?.ToLower() switch
                     {
                         "legal" => "✅",
                         "restricted" => "🔵",
                         _ => "❌"
                     };
-                }
             }
             catch { }
             return string.Empty;

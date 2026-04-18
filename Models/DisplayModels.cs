@@ -5,6 +5,31 @@ using System.Windows.Media;
 
 namespace BreakersOfE.Models
 {
+    // ── Condition price multipliers ───────────────────────────────────────────
+    public static class ConditionMultiplier
+    {
+        public static decimal Get(string condition) =>
+            condition?.ToLower() switch
+            {
+                "mint" => 1.00m,
+                "near mint" => 1.00m,
+                "nm" => 1.00m,
+                "excellent" => 0.85m,
+                "lightly played" => 0.85m,
+                "lp" => 0.85m,
+                "good" => 0.70m,
+                "moderately played" => 0.70m,
+                "mp" => 0.70m,
+                "played" => 0.50m,
+                "heavily played" => 0.50m,
+                "hp" => 0.50m,
+                "poor" => 0.25m,
+                "damaged" => 0.25m,
+                "d" => 0.25m,
+                _ => 1.00m
+            };
+    }
+
     // ── Collection display row ────────────────────────────────────────────────
     public class CollectionDisplayRow
     {
@@ -39,10 +64,14 @@ namespace BreakersOfE.Models
         public DateTime DateAdded { get; set; }
         public DateTime DateModified { get; set; }
 
-        // ── Row index for alternating colors ─────────────────────────────────
+        // ── Pricing from pool ─────────────────────────────────────────────────
+        public decimal? PriceUsd { get; set; }
+        public decimal? PriceUsdFoil { get; set; }
+
+        // ── Row index for alternating colors ──────────────────────────────────
         public int RowIndex { get; set; }
 
-        // ── Computed ─────────────────────────────────────────────────────────
+        // ── Computed quantities ───────────────────────────────────────────────
         public int AvailableCount =>
             Math.Max(0, Quantity + FoilQuantity - UsedCount);
 
@@ -51,6 +80,43 @@ namespace BreakersOfE.Models
             !string.IsNullOrWhiteSpace(Toughness)
                 ? $"{Power}/{Toughness}" : string.Empty;
 
+        // ── Computed pricing with condition multiplier ────────────────────────
+        private decimal ConditionMult =>
+            ConditionMultiplier.Get(Condition);
+
+        public string PriceUsdDisplay =>
+            PriceUsd.HasValue
+                ? $"${PriceUsd.Value:F2}"
+                : "—";
+
+        public string PriceUsdFoilDisplay =>
+            PriceUsdFoil.HasValue
+                ? $"${PriceUsdFoil.Value:F2}"
+                : "—";
+
+        // Value = Qty × Price × ConditionMultiplier
+        public decimal Value =>
+            PriceUsd.HasValue
+                ? Math.Round(Quantity * PriceUsd.Value * ConditionMult, 2)
+                : 0m;
+
+        public decimal FoilValue =>
+            PriceUsdFoil.HasValue
+                ? Math.Round(FoilQuantity * PriceUsdFoil.Value * ConditionMult, 2)
+                : 0m;
+
+        public decimal TotalValue => Value + FoilValue;
+
+        public string ValueDisplay =>
+            Value > 0 ? $"${Value:F2}" : "—";
+
+        public string FoilValueDisplay =>
+            FoilValue > 0 ? $"${FoilValue:F2}" : "—";
+
+        public string TotalValueDisplay =>
+            TotalValue > 0 ? $"${TotalValue:F2}" : "—";
+
+        // ── Display helpers ───────────────────────────────────────────────────
         public string RarityCode => Rarity?.ToLower() switch
         {
             "common" => "C",
@@ -78,14 +144,28 @@ namespace BreakersOfE.Models
 
         // ── Theme-aware colors ────────────────────────────────────────────────
         public Brush RowForegroundBrush =>
-            CardColorService.GetForeground(
-                ColorIdentity, TypeLine, IsFoil);
+            CardColorService.GetForeground(ColorIdentity, TypeLine, IsFoil);
 
         public Brush RowBackgroundBrush =>
             CardColorService.GetBackground(IsFoil, RowIndex);
 
         public Brush CellBorderBrush =>
             CardColorService.GetCellBorderBrush();
+    }
+
+    // ── Summary row for frozen bottom strip ───────────────────────────────────
+    public class CollectionSummary
+    {
+        public int TotalRows { get; set; }
+        public int TotalCards { get; set; }
+        public int TotalFoils { get; set; }
+        public decimal TotalValue { get; set; }
+
+        public string Display =>
+            $"Rows: {TotalRows:N0}   " +
+            $"Cards: {TotalCards:N0}   " +
+            $"Foils: {TotalFoils:N0}   " +
+            $"Total Value: ${TotalValue:F2}";
     }
 
     // ── Dashboard stats ───────────────────────────────────────────────────────
@@ -96,7 +176,6 @@ namespace BreakersOfE.Models
         public int PlanarCount { get; set; }
         public int SchemeCount { get; set; }
         public int VanguardCount { get; set; }
-        public int ConspiracyCount { get; set; }
         public int ArtSeriesCount { get; set; }
         public int CollectionCount { get; set; }
         public int TradeBinderCount { get; set; }

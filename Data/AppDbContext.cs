@@ -12,7 +12,6 @@ namespace BreakersOfE.Data
         public DbSet<PlanarCard> PlanarCards { get; set; }
         public DbSet<SchemeCard> SchemeCards { get; set; }
         public DbSet<VanguardCard> VanguardCards { get; set; }
-        public DbSet<ConspiracyCard> ConspiracyCards { get; set; }
         public DbSet<ArtSeriesCard> ArtSeriesCards { get; set; }
 
         // ── Collection Tables ───────────────────────────────────────────────
@@ -83,11 +82,6 @@ namespace BreakersOfE.Data
 
             // VanguardCards
             modelBuilder.Entity<VanguardCard>()
-                .HasIndex(c => c.ScryfallId)
-                .IsUnique();
-
-            // ConspiracyCards
-            modelBuilder.Entity<ConspiracyCard>()
                 .HasIndex(c => c.ScryfallId)
                 .IsUnique();
 

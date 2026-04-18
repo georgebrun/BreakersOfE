@@ -6,9 +6,8 @@ using System.Windows.Media;
 
 namespace BreakersOfE.Models
 {
-    // ── Shared base display properties ───────────────────────────────────────
-    // Each special card type has its own class but shares the same
-    // display property pattern
+    // ── Shared helper — keeps each class DRY ────────────────────────────────
+    // All special card types share the same display property pattern
 
     // ── Planechase ───────────────────────────────────────────────────────────
     public class PlanarCard
@@ -23,6 +22,7 @@ namespace BreakersOfE.Models
         public string FlavorText { get; set; } = string.Empty;
         public string SetCode { get; set; } = string.Empty;
         public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
         public string CollectorNumber { get; set; } = string.Empty;
         public string Rarity { get; set; } = string.Empty;
         public string Artist { get; set; } = string.Empty;
@@ -43,6 +43,8 @@ namespace BreakersOfE.Models
         [NotMapped] public string PowerToughness => string.Empty;
         [NotMapped] public string ColorIdentity => string.Empty;
         [NotMapped] public string Colors => string.Empty;
+        [NotMapped] public string PriceUsdDisplay => string.Empty;
+        [NotMapped] public string PriceUsdFoilDisplay => string.Empty;
 
         [NotMapped]
         public string RarityCode => Rarity?.ToLower() switch
@@ -95,6 +97,7 @@ namespace BreakersOfE.Models
         public string FlavorText { get; set; } = string.Empty;
         public string SetCode { get; set; } = string.Empty;
         public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
         public string CollectorNumber { get; set; } = string.Empty;
         public string Rarity { get; set; } = string.Empty;
         public string Artist { get; set; } = string.Empty;
@@ -115,6 +118,8 @@ namespace BreakersOfE.Models
         [NotMapped] public string PowerToughness => string.Empty;
         [NotMapped] public string ColorIdentity => string.Empty;
         [NotMapped] public string Colors => string.Empty;
+        [NotMapped] public string PriceUsdDisplay => string.Empty;
+        [NotMapped] public string PriceUsdFoilDisplay => string.Empty;
 
         [NotMapped]
         public string RarityCode => Rarity?.ToLower() switch
@@ -167,6 +172,7 @@ namespace BreakersOfE.Models
         public string FlavorText { get; set; } = string.Empty;
         public string SetCode { get; set; } = string.Empty;
         public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
         public string CollectorNumber { get; set; } = string.Empty;
         public string Rarity { get; set; } = string.Empty;
         public string Artist { get; set; } = string.Empty;
@@ -189,78 +195,8 @@ namespace BreakersOfE.Models
         [NotMapped] public string PowerToughness => string.Empty;
         [NotMapped] public string ColorIdentity => string.Empty;
         [NotMapped] public string Colors => string.Empty;
-
-        [NotMapped]
-        public string RarityCode => Rarity?.ToLower() switch
-        {
-            "common" => "C",
-            "uncommon" => "U",
-            "rare" => "R",
-            "mythic" => "M",
-            _ => "?"
-        };
-
-        [NotMapped]
-        public string FavoriteGlyph => IsFavorite ? "★" : string.Empty;
-
-        [NotMapped]
-        public string SetSymbolPath
-        {
-            get
-            {
-                string f = Path.Combine(
-                    AppDomain.CurrentDomain.BaseDirectory, "SetSymbols");
-                string p = Path.Combine(f, $"{SetCode.ToLower()}.png");
-                return File.Exists(p) ? p : string.Empty;
-            }
-        }
-
-        [NotMapped]
-        public Brush RowForegroundBrush =>
-            CardColorService.GetForeground(string.Empty, TypeLine, IsFoil);
-
-        [NotMapped]
-        public Brush RowBackgroundBrush =>
-            CardColorService.GetBackground(IsFoil, RowIndex);
-
-        [NotMapped]
-        public Brush CellBorderBrush =>
-            CardColorService.GetCellBorderBrush();
-    }
-
-    // ── Conspiracy ───────────────────────────────────────────────────────────
-    public class ConspiracyCard
-    {
-        [Key] public int ConspiracyId { get; set; }
-
-        public string ScryfallId { get; set; } = string.Empty;
-        public string OracleId { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string TypeLine { get; set; } = string.Empty;
-        public string OracleText { get; set; } = string.Empty;
-        public string FlavorText { get; set; } = string.Empty;
-        public string SetCode { get; set; } = string.Empty;
-        public string SetName { get; set; } = string.Empty;
-        public string CollectorNumber { get; set; } = string.Empty;
-        public string Rarity { get; set; } = string.Empty;
-        public string Artist { get; set; } = string.Empty;
-        public string ImageSmallUrl { get; set; } = string.Empty;
-        public string ImageNormalUrl { get; set; } = string.Empty;
-        public string Layout { get; set; } = string.Empty;
-        public bool IsFoil { get; set; }
-        public bool IsNonFoil { get; set; }
-        public string ReleasedAt { get; set; } = string.Empty;
-        public string LocalImagePath { get; set; } = string.Empty;
-        public bool IsFavorite { get; set; }
-
-        [NotMapped] public int RowIndex { get; set; }
-        [NotMapped] public string ManaCost => string.Empty;
-        [NotMapped] public double ManaValue => 0;
-        [NotMapped] public string Power => string.Empty;
-        [NotMapped] public string Toughness => string.Empty;
-        [NotMapped] public string PowerToughness => string.Empty;
-        [NotMapped] public string ColorIdentity => string.Empty;
-        [NotMapped] public string Colors => string.Empty;
+        [NotMapped] public string PriceUsdDisplay => string.Empty;
+        [NotMapped] public string PriceUsdFoilDisplay => string.Empty;
 
         [NotMapped]
         public string RarityCode => Rarity?.ToLower() switch
@@ -312,6 +248,7 @@ namespace BreakersOfE.Models
         public string FlavorText { get; set; } = string.Empty;
         public string SetCode { get; set; } = string.Empty;
         public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
         public string CollectorNumber { get; set; } = string.Empty;
         public string Rarity { get; set; } = string.Empty;
         public string Artist { get; set; } = string.Empty;
@@ -333,6 +270,8 @@ namespace BreakersOfE.Models
         [NotMapped] public string ColorIdentity => string.Empty;
         [NotMapped] public string Colors => string.Empty;
         [NotMapped] public string OracleText => string.Empty;
+        [NotMapped] public string PriceUsdDisplay => string.Empty;
+        [NotMapped] public string PriceUsdFoilDisplay => string.Empty;
 
         [NotMapped]
         public string RarityCode => Rarity?.ToLower() switch

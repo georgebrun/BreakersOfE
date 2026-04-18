@@ -25,75 +25,50 @@
     <!-- ── Grid Colors ─────────────────────────────────────────────────── -->
     <Color x:Key="GridHeaderColor">#D4D4D4</Color>
     <Color x:Key="GridRowColor">#FFFFFF</Color>
-    <Color x:Key="GridAltRowColor">#F5F5F5</Color>
-    <Color x:Key="GridLineColor">#E0E0E0</Color>
+    <Color x:Key="GridAltRowColor">#EEF2F7</Color>
+    <Color x:Key="GridLineColor">#000000</Color>
     <Color x:Key="GridSelectionColor">#CCE4F7</Color>
 
     <!-- ── Brushes ──────────────────────────────────────────────────────── -->
-    <SolidColorBrush x:Key="WindowBackgroundBrush"
-                     Color="{StaticResource WindowBackgroundColor}"/>
-    <SolidColorBrush x:Key="SurfaceBrush"
-                     Color="{StaticResource SurfaceColor}"/>
-    <SolidColorBrush x:Key="SurfaceAltBrush"
-                     Color="{StaticResource SurfaceAltColor}"/>
-    <SolidColorBrush x:Key="BorderBrush"
-                     Color="{StaticResource BorderColor}"/>
-    <SolidColorBrush x:Key="AccentBrush"
-                     Color="{StaticResource AccentColor}"/>
-    <SolidColorBrush x:Key="AccentHoverBrush"
-                     Color="{StaticResource AccentHoverColor}"/>
-    <SolidColorBrush x:Key="AccentPressedBrush"
-                     Color="{StaticResource AccentPressedColor}"/>
-    <SolidColorBrush x:Key="PrimaryTextBrush"
-                     Color="{StaticResource PrimaryTextColor}"/>
-    <SolidColorBrush x:Key="SecondaryTextBrush"
-                     Color="{StaticResource SecondaryTextColor}"/>
-    <SolidColorBrush x:Key="MutedTextBrush"
-                     Color="{StaticResource MutedTextColor}"/>
-    <SolidColorBrush x:Key="DisabledTextBrush"
-                     Color="{StaticResource DisabledTextColor}"/>
-    <SolidColorBrush x:Key="LabelTextBrush"
-                     Color="{StaticResource LabelTextColor}"/>
-    <SolidColorBrush x:Key="SuccessBrush"
-                     Color="{StaticResource SuccessColor}"/>
-    <SolidColorBrush x:Key="WarningBrush"
-                     Color="{StaticResource WarningColor}"/>
-    <SolidColorBrush x:Key="ErrorBrush"
-                     Color="{StaticResource ErrorColor}"/>
-    <SolidColorBrush x:Key="GridHeaderBrush"
-                     Color="{StaticResource GridHeaderColor}"/>
-    <SolidColorBrush x:Key="GridRowBrush"
-                     Color="{StaticResource GridRowColor}"/>
-    <SolidColorBrush x:Key="GridAltRowBrush"
-                     Color="{StaticResource GridAltRowColor}"/>
-    <SolidColorBrush x:Key="GridLineBrush"
-                     Color="{StaticResource GridLineColor}"/>
-    <SolidColorBrush x:Key="GridSelectionBrush"
-                     Color="{StaticResource GridSelectionColor}"/>
+    <SolidColorBrush x:Key="WindowBackgroundBrush"  Color="{StaticResource WindowBackgroundColor}"/>
+    <SolidColorBrush x:Key="SurfaceBrush"           Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="SurfaceAltBrush"        Color="{StaticResource SurfaceAltColor}"/>
+    <SolidColorBrush x:Key="BorderBrush"            Color="{StaticResource BorderColor}"/>
+    <SolidColorBrush x:Key="AccentBrush"            Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="AccentHoverBrush"       Color="{StaticResource AccentHoverColor}"/>
+    <SolidColorBrush x:Key="AccentPressedBrush"     Color="{StaticResource AccentPressedColor}"/>
+    <SolidColorBrush x:Key="PrimaryTextBrush"       Color="{StaticResource PrimaryTextColor}"/>
+    <SolidColorBrush x:Key="SecondaryTextBrush"     Color="{StaticResource SecondaryTextColor}"/>
+    <SolidColorBrush x:Key="MutedTextBrush"         Color="{StaticResource MutedTextColor}"/>
+    <SolidColorBrush x:Key="DisabledTextBrush"      Color="{StaticResource DisabledTextColor}"/>
+    <SolidColorBrush x:Key="LabelTextBrush"         Color="{StaticResource LabelTextColor}"/>
+    <SolidColorBrush x:Key="SuccessBrush"           Color="{StaticResource SuccessColor}"/>
+    <SolidColorBrush x:Key="WarningBrush"           Color="{StaticResource WarningColor}"/>
+    <SolidColorBrush x:Key="ErrorBrush"             Color="{StaticResource ErrorColor}"/>
+    <SolidColorBrush x:Key="GridHeaderBrush"        Color="{StaticResource GridHeaderColor}"/>
+    <SolidColorBrush x:Key="GridRowBrush"           Color="{StaticResource GridRowColor}"/>
+    <SolidColorBrush x:Key="GridAltRowBrush"        Color="{StaticResource GridAltRowColor}"/>
+    <SolidColorBrush x:Key="GridLineBrush"          Color="{StaticResource GridLineColor}"/>
+    <SolidColorBrush x:Key="GridSelectionBrush"     Color="{StaticResource GridSelectionColor}"/>
 
     <!-- ── Window Style ─────────────────────────────────────────────────── -->
     <Style x:Key="BaseWindowStyle" TargetType="Window">
-        <Setter Property="Background"
-                Value="{StaticResource WindowBackgroundBrush}"/>
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="Background" Value="{StaticResource WindowBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize"   Value="14"/>
     </Style>
 
-    <!-- ── Button Style ─────────────────────────────────────────────────── -->
+    <!-- ── Base Button ──────────────────────────────────────────────────── -->
     <Style x:Key="BaseButtonStyle" TargetType="Button">
-        <Setter Property="Background"
-                Value="{StaticResource SurfaceAltBrush}"/>
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
-        <Setter Property="BorderBrush"
-                Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Background"      Value="{StaticResource SurfaceAltBrush}"/>
+        <Setter Property="Foreground"      Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="8,4"/>
-        <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Padding"         Value="8,4"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="FontFamily"      Value="Segoe UI"/>
+        <Setter Property="FontSize"        Value="13"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -107,22 +82,16 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background"
-                                    Value="{StaticResource AccentHoverBrush}"/>
+                            <Setter Property="Background" Value="{StaticResource AccentHoverBrush}"/>
                             <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter Property="Background"
-                                    Value="{StaticResource AccentPressedBrush}"/>
+                            <Setter Property="Background" Value="{StaticResource AccentPressedBrush}"/>
                             <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Background"
-                                    Value="{StaticResource SurfaceBrush}"/>
-                            <Setter Property="Foreground"
-                                    Value="{StaticResource DisabledTextBrush}"/>
-                            <Setter Property="BorderBrush"
-                                    Value="{StaticResource BorderBrush}"/>
+                            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -130,50 +99,42 @@
         </Setter>
     </Style>
 
-    <!-- ── Accent Button Style ──────────────────────────────────────────── -->
-    <Style x:Key="AccentButtonStyle"
-           TargetType="Button"
+    <!-- ── Accent Button ────────────────────────────────────────────────── -->
+    <Style x:Key="AccentButtonStyle" TargetType="Button"
            BasedOn="{StaticResource BaseButtonStyle}">
-        <Setter Property="Background"
-                Value="{StaticResource AccentBrush}"/>
-        <Setter Property="Foreground" Value="White"/>
-        <Setter Property="BorderBrush"
-                Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Background"  Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Foreground"  Value="White"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
     </Style>
 
-    <!-- ── Toolbar Button Style ─────────────────────────────────────────── -->
+    <!-- ── Toolbar Button ───────────────────────────────────────────────── -->
     <Style x:Key="ToolbarButtonStyle" TargetType="Button">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="Background"      Value="Transparent"/>
+        <Setter Property="Foreground"      Value="{StaticResource PrimaryTextBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Width" Value="36"/>
-        <Setter Property="Height" Value="36"/>
-        <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
-        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="Width"           Value="36"/>
+        <Setter Property="Height"          Value="36"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="FontFamily"      Value="Segoe MDL2 Assets"/>
+        <Setter Property="FontSize"        Value="16"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border Background="{TemplateBinding Background}"
-                            CornerRadius="3"
-                            Padding="4">
+                            CornerRadius="3" Padding="4">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background"
-                                    Value="{StaticResource SurfaceAltBrush}"/>
+                            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter Property="Background"
-                                    Value="{StaticResource AccentBrush}"/>
+                            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
                             <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground"
-                                    Value="{StaticResource DisabledTextBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -181,197 +142,259 @@
         </Setter>
     </Style>
 
-    <!-- ── TextBox Style ────────────────────────────────────────────────── -->
+    <!-- ── TextBox ──────────────────────────────────────────────────────── -->
     <Style x:Key="BaseTextBoxStyle" TargetType="TextBox">
-        <Setter Property="Background"
-                Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
-        <Setter Property="BorderBrush"
-                Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Background"      Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="Foreground"      Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="6,4"/>
-        <Setter Property="CaretBrush"
-                Value="{StaticResource PrimaryTextBrush}"/>
-        <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="13"/>
-        <Setter Property="SelectionBrush"
-                Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Padding"         Value="6,4"/>
+        <Setter Property="CaretBrush"      Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="FontFamily"      Value="Segoe UI"/>
+        <Setter Property="FontSize"        Value="13"/>
+        <Setter Property="SelectionBrush"  Value="{StaticResource AccentBrush}"/>
     </Style>
 
-    <!-- ── ComboBox Style ───────────────────────────────────────────────── -->
+    <!-- ── ComboBox ─────────────────────────────────────────────────────── -->
+    <!-- ── ComboBox ─────────────────────────────────────────────────────── -->
     <Style x:Key="BaseComboBoxStyle" TargetType="ComboBox">
-        <Setter Property="Background"
-                Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
-        <Setter Property="BorderBrush"
-                Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Background"      Value="#FFFFFF"/>
+        <Setter Property="Foreground"      Value="#1A1A1A"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="6,4"/>
-        <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="13"/>
-        <Setter Property="Height" Value="28"/>
+        <Setter Property="Padding"         Value="6,4"/>
+        <Setter Property="FontFamily"      Value="Segoe UI"/>
+        <Setter Property="FontSize"        Value="13"/>
+        <Setter Property="Height"          Value="28"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton Background="#FFFFFF"
+                                  Foreground="#1A1A1A"
+                                  BorderBrush="{StaticResource BorderBrush}"
+                                  BorderThickness="1"
+                                  IsChecked="{Binding Path=IsDropDownOpen,
+                                      Mode=TwoWay,
+                                      RelativeSource={RelativeSource TemplatedParent}}"
+                                  Focusable="False"
+                                  ClickMode="Press">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="20"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ContentPresenter Grid.Column="0"
+                                                          Margin="6,0,0,0"
+                                                          VerticalAlignment="Center"/>
+                                            <Path Grid.Column="1"
+                                              Data="M 0 0 L 4 4 L 8 0 Z"
+                                              Fill="#1A1A1A"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <ContentPresenter Name="ContentSite"
+                                      IsHitTestVisible="False"
+                                      Content="{TemplateBinding SelectionBoxItem}"
+                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                      Margin="6,0,24,0"
+                                      VerticalAlignment="Center">
+                            <ContentPresenter.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#1A1A1A"/>
+                                    <Setter Property="FontSize"   Value="13"/>
+                                </Style>
+                            </ContentPresenter.Resources>
+                        </ContentPresenter>
+                        <Popup Name="Popup"
+                           Placement="Bottom"
+                           IsOpen="{TemplateBinding IsDropDownOpen}"
+                           AllowsTransparency="True"
+                           Focusable="False"
+                           PopupAnimation="Slide">
+                            <Grid Name="DropDown"
+                              SnapsToDevicePixels="True"
+                              MinWidth="{TemplateBinding ActualWidth}"
+                              MaxHeight="400">
+                                <Border Background="#FFFFFF"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"/>
+                                <ScrollViewer>
+                                    <StackPanel IsItemsHost="True"/>
+                                </ScrollViewer>
+                            </Grid>
+                        </Popup>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
-    <!-- ── Label Styles ─────────────────────────────────────────────────── -->
+    <!-- ── ComboBoxItem — dark text on white background ─────────────────── -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Background" Value="#FFFFFF"/>
+        <Setter Property="Foreground" Value="#1A1A1A"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="FontSize"   Value="13"/>
+        <Setter Property="Padding"    Value="8,4"/>
+        <Style.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+                <Setter Property="Background" Value="#0078D4"/>
+                <Setter Property="Foreground" Value="White"/>
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="#0078D4"/>
+                <Setter Property="Foreground" Value="White"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="#888888"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Background" Value="#F0F0F0"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ── Detail Labels ────────────────────────────────────────────────── -->
     <Style x:Key="DetailLabelStyle" TargetType="TextBlock">
-        <Setter Property="Foreground"
-                Value="{StaticResource LabelTextBrush}"/>
-        <Setter Property="FontSize" Value="10"/>
-        <Setter Property="Margin" Value="0,6,0,1"/>
+        <Setter Property="Foreground" Value="{StaticResource LabelTextBrush}"/>
+        <Setter Property="FontSize"   Value="10"/>
+        <Setter Property="Margin"     Value="0,6,0,1"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
     </Style>
 
     <Style x:Key="DetailValueStyle" TargetType="TextBlock">
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground"   Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="FontSize"     Value="13"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
-        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="FontFamily"   Value="Segoe UI"/>
     </Style>
 
-    <!-- ── DataGrid Styles ──────────────────────────────────────────────── -->
-    <Style x:Key="DataGridColumnHeaderStyle"
-           TargetType="DataGridColumnHeader">
-        <Setter Property="Background"
-                Value="{StaticResource GridHeaderBrush}"/>
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="BorderBrush"
-                Value="{StaticResource BorderBrush}"/>
+    <!-- ── DataGrid Column Header ───────────────────────────────────────── -->
+    <Style x:Key="DataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+        <Setter Property="Background"      Value="{StaticResource GridHeaderBrush}"/>
+        <Setter Property="Foreground"      Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="FontWeight"      Value="SemiBold"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        <Setter Property="Padding" Value="6,4"/>
-        <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Padding"         Value="6,4"/>
+        <Setter Property="FontFamily"      Value="Segoe UI"/>
+        <Setter Property="FontSize"        Value="13"/>
     </Style>
 
+    <!-- ── DataGrid Row ─────────────────────────────────────────────────── -->
     <Style x:Key="DataGridRowStyle" TargetType="DataGridRow">
-        <Setter Property="Background"
-                Value="{StaticResource GridRowBrush}"/>
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="Background" Value="{Binding RowBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{Binding RowForegroundBrush}"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontSize"   Value="14"/>
+        <Setter Property="MinHeight"  Value="26"/>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background"
-                        Value="{StaticResource GridSelectionBrush}"/>
-            </Trigger>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background"
-                        Value="{StaticResource SurfaceAltBrush}"/>
+                <Setter Property="BorderBrush"     Value="{StaticResource AccentBrush}"/>
+                <Setter Property="BorderThickness" Value="0,1,0,1"/>
             </Trigger>
         </Style.Triggers>
     </Style>
 
+    <!-- ── DataGrid Cell — full border ──────────────────────────────────── -->
     <Style x:Key="DataGridCellStyle" TargetType="DataGridCell">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="4,2"/>
+        <Setter Property="Background"      Value="Transparent"/>
+        <Setter Property="BorderBrush"     Value="{Binding CellBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        <Setter Property="Padding"         Value="4,2"/>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Foreground"
-                        Value="{StaticResource PrimaryTextBrush}"/>
+                <Setter Property="Foreground" Value="{Binding RowForegroundBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
 
-    <!-- ── Status Bar Style ─────────────────────────────────────────────── -->
+    <!-- ── Status Bar ───────────────────────────────────────────────────── -->
     <Style x:Key="StatusBarStyle" TargetType="Border">
-        <Setter Property="Background"
-                Value="{StaticResource AccentBrush}"/>
-        <Setter Property="Height" Value="25"/>
+        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Height"     Value="25"/>
     </Style>
 
-    <!-- ── Filter Bar Style ─────────────────────────────────────────────── -->
+    <!-- ── Filter Bar ───────────────────────────────────────────────────── -->
     <Style x:Key="FilterBarStyle" TargetType="Border">
-        <Setter Property="Background"
-                Value="{StaticResource SurfaceAltBrush}"/>
-        <Setter Property="BorderBrush"
-                Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Background"      Value="{StaticResource SurfaceAltBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,1,0,0"/>
-        <Setter Property="Height" Value="28"/>
-        <Setter Property="Padding" Value="6,0"/>
+        <Setter Property="Height"          Value="28"/>
+        <Setter Property="Padding"         Value="6,0"/>
     </Style>
 
-    <!-- ── Group By Bar Style ───────────────────────────────────────────── -->
+    <!-- ── Group By Bar ─────────────────────────────────────────────────── -->
     <Style x:Key="GroupByBarStyle" TargetType="Border">
-        <Setter Property="Background"
-                Value="{StaticResource SurfaceAltBrush}"/>
-        <Setter Property="BorderBrush"
-                Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Background"      Value="{StaticResource SurfaceAltBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,0,1"/>
-        <Setter Property="Height" Value="26"/>
-        <Setter Property="Padding" Value="6,0"/>
+        <Setter Property="Height"          Value="26"/>
+        <Setter Property="Padding"         Value="6,0"/>
     </Style>
 
-    <!-- ── Separator Style ──────────────────────────────────────────────── -->
+    <!-- ── Toolbar Separator ────────────────────────────────────────────── -->
     <Style x:Key="ToolbarSeparatorStyle" TargetType="Separator">
-        <Setter Property="Background"
-                Value="{StaticResource BorderBrush}"/>
-        <Setter Property="Width" Value="1"/>
-        <Setter Property="Margin" Value="4,4"/>
+        <Setter Property="Background" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Width"      Value="1"/>
+        <Setter Property="Margin"     Value="4,4"/>
     </Style>
 
-    <!-- ── Tab styles ───────────────────────────────────────────────────── -->
+    <!-- ── Tab Item ─────────────────────────────────────────────────────── -->
     <Style x:Key="BaseTabItemStyle" TargetType="TabItem">
-        <Setter Property="Background"
-                Value="{StaticResource SurfaceAltBrush}"/>
-        <Setter Property="Foreground"
-                Value="{StaticResource SecondaryTextBrush}"/>
-        <Setter Property="BorderBrush"
-                Value="{StaticResource BorderBrush}"/>
-        <Setter Property="Padding" Value="10,4"/>
-        <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Background"  Value="{StaticResource SurfaceAltBrush}"/>
+        <Setter Property="Foreground"  Value="{StaticResource SecondaryTextBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Padding"     Value="10,4"/>
+        <Setter Property="FontFamily"  Value="Segoe UI"/>
+        <Setter Property="FontSize"    Value="13"/>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background"
-                        Value="{StaticResource SurfaceBrush}"/>
-                <Setter Property="Foreground"
-                        Value="{StaticResource PrimaryTextBrush}"/>
+                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
 
-    <!-- ── CheckBox Style ───────────────────────────────────────────────── -->
+    <!-- ── CheckBox ─────────────────────────────────────────────────────── -->
     <Style x:Key="BaseCheckBoxStyle" TargetType="CheckBox">
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Margin" Value="0,2"/>
+        <Setter Property="FontSize"   Value="13"/>
+        <Setter Property="Margin"     Value="0,2"/>
     </Style>
 
-    <!-- ── RadioButton Style ────────────────────────────────────────────── -->
+    <!-- ── RadioButton ──────────────────────────────────────────────────── -->
     <Style x:Key="BaseRadioButtonStyle" TargetType="RadioButton">
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Margin" Value="0,2"/>
+        <Setter Property="FontSize"   Value="13"/>
+        <Setter Property="Margin"     Value="0,2"/>
     </Style>
 
-    <!-- ── Menu Style ───────────────────────────────────────────────────── -->
+    <!-- ── Menu ─────────────────────────────────────────────────────────── -->
     <Style TargetType="Menu">
-        <Setter Property="Background"
-                Value="{StaticResource SurfaceAltBrush}"/>
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize"   Value="13"/>
     </Style>
 
     <Style TargetType="MenuItem">
-        <Setter Property="Foreground"
-                Value="{StaticResource PrimaryTextBrush}"/>
-        <Setter Property="Background"
-                Value="{StaticResource SurfaceAltBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize"   Value="13"/>
     </Style>
 
 </ResourceDictionary>

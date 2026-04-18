@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace BreakersOfE.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class AddSetTypeAndPricing : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -36,6 +36,7 @@ namespace BreakersOfE.Migrations
                     FlavorText = table.Column<string>(type: "TEXT", nullable: false),
                     SetCode = table.Column<string>(type: "TEXT", nullable: false),
                     SetName = table.Column<string>(type: "TEXT", nullable: false),
+                    SetType = table.Column<string>(type: "TEXT", nullable: false),
                     CollectorNumber = table.Column<string>(type: "TEXT", nullable: false),
                     Rarity = table.Column<string>(type: "TEXT", nullable: false),
                     Artist = table.Column<string>(type: "TEXT", nullable: false),
@@ -93,37 +94,6 @@ namespace BreakersOfE.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_CollectionEntries", x => x.CollectionEntryId);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "ConspiracyCards",
-                columns: table => new
-                {
-                    ConspiracyId = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    ScryfallId = table.Column<string>(type: "TEXT", nullable: false),
-                    OracleId = table.Column<string>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    TypeLine = table.Column<string>(type: "TEXT", nullable: false),
-                    OracleText = table.Column<string>(type: "TEXT", nullable: false),
-                    FlavorText = table.Column<string>(type: "TEXT", nullable: false),
-                    SetCode = table.Column<string>(type: "TEXT", nullable: false),
-                    SetName = table.Column<string>(type: "TEXT", nullable: false),
-                    CollectorNumber = table.Column<string>(type: "TEXT", nullable: false),
-                    Rarity = table.Column<string>(type: "TEXT", nullable: false),
-                    Artist = table.Column<string>(type: "TEXT", nullable: false),
-                    ImageSmallUrl = table.Column<string>(type: "TEXT", nullable: false),
-                    ImageNormalUrl = table.Column<string>(type: "TEXT", nullable: false),
-                    Layout = table.Column<string>(type: "TEXT", nullable: false),
-                    IsFoil = table.Column<bool>(type: "INTEGER", nullable: false),
-                    IsNonFoil = table.Column<bool>(type: "INTEGER", nullable: false),
-                    ReleasedAt = table.Column<string>(type: "TEXT", nullable: false),
-                    LocalImagePath = table.Column<string>(type: "TEXT", nullable: false),
-                    IsFavorite = table.Column<bool>(type: "INTEGER", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ConspiracyCards", x => x.ConspiracyId);
                 });
 
             migrationBuilder.CreateTable(
@@ -201,6 +171,7 @@ namespace BreakersOfE.Migrations
                     FlavorText = table.Column<string>(type: "TEXT", nullable: false),
                     SetCode = table.Column<string>(type: "TEXT", nullable: false),
                     SetName = table.Column<string>(type: "TEXT", nullable: false),
+                    SetType = table.Column<string>(type: "TEXT", nullable: false),
                     CollectorNumber = table.Column<string>(type: "TEXT", nullable: false),
                     Rarity = table.Column<string>(type: "TEXT", nullable: false),
                     Artist = table.Column<string>(type: "TEXT", nullable: false),
@@ -260,6 +231,7 @@ namespace BreakersOfE.Migrations
                     ColorIdentity = table.Column<string>(type: "TEXT", nullable: false),
                     SetCode = table.Column<string>(type: "TEXT", nullable: false),
                     SetName = table.Column<string>(type: "TEXT", nullable: false),
+                    SetType = table.Column<string>(type: "TEXT", nullable: false),
                     CollectorNumber = table.Column<string>(type: "TEXT", nullable: false),
                     Rarity = table.Column<string>(type: "TEXT", nullable: false),
                     Artist = table.Column<string>(type: "TEXT", nullable: false),
@@ -271,11 +243,17 @@ namespace BreakersOfE.Migrations
                     IsToken = table.Column<bool>(type: "INTEGER", nullable: false),
                     IsMeld = table.Column<bool>(type: "INTEGER", nullable: false),
                     ReleasedAt = table.Column<string>(type: "TEXT", nullable: false),
-                    PricesJson = table.Column<string>(type: "TEXT", nullable: false),
                     LegalitiesJson = table.Column<string>(type: "TEXT", nullable: false),
                     LocalImagePath = table.Column<string>(type: "TEXT", nullable: false),
                     IsFavorite = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Keywords = table.Column<string>(type: "TEXT", nullable: false)
+                    Keywords = table.Column<string>(type: "TEXT", nullable: false),
+                    PriceUsd = table.Column<decimal>(type: "TEXT", nullable: true),
+                    PriceUsdFoil = table.Column<decimal>(type: "TEXT", nullable: true),
+                    PriceUsdEtched = table.Column<decimal>(type: "TEXT", nullable: true),
+                    PriceEur = table.Column<decimal>(type: "TEXT", nullable: true),
+                    PriceEurFoil = table.Column<decimal>(type: "TEXT", nullable: true),
+                    PriceTix = table.Column<decimal>(type: "TEXT", nullable: true),
+                    PricesJson = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -296,6 +274,7 @@ namespace BreakersOfE.Migrations
                     FlavorText = table.Column<string>(type: "TEXT", nullable: false),
                     SetCode = table.Column<string>(type: "TEXT", nullable: false),
                     SetName = table.Column<string>(type: "TEXT", nullable: false),
+                    SetType = table.Column<string>(type: "TEXT", nullable: false),
                     CollectorNumber = table.Column<string>(type: "TEXT", nullable: false),
                     Rarity = table.Column<string>(type: "TEXT", nullable: false),
                     Artist = table.Column<string>(type: "TEXT", nullable: false),
@@ -352,6 +331,7 @@ namespace BreakersOfE.Migrations
                     ColorIdentity = table.Column<string>(type: "TEXT", nullable: false),
                     SetCode = table.Column<string>(type: "TEXT", nullable: false),
                     SetName = table.Column<string>(type: "TEXT", nullable: false),
+                    SetType = table.Column<string>(type: "TEXT", nullable: false),
                     CollectorNumber = table.Column<string>(type: "TEXT", nullable: false),
                     Rarity = table.Column<string>(type: "TEXT", nullable: false),
                     Artist = table.Column<string>(type: "TEXT", nullable: false),
@@ -424,6 +404,7 @@ namespace BreakersOfE.Migrations
                     FlavorText = table.Column<string>(type: "TEXT", nullable: false),
                     SetCode = table.Column<string>(type: "TEXT", nullable: false),
                     SetName = table.Column<string>(type: "TEXT", nullable: false),
+                    SetType = table.Column<string>(type: "TEXT", nullable: false),
                     CollectorNumber = table.Column<string>(type: "TEXT", nullable: false),
                     Rarity = table.Column<string>(type: "TEXT", nullable: false),
                     Artist = table.Column<string>(type: "TEXT", nullable: false),
@@ -467,12 +448,6 @@ namespace BreakersOfE.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_ArtSeriesCards_ScryfallId",
                 table: "ArtSeriesCards",
-                column: "ScryfallId",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ConspiracyCards_ScryfallId",
-                table: "ConspiracyCards",
                 column: "ScryfallId",
                 unique: true);
 
@@ -546,9 +521,6 @@ namespace BreakersOfE.Migrations
 
             migrationBuilder.DropTable(
                 name: "CollectionEntries");
-
-            migrationBuilder.DropTable(
-                name: "ConspiracyCards");
 
             migrationBuilder.DropTable(
                 name: "ConspiracyCollectionEntries");

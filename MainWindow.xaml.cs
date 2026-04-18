@@ -17,15 +17,17 @@ namespace BreakersOfE
     public partial class MainWindow : Window
     {
         // ── State ────────────────────────────────────────────────────────────
-        private string _currentMode = "Pool";
+        private string _currentMode = "PoolToCollection";
         private bool _legalityVisible = false;
-        private bool _isWorkMode = false;
+        private bool _bottomLocked = false;
 
         // ── Filter state ─────────────────────────────────────────────────────
         private FilterState _topFilter = new();
         private FilterState _bottomFilter = new();
-        private string _topSearch = string.Empty;
-        private string _bottomSearch = string.Empty;
+        private string _searchText = string.Empty;
+
+        // ── Lock key prefix for AppSettings ──────────────────────────────────
+        private const string LockKeyPrefix = "Lock_";
 
         // ── Asset folders ────────────────────────────────────────────────────
         private string SetSymbolsFolder =>
@@ -45,7 +47,7 @@ namespace BreakersOfE
             EnsureDatabase();
             BtnTheme.Content = ThemeService.ThemeToggleIcon;
             BtnTheme.ToolTip = ThemeService.ThemeToggleTooltip;
-            ViewModeComboBox.SelectedIndex = 1; // Pool
+            ViewModeComboBox.SelectedIndex = 0;
         }
 
         private void EnsureDatabase()
@@ -71,129 +73,116 @@ namespace BreakersOfE
                 item.Tag is string tag)
             {
                 _currentMode = tag;
-                _topSearch = string.Empty;
-                _bottomSearch = string.Empty;
+                _searchText = string.Empty;
+                if (SearchBox != null) SearchBox.Text = string.Empty;
 
-                if (TopSearchBox != null) TopSearchBox.Text = string.Empty;
-                if (BottomSearchBox != null) BottomSearchBox.Text = string.Empty;
-
-                _isWorkMode = tag is "PoolToCollection" or
-                                     "PoolToDeck" or
-                                     "CollectionToDeck";
-
-                UpdateToolbarState();
                 LoadCurrentMode();
+                LoadLockState();
+                UpdateToolbarState();
             }
         }
 
         private void LoadCurrentMode()
         {
-            SetBottomTableVisibility(_isWorkMode);
-
             switch (_currentMode)
             {
-                case "Pool":
-                    LoadTopTable_Pool();
-                    TopSearchLabel.Text = "Pool";
-                    break;
-                case "Collection":
-                    LoadTopTable_Collection();
-                    TopSearchLabel.Text = "Collection";
-                    break;
-                case "TradeBinder":
-                    TopDataGrid.ItemsSource = GetTradeBinderRows();
-                    TopSearchLabel.Text = "Trade Binder";
-                    break;
-                case "Tokens":
-                    LoadTopTable_Tokens();
-                    TopSearchLabel.Text = "Tokens";
-                    break;
-                case "MyTokens":
-                    TopDataGrid.ItemsSource = GetMyTokenRows();
-                    TopSearchLabel.Text = "My Tokens";
-                    break;
-                case "Planar":
-                    LoadTopTable_Planar();
-                    TopSearchLabel.Text = "Planar Cards";
-                    break;
-                case "MyPlanar":
-                    TopDataGrid.ItemsSource = GetMyPlanarRows();
-                    TopSearchLabel.Text = "My Planar";
-                    break;
-                case "Schemes":
-                    LoadTopTable_Schemes();
-                    TopSearchLabel.Text = "Schemes";
-                    break;
-                case "MySchemes":
-                    TopDataGrid.ItemsSource = GetMySchemeRows();
-                    TopSearchLabel.Text = "My Schemes";
-                    break;
-                case "Vanguard":
-                    LoadTopTable_Vanguard();
-                    TopSearchLabel.Text = "Vanguard";
-                    break;
-                case "Conspiracy":
-                    LoadTopTable_Conspiracy();
-                    TopSearchLabel.Text = "Conspiracy";
-                    break;
-                case "ArtSeries":
-                    LoadTopTable_ArtSeries();
-                    TopSearchLabel.Text = "Art Series";
-                    break;
-                case "MyArtSeries":
-                    TopDataGrid.ItemsSource = GetMyArtSeriesRows();
-                    TopSearchLabel.Text = "My Art Series";
-                    break;
-                case "Dashboard":
-                    LoadDashboard();
-                    break;
                 case "PoolToCollection":
                     LoadTopTable_Pool();
                     LoadBottomTable_Collection();
-                    TopSearchLabel.Text = "Pool";
-                    BottomSearchLabel.Text = "Collection";
+                    TopSearchLabel.Text = "Pool  (read only)";
+                    BottomTableLabel.Text = "Collection";
                     ActionBarLabel.Text =
-                        "Select a card above → Enter to add  |  " +
-                        "Shift+Enter to add foil";
+                        "Select a card → Enter to add  |  Shift+Enter to add foil";
                     break;
-                case "PoolToDeck":
-                    LoadTopTable_Pool();
-                    LoadBottomTable_Deck();
-                    TopSearchLabel.Text = "Pool";
-                    BottomSearchLabel.Text = "Deck";
-                    ActionBarLabel.Text =
-                        "Select a card above to add to your deck below";
+
+                case "PoolToPlanechase":
+                    LoadTopTable_Planechase();
+                    LoadBottomTable_PlanechaseCollection();
+                    TopSearchLabel.Text = "Planechase  (read only)";
+                    BottomTableLabel.Text = "My Planechase";
+                    ActionBarLabel.Text = "Select a card → Enter to add";
                     break;
-                case "CollectionToDeck":
-                    LoadTopTable_Collection();
-                    LoadBottomTable_Deck();
-                    TopSearchLabel.Text = "Collection";
-                    BottomSearchLabel.Text = "Deck";
-                    ActionBarLabel.Text =
-                        "Select a card above to add to your deck below";
+
+                case "PoolToArchenemy":
+                    LoadTopTable_Archenemy();
+                    LoadBottomTable_ArchenemyCollection();
+                    TopSearchLabel.Text = "Archenemy  (read only)";
+                    BottomTableLabel.Text = "My Archenemy";
+                    ActionBarLabel.Text = "Select a card → Enter to add";
+                    break;
+
+                case "PoolToVanguard":
+                    LoadTopTable_Vanguard();
+                    LoadBottomTable_VanguardCollection();
+                    TopSearchLabel.Text = "Vanguard  (read only)";
+                    BottomTableLabel.Text = "My Vanguard";
+                    ActionBarLabel.Text = "Select a card → Enter to add";
+                    break;
+
+                case "PoolToTokens":
+                    LoadTopTable_Tokens();
+                    LoadBottomTable_TokenCollection();
+                    TopSearchLabel.Text = "Token Database  (read only)";
+                    BottomTableLabel.Text = "My Tokens";
+                    ActionBarLabel.Text = "Select a card → Enter to add";
+                    break;
+
+                case "PoolToArtSeries":
+                    LoadTopTable_ArtSeries();
+                    LoadBottomTable_ArtSeriesCollection();
+                    TopSearchLabel.Text = "Art Series  (read only)";
+                    BottomTableLabel.Text = "My Art Series";
+                    ActionBarLabel.Text = "Select a card → Enter to add";
                     break;
             }
         }
 
-        private void SetBottomTableVisibility(bool visible)
+        // ── Lock state ───────────────────────────────────────────────────────
+        private void LoadLockState()
         {
-            if (BottomDataGrid?.Parent is not Grid bottomGrid) return;
-            if (bottomGrid.Parent is not Grid parentGrid) return;
+            string key = LockKeyPrefix + _currentMode;
+            using var db = new AppDbContext();
+            var setting = db.AppSettings
+                .FirstOrDefault(s => s.Key == key);
 
-            if (visible)
+            _bottomLocked = setting?.Value == "true";
+            UpdateLockUI();
+        }
+
+        private void SaveLockState()
+        {
+            string key = LockKeyPrefix + _currentMode;
+            using var db = new AppDbContext();
+            var setting = db.AppSettings
+                .FirstOrDefault(s => s.Key == key);
+
+            if (setting == null)
             {
-                parentGrid.RowDefinitions[1].Height =
-                    new GridLength(44);
-                parentGrid.RowDefinitions[2].Height =
-                    new GridLength(1, GridUnitType.Star);
+                db.AppSettings.Add(new AppSetting
+                {
+                    Key = key,
+                    Value = _bottomLocked ? "true" : "false"
+                });
             }
             else
             {
-                parentGrid.RowDefinitions[1].Height =
-                    new GridLength(0);
-                parentGrid.RowDefinitions[2].Height =
-                    new GridLength(0);
+                setting.Value = _bottomLocked ? "true" : "false";
             }
+            db.SaveChanges();
+        }
+
+        private void UpdateLockUI()
+        {
+            // Bottom lock indicator
+            if (BottomLockIndicator != null)
+                BottomLockIndicator.Visibility = _bottomLocked
+                    ? Visibility.Visible : Visibility.Collapsed;
+
+            // Lock button icon
+            if (BtnLock != null)
+                BtnLock.Content = _bottomLocked ? "\uE1F7" : "\uE1F6";
+
+            UpdateToolbarState();
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -207,65 +196,35 @@ namespace BreakersOfE
                              .ThenBy(c => c.SetCode)
                              .ToList();
 
-            var filtered = FilterService.Apply(all, _topFilter, _topSearch);
+            var filtered = FilterService.Apply(all, _topFilter, _searchText);
             for (int i = 0; i < filtered.Count; i++)
                 filtered[i].RowIndex = i;
 
             TopDataGrid.ItemsSource = filtered;
-            UpdateRowCount(filtered.Count, "Pool", true);
+            UpdateRowCount(filtered.Count, "Pool");
             SetStatus($"Pool — {filtered.Count:N0} cards");
         }
 
-        private void LoadTopTable_Collection()
-        {
-            using var db = new AppDbContext();
-            var rows = BuildCollectionRows(db);
-            var filtered = FilterService.Apply(rows, _topFilter, _topSearch);
-            for (int i = 0; i < filtered.Count; i++)
-                filtered[i].RowIndex = i;
-
-            TopDataGrid.ItemsSource = filtered;
-            UpdateRowCount(filtered.Count, "Collection", true);
-            SetStatus($"Collection — {filtered.Count:N0} entries");
-        }
-
-        private void LoadTopTable_Tokens()
-        {
-            using var db = new AppDbContext();
-            var all = db.TokenCards.AsNoTracking()
-                             .OrderBy(c => c.Name)
-                             .ThenBy(c => c.SetCode)
-                             .ToList();
-
-            var filtered = FilterService.Apply(all, _topFilter, _topSearch);
-            for (int i = 0; i < filtered.Count; i++)
-                filtered[i].RowIndex = i;
-
-            TopDataGrid.ItemsSource = filtered;
-            UpdateRowCount(filtered.Count, "Tokens", true);
-            SetStatus($"Tokens — {filtered.Count:N0} cards");
-        }
-
-        private void LoadTopTable_Planar()
+        private void LoadTopTable_Planechase()
         {
             using var db = new AppDbContext();
             var cards = db.PlanarCards.AsNoTracking()
                              .OrderBy(c => c.Name).ToList();
             for (int i = 0; i < cards.Count; i++) cards[i].RowIndex = i;
             TopDataGrid.ItemsSource = cards;
-            UpdateRowCount(cards.Count, "Planar", true);
-            SetStatus($"Planar — {cards.Count:N0} cards");
+            UpdateRowCount(cards.Count, "Planechase");
+            SetStatus($"Planechase — {cards.Count:N0} cards");
         }
 
-        private void LoadTopTable_Schemes()
+        private void LoadTopTable_Archenemy()
         {
             using var db = new AppDbContext();
             var cards = db.SchemeCards.AsNoTracking()
                              .OrderBy(c => c.Name).ToList();
             for (int i = 0; i < cards.Count; i++) cards[i].RowIndex = i;
             TopDataGrid.ItemsSource = cards;
-            UpdateRowCount(cards.Count, "Schemes", true);
-            SetStatus($"Schemes — {cards.Count:N0} cards");
+            UpdateRowCount(cards.Count, "Archenemy");
+            SetStatus($"Archenemy — {cards.Count:N0} cards");
         }
 
         private void LoadTopTable_Vanguard()
@@ -275,19 +234,22 @@ namespace BreakersOfE
                              .OrderBy(c => c.Name).ToList();
             for (int i = 0; i < cards.Count; i++) cards[i].RowIndex = i;
             TopDataGrid.ItemsSource = cards;
-            UpdateRowCount(cards.Count, "Vanguard", true);
+            UpdateRowCount(cards.Count, "Vanguard");
             SetStatus($"Vanguard — {cards.Count:N0} cards");
         }
 
-        private void LoadTopTable_Conspiracy()
+        private void LoadTopTable_Tokens()
         {
             using var db = new AppDbContext();
-            var cards = db.ConspiracyCards.AsNoTracking()
-                             .OrderBy(c => c.Name).ToList();
-            for (int i = 0; i < cards.Count; i++) cards[i].RowIndex = i;
-            TopDataGrid.ItemsSource = cards;
-            UpdateRowCount(cards.Count, "Conspiracy", true);
-            SetStatus($"Conspiracy — {cards.Count:N0} cards");
+            var all = db.TokenCards.AsNoTracking()
+                             .OrderBy(c => c.Name)
+                             .ThenBy(c => c.SetCode).ToList();
+            var filtered = FilterService.Apply(all, _topFilter, _searchText);
+            for (int i = 0; i < filtered.Count; i++)
+                filtered[i].RowIndex = i;
+            TopDataGrid.ItemsSource = filtered;
+            UpdateRowCount(filtered.Count, "Tokens");
+            SetStatus($"Tokens — {filtered.Count:N0} cards");
         }
 
         private void LoadTopTable_ArtSeries()
@@ -298,7 +260,7 @@ namespace BreakersOfE
                              .ThenBy(c => c.SetCode).ToList();
             for (int i = 0; i < cards.Count; i++) cards[i].RowIndex = i;
             TopDataGrid.ItemsSource = cards;
-            UpdateRowCount(cards.Count, "Art Series", true);
+            UpdateRowCount(cards.Count, "Art Series");
             SetStatus($"Art Series — {cards.Count:N0} cards");
         }
 
@@ -309,20 +271,175 @@ namespace BreakersOfE
         {
             using var db = new AppDbContext();
             var rows = BuildCollectionRows(db);
-            var filtered = FilterService.Apply(
-                rows, _bottomFilter, _bottomSearch);
+            var filtered = FilterService.Apply(rows, _bottomFilter,
+                string.Empty);
             for (int i = 0; i < filtered.Count; i++)
                 filtered[i].RowIndex = i;
-
             BottomDataGrid.ItemsSource = filtered;
-            UpdateRowCount(filtered.Count, "Collection", false);
         }
 
-        private void LoadBottomTable_Deck()
+        private void LoadBottomTable_PlanechaseCollection()
         {
-            BottomDataGrid.ItemsSource = null;
-            BottomSearchLabel.Text = "Deck (no deck selected)";
-            UpdateRowCount(0, "Deck", false);
+            using var db = new AppDbContext();
+            var rows = db.PlanarCollectionEntries.AsNoTracking()
+                .Join(db.PlanarCards.AsNoTracking(),
+                    ce => ce.PlanarId, pc => pc.PlanarId,
+                    (ce, pc) => new CollectionDisplayRow
+                    {
+                        CollectionEntryId = ce.PlanarCollectionEntryId,
+                        Name = pc.Name,
+                        SetCode = pc.SetCode,
+                        SetName = pc.SetName,
+                        CollectorNumber = pc.CollectorNumber,
+                        TypeLine = pc.TypeLine,
+                        OracleText = pc.OracleText,
+                        FlavorText = pc.FlavorText,
+                        Artist = pc.Artist,
+                        Rarity = pc.Rarity,
+                        IsFoil = pc.IsFoil,
+                        IsNonFoil = pc.IsNonFoil,
+                        ImageNormalUrl = pc.ImageNormalUrl,
+                        LocalImagePath = pc.LocalImagePath,
+                        Quantity = ce.Quantity,
+                        FoilQuantity = ce.FoilQuantity,
+                        Condition = ce.Condition,
+                        Language = ce.Language,
+                        StorageLocation = ce.StorageLocation
+                    })
+                .OrderBy(x => x.Name).ToList();
+            for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
+            BottomDataGrid.ItemsSource = rows;
+        }
+
+        private void LoadBottomTable_ArchenemyCollection()
+        {
+            using var db = new AppDbContext();
+            var rows = db.SchemeCollectionEntries.AsNoTracking()
+                .Join(db.SchemeCards.AsNoTracking(),
+                    ce => ce.SchemeId, sc => sc.SchemeId,
+                    (ce, sc) => new CollectionDisplayRow
+                    {
+                        CollectionEntryId = ce.SchemeCollectionEntryId,
+                        Name = sc.Name,
+                        SetCode = sc.SetCode,
+                        SetName = sc.SetName,
+                        CollectorNumber = sc.CollectorNumber,
+                        TypeLine = sc.TypeLine,
+                        OracleText = sc.OracleText,
+                        FlavorText = sc.FlavorText,
+                        Artist = sc.Artist,
+                        Rarity = sc.Rarity,
+                        IsFoil = sc.IsFoil,
+                        IsNonFoil = sc.IsNonFoil,
+                        ImageNormalUrl = sc.ImageNormalUrl,
+                        LocalImagePath = sc.LocalImagePath,
+                        Quantity = ce.Quantity,
+                        FoilQuantity = ce.FoilQuantity,
+                        Condition = ce.Condition,
+                        Language = ce.Language,
+                        StorageLocation = ce.StorageLocation
+                    })
+                .OrderBy(x => x.Name).ToList();
+            for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
+            BottomDataGrid.ItemsSource = rows;
+        }
+
+        private void LoadBottomTable_VanguardCollection()
+        {
+            using var db = new AppDbContext();
+            var rows = db.VanguardCollectionEntries.AsNoTracking()
+                .Join(db.VanguardCards.AsNoTracking(),
+                    ce => ce.VanguardId, vc => vc.VanguardId,
+                    (ce, vc) => new CollectionDisplayRow
+                    {
+                        CollectionEntryId = ce.VanguardCollectionEntryId,
+                        Name = vc.Name,
+                        SetCode = vc.SetCode,
+                        SetName = vc.SetName,
+                        CollectorNumber = vc.CollectorNumber,
+                        TypeLine = vc.TypeLine,
+                        OracleText = vc.OracleText,
+                        FlavorText = vc.FlavorText,
+                        Artist = vc.Artist,
+                        Rarity = vc.Rarity,
+                        IsFoil = vc.IsFoil,
+                        IsNonFoil = vc.IsNonFoil,
+                        ImageNormalUrl = vc.ImageNormalUrl,
+                        LocalImagePath = vc.LocalImagePath,
+                        Quantity = ce.Quantity,
+                        FoilQuantity = ce.FoilQuantity,
+                        Condition = ce.Condition,
+                        Language = ce.Language,
+                        StorageLocation = ce.StorageLocation
+                    })
+                .OrderBy(x => x.Name).ToList();
+            for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
+            BottomDataGrid.ItemsSource = rows;
+        }
+
+        private void LoadBottomTable_TokenCollection()
+        {
+            using var db = new AppDbContext();
+            var rows = db.TokenCollectionEntries.AsNoTracking()
+                .Join(db.TokenCards.AsNoTracking(),
+                    ce => ce.TokenId, tc => tc.TokenId,
+                    (ce, tc) => new CollectionDisplayRow
+                    {
+                        CollectionEntryId = ce.TokenCollectionEntryId,
+                        Name = tc.Name,
+                        SetCode = tc.SetCode,
+                        SetName = tc.SetName,
+                        CollectorNumber = tc.CollectorNumber,
+                        TypeLine = tc.TypeLine,
+                        OracleText = tc.OracleText,
+                        FlavorText = tc.FlavorText,
+                        Artist = tc.Artist,
+                        Rarity = tc.Rarity,
+                        IsFoil = tc.IsFoil,
+                        IsNonFoil = tc.IsNonFoil,
+                        ImageNormalUrl = tc.ImageNormalUrl,
+                        LocalImagePath = tc.LocalImagePath,
+                        Quantity = ce.Quantity,
+                        FoilQuantity = ce.FoilQuantity,
+                        Condition = ce.Condition,
+                        Language = ce.Language,
+                        StorageLocation = ce.StorageLocation
+                    })
+                .OrderBy(x => x.Name).ToList();
+            for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
+            BottomDataGrid.ItemsSource = rows;
+        }
+
+        private void LoadBottomTable_ArtSeriesCollection()
+        {
+            using var db = new AppDbContext();
+            var rows = db.ArtSeriesCollectionEntries.AsNoTracking()
+                .Join(db.ArtSeriesCards.AsNoTracking(),
+                    ce => ce.ArtSeriesId, ac => ac.ArtSeriesId,
+                    (ce, ac) => new CollectionDisplayRow
+                    {
+                        CollectionEntryId = ce.ArtSeriesCollectionEntryId,
+                        Name = ac.Name,
+                        SetCode = ac.SetCode,
+                        SetName = ac.SetName,
+                        CollectorNumber = ac.CollectorNumber,
+                        TypeLine = ac.TypeLine,
+                        FlavorText = ac.FlavorText,
+                        Artist = ac.Artist,
+                        Rarity = ac.Rarity,
+                        IsFoil = ac.IsFoil,
+                        IsNonFoil = ac.IsNonFoil,
+                        ImageNormalUrl = ac.ImageNormalUrl,
+                        LocalImagePath = ac.LocalImagePath,
+                        Quantity = ce.Quantity,
+                        FoilQuantity = ce.FoilQuantity,
+                        Condition = ce.Condition,
+                        Language = ce.Language,
+                        StorageLocation = ce.StorageLocation
+                    })
+                .OrderBy(x => x.Name).ToList();
+            for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
+            BottomDataGrid.ItemsSource = rows;
         }
 
         // ── Shared collection row builder ────────────────────────────────────
@@ -368,65 +485,37 @@ namespace BreakersOfE
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // COLLECTION DATA HELPERS
+        // REFRESH BOTTOM
         // ════════════════════════════════════════════════════════════════════
-        private List<object> GetTradeBinderRows()
+        private void RefreshBottom()
         {
-            using var db = new AppDbContext();
-            return db.TradeBinderEntries.AsNoTracking()
-                .ToList().Cast<object>().ToList();
-        }
+            // Remember selected entry ID before refresh
+            int? selectedId = null;
+            if (BottomDataGrid.SelectedItem is CollectionDisplayRow sel)
+                selectedId = sel.CollectionEntryId;
 
-        private List<object> GetMyTokenRows()
-        {
-            using var db = new AppDbContext();
-            return db.TokenCollectionEntries.AsNoTracking()
-                .ToList().Cast<object>().ToList();
-        }
-
-        private List<object> GetMyPlanarRows()
-        {
-            using var db = new AppDbContext();
-            return db.PlanarCollectionEntries.AsNoTracking()
-                .ToList().Cast<object>().ToList();
-        }
-
-        private List<object> GetMySchemeRows()
-        {
-            using var db = new AppDbContext();
-            return db.SchemeCollectionEntries.AsNoTracking()
-                .ToList().Cast<object>().ToList();
-        }
-
-        private List<object> GetMyArtSeriesRows()
-        {
-            using var db = new AppDbContext();
-            return db.ArtSeriesCollectionEntries.AsNoTracking()
-                .ToList().Cast<object>().ToList();
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        // DASHBOARD
-        // ════════════════════════════════════════════════════════════════════
-        private void LoadDashboard()
-        {
-            using var db = new AppDbContext();
-            var stats = new DashboardStats
+            switch (_currentMode)
             {
-                PoolCount = db.PoolCards.Count(),
-                TokenCount = db.TokenCards.Count(),
-                PlanarCount = db.PlanarCards.Count(),
-                SchemeCount = db.SchemeCards.Count(),
-                VanguardCount = db.VanguardCards.Count(),
-                ConspiracyCount = db.ConspiracyCards.Count(),
-                ArtSeriesCount = db.ArtSeriesCards.Count(),
-                CollectionCount = db.CollectionEntries.Count(),
-                TradeBinderCount = db.TradeBinderEntries.Count(),
-                DeckCount = db.Decks.Count()
-            };
-            TopDataGrid.ItemsSource = new List<DashboardStats> { stats };
-            TopSearchLabel.Text = "Dashboard";
-            SetStatus("Dashboard loaded.");
+                case "PoolToCollection": LoadBottomTable_Collection(); break;
+                case "PoolToPlanechase": LoadBottomTable_PlanechaseCollection(); break;
+                case "PoolToArchenemy": LoadBottomTable_ArchenemyCollection(); break;
+                case "PoolToVanguard": LoadBottomTable_VanguardCollection(); break;
+                case "PoolToTokens": LoadBottomTable_TokenCollection(); break;
+                case "PoolToArtSeries": LoadBottomTable_ArtSeriesCollection(); break;
+            }
+
+            // Restore selection
+            if (selectedId.HasValue &&
+                BottomDataGrid.ItemsSource is List<CollectionDisplayRow> rows)
+            {
+                var match = rows.FirstOrDefault(
+                    r => r.CollectionEntryId == selectedId.Value);
+                if (match != null)
+                {
+                    BottomDataGrid.SelectedItem = match;
+                    BottomDataGrid.ScrollIntoView(match);
+                }
+            }
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -434,39 +523,56 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void UpdateToolbarState()
         {
-            bool isCollection = _currentMode is "Collection" or
-                                "PoolToCollection" or "CollectionToDeck";
             bool hasTopSel = TopDataGrid?.SelectedItem != null;
             bool hasBottomSel = BottomDataGrid?.SelectedItem != null;
+            bool locked = _bottomLocked;
 
+            // Foil availability — strict check against IsFoil in database
             bool canFoil = false;
             bool canNonFoil = false;
 
-            if (hasTopSel && TopDataGrid.SelectedItem is PoolCard pc)
+            if (hasTopSel)
             {
-                canFoil = pc.IsFoil;
-                canNonFoil = pc.IsNonFoil;
+                canFoil = canNonFoil = false;
+
+                if (TopDataGrid.SelectedItem is PoolCard pc)
+                {
+                    canFoil = pc.IsFoil;
+                    canNonFoil = pc.IsNonFoil;
+                }
+                else if (TopDataGrid.SelectedItem is PlanarCard pl)
+                {
+                    canFoil = pl.IsFoil;
+                    canNonFoil = pl.IsNonFoil;
+                }
+                else if (TopDataGrid.SelectedItem is SchemeCard sc)
+                {
+                    canFoil = sc.IsFoil;
+                    canNonFoil = sc.IsNonFoil;
+                }
+                else if (TopDataGrid.SelectedItem is VanguardCard vc)
+                {
+                    canFoil = vc.IsFoil;
+                    canNonFoil = vc.IsNonFoil;
+                }
+                else if (TopDataGrid.SelectedItem is TokenCard tc)
+                {
+                    canFoil = tc.IsFoil;
+                    canNonFoil = tc.IsNonFoil;
+                }
+                else if (TopDataGrid.SelectedItem is ArtSeriesCard ac)
+                {
+                    canFoil = ac.IsFoil;
+                    canNonFoil = ac.IsNonFoil;
+                }
             }
-            else if (hasTopSel)
-            {
-                canFoil = canNonFoil = true;
-            }
 
-            BtnAdd1.IsEnabled = _isWorkMode && hasTopSel && canNonFoil;
-            BtnAddFoil.IsEnabled = _isWorkMode && hasTopSel && canFoil;
-            TxtQty.IsEnabled = _isWorkMode && hasTopSel;
-            BtnAddQty.IsEnabled = _isWorkMode && hasTopSel;
-            BtnRemove1.IsEnabled = _isWorkMode && hasBottomSel;
-
-            BtnQtyPlus.Visibility = isCollection
-                ? Visibility.Visible : Visibility.Collapsed;
-            BtnQtyMinus.Visibility = isCollection
-                ? Visibility.Visible : Visibility.Collapsed;
-            SepQty.Visibility = isCollection
-                ? Visibility.Visible : Visibility.Collapsed;
-
-            BtnQtyPlus.IsEnabled = isCollection && hasBottomSel;
-            BtnQtyMinus.IsEnabled = isCollection && hasBottomSel;
+            BtnAdd1.IsEnabled = hasTopSel && canNonFoil && !locked;
+            BtnAddFoil.IsEnabled = hasTopSel && canFoil && !locked;
+            TxtQty.IsEnabled = hasTopSel && !locked;
+            BtnAddQty.IsEnabled = hasTopSel && !locked;
+            BtnRemove1.IsEnabled = hasBottomSel && !locked;
+            BtnLock.IsEnabled = true;
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -494,43 +600,31 @@ namespace BreakersOfE
             {
                 case PoolCard pc:
                     ShowPoolCardDetail(pc);
-                    await LoadCardImageAsync(
-                        pc.LocalImagePath, pc.ImageNormalUrl);
+                    await LoadCardImageAsync(pc.LocalImagePath, pc.ImageNormalUrl);
                     break;
                 case TokenCard tc:
                     ShowTokenCardDetail(tc);
-                    await LoadCardImageAsync(
-                        tc.LocalImagePath, tc.ImageNormalUrl);
+                    await LoadCardImageAsync(tc.LocalImagePath, tc.ImageNormalUrl);
                     break;
                 case PlanarCard pl:
                     ShowPlanarCardDetail(pl);
-                    await LoadCardImageAsync(
-                        pl.LocalImagePath, pl.ImageNormalUrl);
+                    await LoadCardImageAsync(pl.LocalImagePath, pl.ImageNormalUrl);
                     break;
                 case SchemeCard sc:
                     ShowSchemeCardDetail(sc);
-                    await LoadCardImageAsync(
-                        sc.LocalImagePath, sc.ImageNormalUrl);
+                    await LoadCardImageAsync(sc.LocalImagePath, sc.ImageNormalUrl);
                     break;
                 case VanguardCard vc:
                     ShowVanguardCardDetail(vc);
-                    await LoadCardImageAsync(
-                        vc.LocalImagePath, vc.ImageNormalUrl);
-                    break;
-                case ConspiracyCard cc:
-                    ShowConspiracyCardDetail(cc);
-                    await LoadCardImageAsync(
-                        cc.LocalImagePath, cc.ImageNormalUrl);
+                    await LoadCardImageAsync(vc.LocalImagePath, vc.ImageNormalUrl);
                     break;
                 case ArtSeriesCard ac:
                     ShowArtSeriesCardDetail(ac);
-                    await LoadCardImageAsync(
-                        ac.LocalImagePath, ac.ImageNormalUrl);
+                    await LoadCardImageAsync(ac.LocalImagePath, ac.ImageNormalUrl);
                     break;
                 case CollectionDisplayRow cr:
                     ShowCollectionRowDetail(cr);
-                    await LoadCardImageAsync(
-                        cr.LocalImagePath, cr.ImageNormalUrl);
+                    await LoadCardImageAsync(cr.LocalImagePath, cr.ImageNormalUrl);
                     break;
                 default:
                     ClearDetailPanel();
@@ -539,43 +633,82 @@ namespace BreakersOfE
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // ENTER KEY — add card from top table
+        // ENTER KEY — PreviewKeyDown fixes WPF DataGrid capture issue
         // ════════════════════════════════════════════════════════════════════
-        private void TopDataGrid_KeyDown(object sender, KeyEventArgs e)
+        private void TopDataGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key != Key.Enter || !_isWorkMode) return;
+            if (e.Key != Key.Enter || _bottomLocked) return;
 
-            if (TopDataGrid.SelectedItem is PoolCard card)
+            bool shift = Keyboard.IsKeyDown(Key.LeftShift) ||
+                         Keyboard.IsKeyDown(Key.RightShift);
+
+            bool handled = false;
+
+            switch (TopDataGrid.SelectedItem)
             {
-                bool shift = Keyboard.IsKeyDown(Key.LeftShift) ||
-                             Keyboard.IsKeyDown(Key.RightShift);
+                case PoolCard pc:
+                    if (shift && pc.IsFoil)
+                    { AddToPoolCollection(pc.PoolId, pc.Name, 1, true); handled = true; }
+                    else if (!shift && pc.IsNonFoil)
+                    { AddToPoolCollection(pc.PoolId, pc.Name, 1, false); handled = true; }
+                    else if (pc.IsFoil)
+                    { AddToPoolCollection(pc.PoolId, pc.Name, 1, true); handled = true; }
+                    break;
 
-                if (shift && card.IsFoil)
-                    AddToCollection(card, 1, foil: true);
-                else if (!shift && card.IsNonFoil)
-                    AddToCollection(card, 1, foil: false);
-                else if (card.IsFoil)
-                    AddToCollection(card, 1, foil: true);
+                case PlanarCard pl:
+                    AddToSpecialCollection("Planechase", pl.PlanarId,
+                        pl.Name, 1, shift && pl.IsFoil);
+                    handled = true;
+                    break;
 
-                e.Handled = true;
+                case SchemeCard sc:
+                    AddToSpecialCollection("Archenemy", sc.SchemeId,
+                        sc.Name, 1, shift && sc.IsFoil);
+                    handled = true;
+                    break;
+
+                case VanguardCard vc:
+                    AddToSpecialCollection("Vanguard", vc.VanguardId,
+                        vc.Name, 1, false); // vanguard has no foil
+                    handled = true;
+                    break;
+
+                case TokenCard tc:
+                    AddToSpecialCollection("Token", tc.TokenId,
+                        tc.Name, 1, shift && tc.IsFoil);
+                    handled = true;
+                    break;
+
+                case ArtSeriesCard ac:
+                    AddToSpecialCollection("ArtSeries", ac.ArtSeriesId,
+                        ac.Name, 1, shift && ac.IsFoil);
+                    handled = true;
+                    break;
             }
+
+            if (handled) e.Handled = true;
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // SEARCH HANDLERS
+        // SEARCH
         // ════════════════════════════════════════════════════════════════════
-        private void TopSearchBox_TextChanged(object sender,
+        private void SearchBox_TextChanged(object sender,
             TextChangedEventArgs e)
         {
-            _topSearch = TopSearchBox.Text.Trim();
-            LoadCurrentMode();
-        }
+            _searchText = SearchBox.Text.Trim();
 
-        private void BottomSearchBox_TextChanged(object sender,
-            TextChangedEventArgs e)
-        {
-            _bottomSearch = BottomSearchBox.Text.Trim();
-            if (_isWorkMode) LoadBottomTable_Collection();
+            // Only reload top table — search filters source pool
+            switch (_currentMode)
+            {
+                case "PoolToCollection":
+                case "PoolToPlanechase":
+                case "PoolToArchenemy":
+                case "PoolToVanguard":
+                case "PoolToTokens":
+                case "PoolToArtSeries":
+                    LoadCurrentMode();
+                    break;
+            }
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -597,7 +730,7 @@ namespace BreakersOfE
             {
                 _bottomFilter.Clear();
                 BottomFilterSummary.Text = "No filter active";
-                if (_isWorkMode) LoadBottomTable_Collection();
+                RefreshBottom();
             }
         }
 
@@ -615,14 +748,13 @@ namespace BreakersOfE
             _bottomFilter.Clear();
             ChkBottomFilter.IsChecked = false;
             BottomFilterSummary.Text = "No filter active";
-            if (_isWorkMode) LoadBottomTable_Collection();
+            RefreshBottom();
         }
 
         private void BtnTopFilterCustomize_Click(object sender,
             RoutedEventArgs e)
         {
-            // TODO — FilterWindow (Round 4)
-            MessageBox.Show("Filter window coming in the next step!",
+            MessageBox.Show("Filter window coming soon!",
                 "Filter", MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
@@ -630,33 +762,32 @@ namespace BreakersOfE
         private void BtnBottomFilterCustomize_Click(object sender,
             RoutedEventArgs e)
         {
-            // TODO — FilterWindow (Round 4)
-            MessageBox.Show("Filter window coming in the next step!",
+            MessageBox.Show("Filter window coming soon!",
                 "Filter", MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
 
-        private void BtnFilterTop_Click(object sender, RoutedEventArgs e) =>
+        private void BtnFilter_Click(object sender, RoutedEventArgs e) =>
             BtnTopFilterCustomize_Click(sender, e);
 
         // ════════════════════════════════════════════════════════════════════
-        // TOOLBAR ACTION BUTTONS
+        // TOOLBAR BUTTONS
         // ════════════════════════════════════════════════════════════════════
         private void BtnAdd1_Click(object sender, RoutedEventArgs e)
         {
-            if (TopDataGrid.SelectedItem is PoolCard card)
-                AddToCollection(card, 1, foil: false);
+            if (_bottomLocked) return;
+            AddFromTopSelection(foil: false, qty: 1);
         }
 
         private void BtnAddFoil_Click(object sender, RoutedEventArgs e)
         {
-            if (TopDataGrid.SelectedItem is PoolCard card)
-                AddToCollection(card, 1, foil: true);
+            if (_bottomLocked) return;
+            AddFromTopSelection(foil: true, qty: 1);
         }
 
         private void BtnAddQty_Click(object sender, RoutedEventArgs e)
         {
-            if (TopDataGrid.SelectedItem is not PoolCard card) return;
+            if (_bottomLocked) return;
             if (!int.TryParse(TxtQty.Text, out int qty) || qty < 1)
             {
                 MessageBox.Show("Please enter a valid quantity.",
@@ -665,152 +796,78 @@ namespace BreakersOfE
                     MessageBoxImage.Warning);
                 return;
             }
-            AddToCollection(card, qty, foil: false);
+            AddFromTopSelection(foil: false, qty: qty);
         }
 
         private void BtnRemove1_Click(object sender, RoutedEventArgs e)
         {
+            if (_bottomLocked) return;
             if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
-                RemoveFromCollection(row, qty: 1, all: false);
+                RemoveFromCollection(row, 1, false);
         }
 
-        private void BtnQtyPlus_Click(object sender, RoutedEventArgs e)
+        private void BtnLock_Click(object sender, RoutedEventArgs e)
         {
-            if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
-                AdjustCollectionQty(row, delta: 1, foil: false);
+            _bottomLocked = !_bottomLocked;
+            SaveLockState();
+            UpdateLockUI();
+            SetStatus(_bottomLocked
+                ? "Collection locked — editing disabled."
+                : "Collection unlocked — editing enabled.");
         }
 
-        private void BtnQtyMinus_Click(object sender, RoutedEventArgs e)
+        // ── Route add from top selection ─────────────────────────────────────
+        private void AddFromTopSelection(bool foil, int qty)
         {
-            if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
-                AdjustCollectionQty(row, delta: -1, foil: false);
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        // INLINE ROW +/- BUTTONS
-        // ════════════════════════════════════════════════════════════════════
-        private void BtnQtyPlus_Row_Click(object sender, RoutedEventArgs e)
-        {
-            if ((sender as Button)?.Tag is CollectionDisplayRow row)
-                AdjustCollectionQty(row, 1, foil: false);
-        }
-
-        private void BtnQtyMinus_Row_Click(object sender, RoutedEventArgs e)
-        {
-            if ((sender as Button)?.Tag is CollectionDisplayRow row)
-                AdjustCollectionQty(row, -1, foil: false);
-        }
-
-        private void BtnFoilQtyPlus_Row_Click(object sender,
-            RoutedEventArgs e)
-        {
-            if ((sender as Button)?.Tag is CollectionDisplayRow row)
-                AdjustCollectionQty(row, 1, foil: true);
-        }
-
-        private void BtnFoilQtyMinus_Row_Click(object sender,
-            RoutedEventArgs e)
-        {
-            if ((sender as Button)?.Tag is CollectionDisplayRow row)
-                AdjustCollectionQty(row, -1, foil: true);
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        // INLINE ROW TEXT BOX
-        // ════════════════════════════════════════════════════════════════════
-        private void TxtQtyRow_TextChanged(object sender,
-            TextChangedEventArgs e)
-        {
-            if (sender is TextBox tb &&
-                tb.Tag is CollectionDisplayRow row &&
-                int.TryParse(tb.Text, out int qty))
-                SetCollectionQty(row, qty, foil: false);
-        }
-
-        private void TxtFoilQtyRow_TextChanged(object sender,
-            TextChangedEventArgs e)
-        {
-            if (sender is TextBox tb &&
-                tb.Tag is CollectionDisplayRow row &&
-                int.TryParse(tb.Text, out int qty))
-                SetCollectionQty(row, qty, foil: true);
-        }
-
-        private void TxtQtyRow_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (sender is TextBox tb &&
-                tb.Tag is CollectionDisplayRow row)
+            switch (TopDataGrid.SelectedItem)
             {
-                if (e.Key == Key.Up)
-                { AdjustCollectionQty(row, 1, false); e.Handled = true; }
-                else if (e.Key == Key.Down)
-                { AdjustCollectionQty(row, -1, false); e.Handled = true; }
-            }
-        }
-
-        private void TxtFoilQtyRow_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (sender is TextBox tb &&
-                tb.Tag is CollectionDisplayRow row)
-            {
-                if (e.Key == Key.Up)
-                { AdjustCollectionQty(row, 1, true); e.Handled = true; }
-                else if (e.Key == Key.Down)
-                { AdjustCollectionQty(row, -1, true); e.Handled = true; }
+                case PoolCard pc:
+                    if (foil && !pc.IsFoil) return; // strict foil check
+                    if (!foil && !pc.IsNonFoil) return;
+                    AddToPoolCollection(pc.PoolId, pc.Name, qty, foil);
+                    break;
+                case PlanarCard pl:
+                    if (foil && !pl.IsFoil) return;
+                    AddToSpecialCollection("Planechase", pl.PlanarId,
+                        pl.Name, qty, foil);
+                    break;
+                case SchemeCard sc:
+                    if (foil && !sc.IsFoil) return;
+                    AddToSpecialCollection("Archenemy", sc.SchemeId,
+                        sc.Name, qty, foil);
+                    break;
+                case VanguardCard vc:
+                    AddToSpecialCollection("Vanguard", vc.VanguardId,
+                        vc.Name, qty, false);
+                    break;
+                case TokenCard tc:
+                    if (foil && !tc.IsFoil) return;
+                    AddToSpecialCollection("Token", tc.TokenId,
+                        tc.Name, qty, foil);
+                    break;
+                case ArtSeriesCard ac:
+                    if (foil && !ac.IsFoil) return;
+                    AddToSpecialCollection("ArtSeries", ac.ArtSeriesId,
+                        ac.Name, qty, foil);
+                    break;
             }
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // CONTEXT MENU
+        // COLLECTION OPERATIONS (ALL AUTO-SAVE)
         // ════════════════════════════════════════════════════════════════════
-        private void CtxRemove1_Click(object sender, RoutedEventArgs e)
-        {
-            if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
-            {
-                var confirm = MessageBox.Show(
-                    $"Remove 1 copy of {row.Name}?",
-                    "Confirm Remove",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-                if (confirm == MessageBoxResult.Yes)
-                    RemoveFromCollection(row, 1, false);
-            }
-        }
-
-        private void CtxRemoveAll_Click(object sender, RoutedEventArgs e)
-        {
-            if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
-            {
-                var confirm = MessageBox.Show(
-                    $"Remove ALL copies of {row.Name} from your collection?\n\nThis cannot be undone.",
-                    "Confirm Remove All",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
-                if (confirm == MessageBoxResult.Yes)
-                    RemoveFromCollection(row, 0, true);
-            }
-        }
-
-        private async void CtxViewDetails_Click(object sender,
-            RoutedEventArgs e)
-        {
-            await HandleSelectionAsync(BottomDataGrid.SelectedItem);
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        // COLLECTION OPERATIONS (AUTO-SAVE)
-        // ════════════════════════════════════════════════════════════════════
-        private void AddToCollection(PoolCard card, int qty, bool foil)
+        private void AddToPoolCollection(int poolId, string name,
+            int qty, bool foil)
         {
             using var db = new AppDbContext();
             var existing = db.CollectionEntries
-                .FirstOrDefault(c => c.PoolId == card.PoolId);
+                .FirstOrDefault(c => c.PoolId == poolId);
 
             if (existing == null)
             {
                 db.CollectionEntries.Add(new CollectionEntry
                 {
-                    PoolId = card.PoolId,
+                    PoolId = poolId,
                     Quantity = foil ? 0 : qty,
                     FoilQuantity = foil ? qty : 0,
                     Condition = "Near Mint",
@@ -827,24 +884,147 @@ namespace BreakersOfE
             }
 
             db.SaveChanges();
-            SetStatus($"Added {qty}x {(foil ? "[Foil] " : "")}" +
-                      $"{card.Name} to collection.");
-            RefreshBottomIfVisible();
+            SetStatus($"Added {qty}x {(foil ? "[Foil] " : "")}{name}.");
+            RefreshBottom();
+        }
+
+        private void AddToSpecialCollection(string type, int cardId,
+            string name, int qty, bool foil)
+        {
+            using var db = new AppDbContext();
+
+            switch (type)
+            {
+                case "Planechase":
+                    var pe = db.PlanarCollectionEntries
+                        .FirstOrDefault(c => c.PlanarId == cardId);
+                    if (pe == null)
+                        db.PlanarCollectionEntries.Add(new PlanarCollectionEntry
+                        {
+                            PlanarId = cardId,
+                            Quantity = foil ? 0 : qty,
+                            FoilQuantity = foil ? qty : 0,
+                            Condition = "Near Mint",
+                            Language = "English",
+                            DateAdded = DateTime.Now,
+                            DateModified = DateTime.Now
+                        });
+                    else
+                    {
+                        if (foil) pe.FoilQuantity += qty;
+                        else pe.Quantity += qty;
+                        pe.DateModified = DateTime.Now;
+                    }
+                    break;
+
+                case "Archenemy":
+                    var se = db.SchemeCollectionEntries
+                        .FirstOrDefault(c => c.SchemeId == cardId);
+                    if (se == null)
+                        db.SchemeCollectionEntries.Add(new SchemeCollectionEntry
+                        {
+                            SchemeId = cardId,
+                            Quantity = foil ? 0 : qty,
+                            FoilQuantity = foil ? qty : 0,
+                            Condition = "Near Mint",
+                            Language = "English",
+                            DateAdded = DateTime.Now,
+                            DateModified = DateTime.Now
+                        });
+                    else
+                    {
+                        if (foil) se.FoilQuantity += qty;
+                        else se.Quantity += qty;
+                        se.DateModified = DateTime.Now;
+                    }
+                    break;
+
+                case "Vanguard":
+                    var ve = db.VanguardCollectionEntries
+                        .FirstOrDefault(c => c.VanguardId == cardId);
+                    if (ve == null)
+                        db.VanguardCollectionEntries.Add(
+                            new VanguardCollectionEntry
+                            {
+                                VanguardId = cardId,
+                                Quantity = qty,
+                                FoilQuantity = 0,
+                                Condition = "Near Mint",
+                                Language = "English",
+                                DateAdded = DateTime.Now,
+                                DateModified = DateTime.Now
+                            });
+                    else
+                    {
+                        ve.Quantity += qty;
+                        ve.DateModified = DateTime.Now;
+                    }
+                    break;
+
+                case "Token":
+                    var te = db.TokenCollectionEntries
+                        .FirstOrDefault(c => c.TokenId == cardId);
+                    if (te == null)
+                        db.TokenCollectionEntries.Add(new TokenCollectionEntry
+                        {
+                            TokenId = cardId,
+                            Quantity = foil ? 0 : qty,
+                            FoilQuantity = foil ? qty : 0,
+                            Condition = "Near Mint",
+                            Language = "English",
+                            DateAdded = DateTime.Now,
+                            DateModified = DateTime.Now
+                        });
+                    else
+                    {
+                        if (foil) te.FoilQuantity += qty;
+                        else te.Quantity += qty;
+                        te.DateModified = DateTime.Now;
+                    }
+                    break;
+
+                case "ArtSeries":
+                    var ae = db.ArtSeriesCollectionEntries
+                        .FirstOrDefault(c => c.ArtSeriesId == cardId);
+                    if (ae == null)
+                        db.ArtSeriesCollectionEntries.Add(
+                            new ArtSeriesCollectionEntry
+                            {
+                                ArtSeriesId = cardId,
+                                Quantity = foil ? 0 : qty,
+                                FoilQuantity = foil ? qty : 0,
+                                Condition = "Near Mint",
+                                Language = "English",
+                                DateAdded = DateTime.Now,
+                                DateModified = DateTime.Now
+                            });
+                    else
+                    {
+                        if (foil) ae.FoilQuantity += qty;
+                        else ae.Quantity += qty;
+                        ae.DateModified = DateTime.Now;
+                    }
+                    break;
+            }
+
+            db.SaveChanges();
+            SetStatus($"Added {qty}x {(foil ? "[Foil] " : "")}{name}.");
+            RefreshBottom();
         }
 
         private void RemoveFromCollection(
             CollectionDisplayRow row, int qty, bool all)
         {
             using var db = new AppDbContext();
+
+            // Only handles pool collection for now
             var entry = db.CollectionEntries
                 .FirstOrDefault(c => c.CollectionEntryId ==
                                      row.CollectionEntryId);
             if (entry == null) return;
 
             if (all)
-            {
                 db.CollectionEntries.Remove(entry);
-            }
             else
             {
                 entry.Quantity = Math.Max(0, entry.Quantity - qty);
@@ -854,9 +1034,8 @@ namespace BreakersOfE
             }
 
             db.SaveChanges();
-            SetStatus($"Removed {(all ? "all" : qty.ToString())}x " +
-                      $"{row.Name} from collection.");
-            RefreshBottomIfVisible();
+            SetStatus($"Removed from collection.");
+            RefreshBottom();
         }
 
         private void AdjustCollectionQty(
@@ -879,14 +1058,13 @@ namespace BreakersOfE
                 db.CollectionEntries.Remove(entry);
 
             db.SaveChanges();
-            RefreshBottomIfVisible();
+            RefreshBottom();
         }
 
         private void SetCollectionQty(
             CollectionDisplayRow row, int qty, bool foil)
         {
             if (qty < 0) return;
-
             using var db = new AppDbContext();
             var entry = db.CollectionEntries
                 .FirstOrDefault(c => c.CollectionEntryId ==
@@ -902,15 +1080,138 @@ namespace BreakersOfE
                 db.CollectionEntries.Remove(entry);
 
             db.SaveChanges();
-            // No refresh on keystroke — avoids disrupting typing
         }
 
-        private void RefreshBottomIfVisible()
+        // ════════════════════════════════════════════════════════════════════
+        // INLINE ROW SPINNERS
+        // ════════════════════════════════════════════════════════════════════
+        private void BtnQtyPlus_Row_Click(object sender, RoutedEventArgs e)
         {
-            if (_isWorkMode)
-                LoadBottomTable_Collection();
-            else if (_currentMode == "Collection")
-                LoadTopTable_Collection();
+            if (_bottomLocked) return;
+            if ((sender as Button)?.Tag is CollectionDisplayRow row)
+                AdjustCollectionQty(row, 1, false);
+        }
+
+        private void BtnQtyMinus_Row_Click(object sender, RoutedEventArgs e)
+        {
+            if (_bottomLocked) return;
+            if ((sender as Button)?.Tag is CollectionDisplayRow row)
+                AdjustCollectionQty(row, -1, false);
+        }
+
+        private void BtnFoilQtyPlus_Row_Click(object sender,
+            RoutedEventArgs e)
+        {
+            if (_bottomLocked) return;
+            if ((sender as Button)?.Tag is CollectionDisplayRow row)
+                AdjustCollectionQty(row, 1, true);
+        }
+
+        private void BtnFoilQtyMinus_Row_Click(object sender,
+            RoutedEventArgs e)
+        {
+            if (_bottomLocked) return;
+            if ((sender as Button)?.Tag is CollectionDisplayRow row)
+                AdjustCollectionQty(row, -1, true);
+        }
+
+        private void TxtQtyRow_TextChanged(object sender,
+            TextChangedEventArgs e)
+        {
+            if (_bottomLocked) return;
+            if (sender is TextBox tb &&
+                tb.Tag is CollectionDisplayRow row &&
+                int.TryParse(tb.Text, out int qty))
+                SetCollectionQty(row, qty, false);
+        }
+
+        private void TxtFoilQtyRow_TextChanged(object sender,
+            TextChangedEventArgs e)
+        {
+            if (_bottomLocked) return;
+            if (sender is TextBox tb &&
+                tb.Tag is CollectionDisplayRow row &&
+                int.TryParse(tb.Text, out int qty))
+                SetCollectionQty(row, qty, true);
+        }
+
+        private void TxtQtyRow_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (_bottomLocked) return;
+            if (sender is TextBox tb &&
+                tb.Tag is CollectionDisplayRow row)
+            {
+                if (e.Key == Key.Up)
+                { AdjustCollectionQty(row, 1, false); e.Handled = true; }
+                else if (e.Key == Key.Down)
+                { AdjustCollectionQty(row, -1, false); e.Handled = true; }
+                else if (e.Key == Key.Enter)
+                {
+                    if (int.TryParse(tb.Text, out int qty))
+                        SetCollectionQty(row, qty, false);
+                    RefreshBottom();
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void TxtFoilQtyRow_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (_bottomLocked) return;
+            if (sender is TextBox tb &&
+                tb.Tag is CollectionDisplayRow row)
+            {
+                if (e.Key == Key.Up)
+                { AdjustCollectionQty(row, 1, true); e.Handled = true; }
+                else if (e.Key == Key.Down)
+                { AdjustCollectionQty(row, -1, true); e.Handled = true; }
+                else if (e.Key == Key.Enter)
+                {
+                    if (int.TryParse(tb.Text, out int qty))
+                        SetCollectionQty(row, qty, true);
+                    RefreshBottom();
+                    e.Handled = true;
+                }
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // CONTEXT MENU
+        // ════════════════════════════════════════════════════════════════════
+        private void CtxRemove1_Click(object sender, RoutedEventArgs e)
+        {
+            if (_bottomLocked) return;
+            if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
+            {
+                var r = MessageBox.Show(
+                    $"Remove 1 copy of {row.Name}?",
+                    "Confirm Remove",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                if (r == MessageBoxResult.Yes)
+                    RemoveFromCollection(row, 1, false);
+            }
+        }
+
+        private void CtxRemoveAll_Click(object sender, RoutedEventArgs e)
+        {
+            if (_bottomLocked) return;
+            if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
+            {
+                var r = MessageBox.Show(
+                    $"Remove ALL copies of {row.Name}?\n\nThis cannot be undone.",
+                    "Confirm Remove All",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (r == MessageBoxResult.Yes)
+                    RemoveFromCollection(row, 0, true);
+            }
+        }
+
+        private async void CtxViewDetails_Click(object sender,
+            RoutedEventArgs e)
+        {
+            await HandleSelectionAsync(BottomDataGrid.SelectedItem);
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -1025,28 +1326,9 @@ namespace BreakersOfE
             DetailOracle.Text = c.OracleText;
             DetailFlavor.Text = c.FlavorText;
             DetailArtist.Text = c.Artist;
-            DetailPT.Text = $"Hand: {c.HandModifier}  " +
-                                         $"Life: {c.LifeModifier}";
+            DetailPT.Text =
+                $"Hand: {c.HandModifier}  Life: {c.LifeModifier}";
             DetailPTLabel.Text = "HAND / LIFE MODIFIER";
-            DetailFoilNonFoil.Text = BuildFoilStr(c.IsFoil, c.IsNonFoil);
-            DetailPrices.Text = string.Empty;
-            DetailManaCostPanel.Children.Clear();
-            DetailLegalityPanel.Children.Clear();
-            LoadSetSymbol(c.SetCode);
-        }
-
-        private void ShowConspiracyCardDetail(ConspiracyCard c)
-        {
-            DetailName.Text = c.Name;
-            DetailType.Text = c.TypeLine;
-            DetailSet.Text = $"{c.SetName} ({c.SetCode})";
-            DetailCollectorNumber.Text = c.CollectorNumber;
-            DetailRarity.Text = CapFirst(c.Rarity);
-            DetailOracle.Text = c.OracleText;
-            DetailFlavor.Text = c.FlavorText;
-            DetailArtist.Text = c.Artist;
-            DetailPT.Text = string.Empty;
-            DetailPTLabel.Text = string.Empty;
             DetailFoilNonFoil.Text = BuildFoilStr(c.IsFoil, c.IsNonFoil);
             DetailPrices.Text = string.Empty;
             DetailManaCostPanel.Children.Clear();
@@ -1138,28 +1420,16 @@ namespace BreakersOfE
                             Source = bmpSource,
                             ToolTip = token
                         });
-                    }
-                    else
-                    {
-                        DetailManaCostPanel.Children.Add(new TextBlock
-                        {
-                            Text = token,
-                            FontSize = 11,
-                            Margin = new Thickness(1, 0, 1, 0),
-                            Foreground = System.Windows.Media.Brushes.Gray
-                        });
+                        continue;
                     }
                 }
-                else
+                DetailManaCostPanel.Children.Add(new TextBlock
                 {
-                    DetailManaCostPanel.Children.Add(new TextBlock
-                    {
-                        Text = token,
-                        FontSize = 11,
-                        Margin = new Thickness(1, 0, 1, 0),
-                        Foreground = System.Windows.Media.Brushes.Gray
-                    });
-                }
+                    Text = token,
+                    FontSize = 12,
+                    Margin = new Thickness(1, 0, 1, 0),
+                    Foreground = System.Windows.Media.Brushes.Gray
+                });
             }
         }
 
@@ -1173,7 +1443,11 @@ namespace BreakersOfE
                 {
                     int end = cost.IndexOf('}', i);
                     if (end > i)
-                    { list.Add(cost.Substring(i, end - i + 1)); i = end + 1; continue; }
+                    {
+                        list.Add(cost.Substring(i, end - i + 1));
+                        i = end + 1;
+                        continue;
+                    }
                 }
                 i++;
             }
@@ -1190,7 +1464,6 @@ namespace BreakersOfE
         {
             DetailLegalityPanel.Children.Clear();
             if (string.IsNullOrWhiteSpace(json)) return;
-
             try
             {
                 using var doc = System.Text.Json.JsonDocument.Parse(json);
@@ -1199,12 +1472,10 @@ namespace BreakersOfE
                     "standard", "pioneer", "modern",
                     "legacy", "vintage", "commander", "pauper"
                 };
-
                 foreach (var fmt in formats)
                 {
                     if (!doc.RootElement.TryGetProperty(fmt, out var val))
                         continue;
-
                     string status = val.GetString() ?? "not_legal";
                     string icon = status switch
                     {
@@ -1212,7 +1483,6 @@ namespace BreakersOfE
                         "restricted" => "🔵",
                         _ => "❌"
                     };
-
                     var row = new StackPanel
                     {
                         Orientation = Orientation.Horizontal,
@@ -1228,7 +1498,7 @@ namespace BreakersOfE
                     row.Children.Add(new TextBlock
                     {
                         Text = CapFirst(fmt),
-                        FontSize = 11,
+                        FontSize = 12,
                         Foreground = (System.Windows.Media.Brush)
                             Application.Current.Resources["PrimaryTextBrush"],
                         VerticalAlignment = VerticalAlignment.Center
@@ -1246,21 +1516,18 @@ namespace BreakersOfE
         {
             if (string.IsNullOrWhiteSpace(setCode))
             { DetailSetSymbol.Source = null; return; }
-
             string path = Path.Combine(SetSymbolsFolder,
                 $"{setCode.ToLower()}.png");
-
             if (!File.Exists(path))
             { DetailSetSymbol.Source = null; return; }
-
             DetailSetSymbol.Source = LoadBitmap(path);
         }
 
         // ════════════════════════════════════════════════════════════════════
         // CARD IMAGE
         // ════════════════════════════════════════════════════════════════════
-        private async Task LoadCardImageAsync(
-            string localPath, string remoteUrl)
+        private async Task LoadCardImageAsync(string localPath,
+            string remoteUrl)
         {
             if (!string.IsNullOrWhiteSpace(localPath) &&
                 File.Exists(localPath))
@@ -1318,10 +1585,8 @@ namespace BreakersOfE
                 byte[] header = new byte[5];
                 using (var fs = File.OpenRead(path))
                     fs.Read(header, 0, 5);
-
                 string h = System.Text.Encoding.UTF8.GetString(header);
-                if (h.TrimStart().StartsWith("<"))
-                    return null; // SVG file
+                if (h.TrimStart().StartsWith("<")) return null; // SVG
 
                 var bmp = new BitmapImage();
                 bmp.BeginInit();
@@ -1339,11 +1604,8 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void SetStatus(string msg) => StatusText.Text = msg;
 
-        private void UpdateRowCount(int count, string label, bool top)
-        {
-            if (top)
-                RowCountText.Text = $"{label}: {count:N0} rows";
-        }
+        private void UpdateRowCount(int count, string label) =>
+            RowCountText.Text = $"{label}: {count:N0} rows";
 
         // ════════════════════════════════════════════════════════════════════
         // STRING HELPERS
@@ -1427,49 +1689,8 @@ namespace BreakersOfE
 
         private void MenuAbout_Click(object sender, RoutedEventArgs e) =>
             MessageBox.Show(
-                "Breakers of E\nVersion 0.2\n\n" +
+                "Breakers of E\nVersion 0.3\n\n" +
                 "A Magic: The Gathering collection manager.",
                 "About", MessageBoxButton.OK, MessageBoxImage.Information);
-
-        private void MenuViewPool_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("Pool");
-        private void MenuViewCollection_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("Collection");
-        private void MenuViewTradeBinder_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("TradeBinder");
-        private void MenuViewTokens_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("Tokens");
-        private void MenuViewMyTokens_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("MyTokens");
-        private void MenuViewPlanar_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("Planar");
-        private void MenuViewMyPlanar_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("MyPlanar");
-        private void MenuViewSchemes_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("Schemes");
-        private void MenuViewMySchemes_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("MySchemes");
-        private void MenuViewVanguard_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("Vanguard");
-        private void MenuViewConspiracy_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("Conspiracy");
-        private void MenuViewArtSeries_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("ArtSeries");
-        private void MenuViewMyArtSeries_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("MyArtSeries");
-        private void MenuViewDashboard_Click(object s, RoutedEventArgs e) =>
-            SetModeCombo("Dashboard");
-
-        private void SetModeCombo(string tag)
-        {
-            foreach (ComboBoxItem item in ViewModeComboBox.Items)
-            {
-                if (item.Tag as string == tag)
-                {
-                    ViewModeComboBox.SelectedItem = item;
-                    return;
-                }
-            }
-        }
     }
 }

@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BreakersOfE.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260415224419_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20260418015706_AddSetTypeAndPricing")]
+    partial class AddSetTypeAndPricing
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -102,6 +102,10 @@ namespace BreakersOfE.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SetName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SetType")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -199,93 +203,6 @@ namespace BreakersOfE.Migrations
                     b.HasKey("CollectionEntryId");
 
                     b.ToTable("CollectionEntries");
-                });
-
-            modelBuilder.Entity("BreakersOfE.Models.ConspiracyCard", b =>
-                {
-                    b.Property<int>("ConspiracyId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Artist")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CollectorNumber")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FlavorText")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImageNormalUrl")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImageSmallUrl")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsFavorite")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsFoil")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsNonFoil")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Layout")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LocalImagePath")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OracleId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OracleText")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Rarity")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ReleasedAt")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ScryfallId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SetCode")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SetName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TypeLine")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("ConspiracyId");
-
-                    b.HasIndex("ScryfallId")
-                        .IsUnique();
-
-                    b.ToTable("ConspiracyCards");
                 });
 
             modelBuilder.Entity("BreakersOfE.Models.ConspiracyCollectionEntry", b =>
@@ -480,6 +397,10 @@ namespace BreakersOfE.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SetType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("TypeLine")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -626,6 +547,24 @@ namespace BreakersOfE.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("PriceEur")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("PriceEurFoil")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("PriceTix")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("PriceUsd")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("PriceUsdEtched")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("PriceUsdFoil")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("PricesJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -647,6 +586,10 @@ namespace BreakersOfE.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SetName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SetType")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -746,6 +689,10 @@ namespace BreakersOfE.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SetName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SetType")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -887,6 +834,10 @@ namespace BreakersOfE.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SetName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SetType")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -1068,6 +1019,10 @@ namespace BreakersOfE.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SetName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SetType")
                         .IsRequired()
                         .HasColumnType("TEXT");
 

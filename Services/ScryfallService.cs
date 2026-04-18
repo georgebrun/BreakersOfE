@@ -32,7 +32,6 @@ namespace BreakersOfE.Services
         public int PlanarCardsImported { get; set; }
         public int SchemeCardsImported { get; set; }
         public int VanguardCardsImported { get; set; }
-        public int ConspiracyCardsImported { get; set; }
         public int ArtSeriesCardsImported { get; set; }
         public int SkippedCount { get; set; }
 
@@ -68,11 +67,11 @@ namespace BreakersOfE.Services
         public int CardsWithEmptySetCode { get; set; }
         public bool ColorCountMatchesTotal { get; set; }
         public bool RarityCountMatchesTotal { get; set; }
-        
+
         public int TotalImported =>
-            PoolCardsImported + TokenCardsImported + PlanarCardsImported +
-            SchemeCardsImported + VanguardCardsImported + ConspiracyCardsImported +
-            ArtSeriesCardsImported;
+            PoolCardsImported + TokenCardsImported +
+            PlanarCardsImported + SchemeCardsImported +
+            VanguardCardsImported + ArtSeriesCardsImported;
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -98,7 +97,7 @@ namespace BreakersOfE.Services
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // MAIN ENTRY POINT
+        // MAIN ENTRY POINT — Full update
         // ════════════════════════════════════════════════════════════════════
         public async Task<ImportResult> RunFullUpdateAsync(
             IProgress<ImportProgress> progress,
@@ -143,12 +142,11 @@ namespace BreakersOfE.Services
                 ct.ThrowIfCancellationRequested();
                 BasicVerify(result);
 
-                // Step 7 — Deep verification (API call)
+                // Step 7 — Deep verification
                 Report(progress, "Running deep verification...", 90);
                 ct.ThrowIfCancellationRequested();
                 await DeepVerifyAsync(result, progress, 90, 99, ct);
 
-                // Cleanup
                 try { File.Delete(tempFile); } catch { }
 
                 Report(progress, "Complete!", 100);
@@ -166,6 +164,127 @@ namespace BreakersOfE.Services
             }
 
             return result;
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // PRICE-ONLY UPDATE — updates prices in PoolCards only
+        // ════════════════════════════════════════════════════════════════════
+        public async Task<ImportResult> RunPriceUpdateAsync(
+            IProgress<ImportProgress> progress,
+            CancellationToken ct)
+        {
+            var result = new ImportResult();
+
+            try
+            {
+                // Get bulk data URL
+                Report(progress, "Connecting to Scryfall...", 2);
+                ct.ThrowIfCancellationRequested();
+                string bulkUrl = await GetBulkDataUrlAsync(ct);
+
+                // Download bulk JSON
+                Report(progress, "Downloading price data...", 5);
+                ct.ThrowIfCancellationRequested();
+                string tempFile = Path.Combine(
+                    Path.GetTempPath(), "scryfall_prices.json");
+                await DownloadWithProgressAsync(
+                    bulkUrl, tempFile, progress, 5, 60, ct);
+
+                // Update prices only
+                Report(progress, "Updating prices...", 61);
+                ct.ThrowIfCancellationRequested();
+                await UpdatePricesOnlyAsync(tempFile, progress, 61, 99, ct);
+
+                try { File.Delete(tempFile); } catch { }
+
+                Report(progress, "Prices updated!", 100);
+                result.Success = true;
+            }
+            catch (OperationCanceledException)
+            {
+                result.Success = false;
+                result.ErrorMessage = "Price update cancelled by user.";
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.ErrorMessage = ex.Message;
+            }
+
+            return result;
+        }
+
+        // ── Price-only update logic ──────────────────────────────────────────
+        private async Task UpdatePricesOnlyAsync(
+            string jsonFile,
+            IProgress<ImportProgress> progress,
+            int startPct, int endPct,
+            CancellationToken ct)
+        {
+            await using var fs = File.OpenRead(jsonFile);
+            using var doc = await JsonDocument.ParseAsync(fs,
+                new JsonDocumentOptions { AllowTrailingCommas = true }, ct);
+
+            var cards = doc.RootElement.EnumerateArray().ToList();
+            int total = cards.Count;
+            int updated = 0;
+
+            // Build price lookup from JSON: ScryfallId -> prices
+            var priceLookup = new Dictionary<string, (
+                decimal? usd, decimal? usdFoil, decimal? usdEtched,
+                decimal? eur, decimal? eurFoil, decimal? tix)>();
+
+            foreach (var card in cards)
+            {
+                ct.ThrowIfCancellationRequested();
+                string id = GetString(card, "id");
+                if (string.IsNullOrEmpty(id)) continue;
+
+                var prices = ParsePrices(card);
+                priceLookup[id] = prices;
+            }
+
+            Report(progress, "Applying price updates to database...",
+                startPct + 20, $"{priceLookup.Count:N0} prices loaded");
+
+            // Update in batches of 1000
+            const int batchSize = 1000;
+            using var db = new AppDbContext();
+
+            var poolCards = db.PoolCards.ToList();
+            int i = 0;
+
+            foreach (var poolCard in poolCards)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (priceLookup.TryGetValue(poolCard.ScryfallId,
+                    out var prices))
+                {
+                    poolCard.PriceUsd = prices.usd;
+                    poolCard.PriceUsdFoil = prices.usdFoil;
+                    poolCard.PriceUsdEtched = prices.usdEtched;
+                    poolCard.PriceEur = prices.eur;
+                    poolCard.PriceEurFoil = prices.eurFoil;
+                    poolCard.PriceTix = prices.tix;
+                    updated++;
+                }
+
+                i++;
+                if (i % batchSize == 0)
+                {
+                    await db.SaveChangesAsync(ct);
+                    int pct = startPct + 20 +
+                        (int)((double)i / poolCards.Count *
+                              (endPct - startPct - 20));
+                    Report(progress, "Updating prices...", pct,
+                        $"{i:N0} of {poolCards.Count:N0} cards");
+                }
+            }
+
+            await db.SaveChangesAsync(ct);
+            Report(progress, "Prices updated.", endPct,
+                $"{updated:N0} cards updated");
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -321,6 +440,7 @@ namespace BreakersOfE.Services
             int startPct, int endPct,
             CancellationToken ct)
         {
+            // Clear all card tables
             using (var db = new AppDbContext())
             {
                 await db.Database.ExecuteSqlRawAsync(
@@ -334,8 +454,6 @@ namespace BreakersOfE.Services
                 await db.Database.ExecuteSqlRawAsync(
                     "DELETE FROM VanguardCards", ct);
                 await db.Database.ExecuteSqlRawAsync(
-                    "DELETE FROM ConspiracyCards", ct);
-                await db.Database.ExecuteSqlRawAsync(
                     "DELETE FROM ArtSeriesCards", ct);
             }
 
@@ -345,7 +463,6 @@ namespace BreakersOfE.Services
             var planar = new List<PlanarCard>(batchSize);
             var schemes = new List<SchemeCard>(batchSize);
             var vanguard = new List<VanguardCard>(batchSize);
-            var conspiracy = new List<ConspiracyCard>(batchSize);
             var artSeries = new List<ArtSeriesCard>(batchSize);
 
             await using var fs = File.OpenRead(jsonFile);
@@ -362,9 +479,8 @@ namespace BreakersOfE.Services
 
                 RouteCard(cards[i], GetString(cards[i], "layout"),
                     pool, tokens, planar, schemes,
-                    vanguard, conspiracy, artSeries, result);
+                    vanguard, artSeries, result);
 
-                // Flush batches
                 if (pool.Count >= batchSize)
                 { await FlushBatchAsync(pool, ct); pool.Clear(); }
                 if (tokens.Count >= batchSize)
@@ -375,8 +491,6 @@ namespace BreakersOfE.Services
                 { await FlushBatchAsync(schemes, ct); schemes.Clear(); }
                 if (vanguard.Count >= batchSize)
                 { await FlushBatchAsync(vanguard, ct); vanguard.Clear(); }
-                if (conspiracy.Count >= batchSize)
-                { await FlushBatchAsync(conspiracy, ct); conspiracy.Clear(); }
                 if (artSeries.Count >= batchSize)
                 { await FlushBatchAsync(artSeries, ct); artSeries.Clear(); }
 
@@ -395,16 +509,15 @@ namespace BreakersOfE.Services
             if (planar.Count > 0) await FlushBatchAsync(planar, ct);
             if (schemes.Count > 0) await FlushBatchAsync(schemes, ct);
             if (vanguard.Count > 0) await FlushBatchAsync(vanguard, ct);
-            if (conspiracy.Count > 0) await FlushBatchAsync(conspiracy, ct);
             if (artSeries.Count > 0) await FlushBatchAsync(artSeries, ct);
         }
 
-        // ── Route card to correct table ──────────────────────────────────────
+        // ── Route card to correct table — Conspiracy goes to Pool ────────────
         private static void RouteCard(
             JsonElement card, string layout,
             List<PoolCard> pool, List<TokenCard> tokens,
             List<PlanarCard> planar, List<SchemeCard> schemes,
-            List<VanguardCard> vanguard, List<ConspiracyCard> conspiracy,
+            List<VanguardCard> vanguard,
             List<ArtSeriesCard> artSeries, ImportResult result)
         {
             switch (layout)
@@ -414,26 +527,29 @@ namespace BreakersOfE.Services
                     tokens.Add(ParseTokenCard(card));
                     result.TokenCardsImported++;
                     break;
+
                 case "planar":
                     planar.Add(ParsePlanarCard(card));
                     result.PlanarCardsImported++;
                     break;
+
                 case "scheme":
                     schemes.Add(ParseSchemeCard(card));
                     result.SchemeCardsImported++;
                     break;
+
                 case "vanguard":
                     vanguard.Add(ParseVanguardCard(card));
                     result.VanguardCardsImported++;
                     break;
-                case "conspiracy":
-                    conspiracy.Add(ParseConspiracyCard(card));
-                    result.ConspiracyCardsImported++;
-                    break;
+
                 case "art_series":
                     artSeries.Add(ParseArtSeriesCard(card));
                     result.ArtSeriesCardsImported++;
                     break;
+
+                // Conspiracy cards go into Pool — they are playable cards
+                case "conspiracy":
                 default:
                     var pc = ParsePoolCard(card);
                     pc.IsMeld = layout == "meld";
@@ -483,10 +599,9 @@ namespace BreakersOfE.Services
             CancellationToken ct)
         {
             int downloaded = 0;
-
             using var db = new AppDbContext();
-            var setCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            var setCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var c in db.PoolCards.Select(x => x.SetCode).Distinct())
                 setCodes.Add(c);
             foreach (var c in db.TokenCards.Select(x => x.SetCode).Distinct())
@@ -496,8 +611,6 @@ namespace BreakersOfE.Services
             foreach (var c in db.SchemeCards.Select(x => x.SetCode).Distinct())
                 setCodes.Add(c);
             foreach (var c in db.VanguardCards.Select(x => x.SetCode).Distinct())
-                setCodes.Add(c);
-            foreach (var c in db.ConspiracyCards.Select(x => x.SetCode).Distinct())
                 setCodes.Add(c);
             foreach (var c in db.ArtSeriesCards.Select(x => x.SetCode).Distinct())
                 setCodes.Add(c);
@@ -550,98 +663,107 @@ namespace BreakersOfE.Services
                 db.PlanarCards.Count() +
                 db.SchemeCards.Count() +
                 db.VanguardCards.Count() +
-                db.ConspiracyCards.Count() +
                 db.ArtSeriesCards.Count();
 
-            // Sanity checks
-            int colorTotal = result.WhiteCount + result.BlueCount +
-                             result.BlackCount + result.RedCount +
-                             result.GreenCount + result.MulticolorCount +
-                             result.ColorlessCount + result.LandCount;
+            int colorTotal =
+                result.WhiteCount + result.BlueCount +
+                result.BlackCount + result.RedCount +
+                result.GreenCount + result.MulticolorCount +
+                result.ColorlessCount + result.LandCount;
 
             result.ColorCountMatchesTotal =
                 colorTotal == result.PoolCardsImported;
 
-            int rarityTotal = result.CommonCount + result.UncommonCount +
-                              result.RareCount + result.MythicCount +
-                              result.OtherRarityCount;
+            int rarityTotal =
+                result.CommonCount + result.UncommonCount +
+                result.RareCount + result.MythicCount +
+                result.OtherRarityCount;
 
             result.RarityCountMatchesTotal =
                 rarityTotal == result.PoolCardsImported;
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // STEP 7 — DEEP VERIFICATION (API)
+        // STEP 7 — DEEP VERIFICATION
         // ════════════════════════════════════════════════════════════════════
         private async Task DeepVerifyAsync(
-     ImportResult result,
-     IProgress<ImportProgress> progress,
-     int startPct, int endPct,
-     CancellationToken ct)
+            ImportResult result,
+            IProgress<ImportProgress> progress,
+            int startPct, int endPct,
+            CancellationToken ct)
         {
             using var db = new AppDbContext();
 
-            Report(progress, "Deep verification: checking database integrity...",
+            Report(progress,
+                "Deep verification: checking database integrity...",
                 startPct, string.Empty);
 
-            // Duplicate ScryfallIds
             result.DuplicateScryfallIds = db.PoolCards
                 .GroupBy(c => c.ScryfallId)
                 .Count(g => g.Count() > 1);
 
-            // Cards with no image URL
             result.CardsWithNoImageUrl = db.PoolCards
                 .Count(c => c.ImageNormalUrl == string.Empty ||
                             c.ImageNormalUrl == null);
 
-            // Cards with empty name
             result.CardsWithEmptyName = db.PoolCards
                 .Count(c => c.Name == string.Empty || c.Name == null);
 
-            // Cards with empty set code
             result.CardsWithEmptySetCode = db.PoolCards
                 .Count(c => c.SetCode == string.Empty || c.SetCode == null);
 
-            Report(progress, "Deep verification complete.", endPct, string.Empty);
+            Report(progress, "Deep verification complete.",
+                endPct, string.Empty);
 
             await Task.CompletedTask;
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // CARD PARSERS
+        // CARD PARSERS — all include SetType and pricing
         // ════════════════════════════════════════════════════════════════════
-        private static PoolCard ParsePoolCard(JsonElement c) => new()
+        private static PoolCard ParsePoolCard(JsonElement c)
         {
-            ScryfallId = GetString(c, "id"),
-            OracleId = GetString(c, "oracle_id"),
-            Name = GetString(c, "name"),
-            ManaCost = GetString(c, "mana_cost"),
-            ManaValue = GetDouble(c, "cmc"),
-            TypeLine = GetString(c, "type_line"),
-            OracleText = GetString(c, "oracle_text"),
-            FlavorText = GetString(c, "flavor_text"),
-            Power = GetString(c, "power"),
-            Toughness = GetString(c, "toughness"),
-            LoyaltyOrDefense = GetString(c, "loyalty"),
-            Colors = GetStringArray(c, "colors"),
-            ColorIdentity = GetStringArray(c, "color_identity"),
-            SetCode = GetString(c, "set").ToUpper(),
-            SetName = GetString(c, "set_name"),
-            CollectorNumber = GetString(c, "collector_number"),
-            Rarity = GetString(c, "rarity"),
-            Artist = GetString(c, "artist"),
-            ImageSmallUrl = GetImageUri(c, "small"),
-            ImageNormalUrl = GetImageUri(c, "normal"),
-            Layout = GetString(c, "layout"),
-            IsFoil = GetBool(c, "foil"),
-            IsNonFoil = GetBool(c, "nonfoil"),
-            IsToken = false,
-            ReleasedAt = GetString(c, "released_at"),
-            PricesJson = GetRawJson(c, "prices"),
-            LegalitiesJson = GetRawJson(c, "legalities"),
-            Keywords = GetStringArray(c, "keywords"),
-            LocalImagePath = string.Empty
-        };
+            var prices = ParsePrices(c);
+            return new PoolCard
+            {
+                ScryfallId = GetString(c, "id"),
+                OracleId = GetString(c, "oracle_id"),
+                Name = GetString(c, "name"),
+                ManaCost = GetString(c, "mana_cost"),
+                ManaValue = GetDouble(c, "cmc"),
+                TypeLine = GetString(c, "type_line"),
+                OracleText = GetString(c, "oracle_text"),
+                FlavorText = GetString(c, "flavor_text"),
+                Power = GetString(c, "power"),
+                Toughness = GetString(c, "toughness"),
+                LoyaltyOrDefense = GetString(c, "loyalty"),
+                Colors = GetStringArray(c, "colors"),
+                ColorIdentity = GetStringArray(c, "color_identity"),
+                SetCode = GetString(c, "set").ToUpper(),
+                SetName = GetString(c, "set_name"),
+                SetType = GetString(c, "set_type"),
+                CollectorNumber = GetString(c, "collector_number"),
+                Rarity = GetString(c, "rarity"),
+                Artist = GetString(c, "artist"),
+                ImageSmallUrl = GetImageUri(c, "small"),
+                ImageNormalUrl = GetImageUri(c, "normal"),
+                Layout = GetString(c, "layout"),
+                IsFoil = GetBool(c, "foil"),
+                IsNonFoil = GetBool(c, "nonfoil"),
+                IsToken = false,
+                ReleasedAt = GetString(c, "released_at"),
+                PricesJson = GetRawJson(c, "prices"),
+                LegalitiesJson = GetRawJson(c, "legalities"),
+                Keywords = GetStringArray(c, "keywords"),
+                LocalImagePath = string.Empty,
+                PriceUsd = prices.usd,
+                PriceUsdFoil = prices.usdFoil,
+                PriceUsdEtched = prices.usdEtched,
+                PriceEur = prices.eur,
+                PriceEurFoil = prices.eurFoil,
+                PriceTix = prices.tix
+            };
+        }
 
         private static TokenCard ParseTokenCard(JsonElement c) => new()
         {
@@ -657,6 +779,7 @@ namespace BreakersOfE.Services
             ColorIdentity = GetStringArray(c, "color_identity"),
             SetCode = GetString(c, "set").ToUpper(),
             SetName = GetString(c, "set_name"),
+            SetType = GetString(c, "set_type"),
             CollectorNumber = GetString(c, "collector_number"),
             Rarity = GetString(c, "rarity"),
             Artist = GetString(c, "artist"),
@@ -679,6 +802,7 @@ namespace BreakersOfE.Services
             FlavorText = GetString(c, "flavor_text"),
             SetCode = GetString(c, "set").ToUpper(),
             SetName = GetString(c, "set_name"),
+            SetType = GetString(c, "set_type"),
             CollectorNumber = GetString(c, "collector_number"),
             Rarity = GetString(c, "rarity"),
             Artist = GetString(c, "artist"),
@@ -701,6 +825,7 @@ namespace BreakersOfE.Services
             FlavorText = GetString(c, "flavor_text"),
             SetCode = GetString(c, "set").ToUpper(),
             SetName = GetString(c, "set_name"),
+            SetType = GetString(c, "set_type"),
             CollectorNumber = GetString(c, "collector_number"),
             Rarity = GetString(c, "rarity"),
             Artist = GetString(c, "artist"),
@@ -723,6 +848,7 @@ namespace BreakersOfE.Services
             FlavorText = GetString(c, "flavor_text"),
             SetCode = GetString(c, "set").ToUpper(),
             SetName = GetString(c, "set_name"),
+            SetType = GetString(c, "set_type"),
             CollectorNumber = GetString(c, "collector_number"),
             Rarity = GetString(c, "rarity"),
             Artist = GetString(c, "artist"),
@@ -737,16 +863,16 @@ namespace BreakersOfE.Services
             LocalImagePath = string.Empty
         };
 
-        private static ConspiracyCard ParseConspiracyCard(JsonElement c) => new()
+        private static ArtSeriesCard ParseArtSeriesCard(JsonElement c) => new()
         {
             ScryfallId = GetString(c, "id"),
             OracleId = GetString(c, "oracle_id"),
             Name = GetString(c, "name"),
             TypeLine = GetString(c, "type_line"),
-            OracleText = GetString(c, "oracle_text"),
             FlavorText = GetString(c, "flavor_text"),
             SetCode = GetString(c, "set").ToUpper(),
             SetName = GetString(c, "set_name"),
+            SetType = GetString(c, "set_type"),
             CollectorNumber = GetString(c, "collector_number"),
             Rarity = GetString(c, "rarity"),
             Artist = GetString(c, "artist"),
@@ -759,26 +885,44 @@ namespace BreakersOfE.Services
             LocalImagePath = string.Empty
         };
 
-        private static ArtSeriesCard ParseArtSeriesCard(JsonElement c) => new()
+        // ════════════════════════════════════════════════════════════════════
+        // PRICE PARSER
+        // ════════════════════════════════════════════════════════════════════
+        private static (decimal? usd, decimal? usdFoil, decimal? usdEtched,
+            decimal? eur, decimal? eurFoil, decimal? tix)
+            ParsePrices(JsonElement card)
         {
-            ScryfallId = GetString(c, "id"),
-            OracleId = GetString(c, "oracle_id"),
-            Name = GetString(c, "name"),
-            TypeLine = GetString(c, "type_line"),
-            FlavorText = GetString(c, "flavor_text"),
-            SetCode = GetString(c, "set").ToUpper(),
-            SetName = GetString(c, "set_name"),
-            CollectorNumber = GetString(c, "collector_number"),
-            Rarity = GetString(c, "rarity"),
-            Artist = GetString(c, "artist"),
-            ImageSmallUrl = GetImageUri(c, "small"),
-            ImageNormalUrl = GetImageUri(c, "normal"),
-            Layout = GetString(c, "layout"),
-            IsFoil = GetBool(c, "foil"),
-            IsNonFoil = GetBool(c, "nonfoil"),
-            ReleasedAt = GetString(c, "released_at"),
-            LocalImagePath = string.Empty
-        };
+            if (!card.TryGetProperty("prices", out var prices))
+                return (null, null, null, null, null, null);
+
+            return (
+                GetDecimal(prices, "usd"),
+                GetDecimal(prices, "usd_foil"),
+                GetDecimal(prices, "usd_etched"),
+                GetDecimal(prices, "eur"),
+                GetDecimal(prices, "eur_foil"),
+                GetDecimal(prices, "tix")
+            );
+        }
+
+        private static decimal? GetDecimal(JsonElement el, string prop)
+        {
+            if (!el.TryGetProperty(prop, out var v)) return null;
+            if (v.ValueKind == JsonValueKind.Null) return null;
+            if (v.ValueKind == JsonValueKind.String)
+            {
+                string? s = v.GetString();
+                if (string.IsNullOrEmpty(s)) return null;
+                if (decimal.TryParse(s,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out decimal d))
+                    return d;
+            }
+            if (v.ValueKind == JsonValueKind.Number)
+                return v.GetDecimal();
+            return null;
+        }
 
         // ════════════════════════════════════════════════════════════════════
         // BATCH FLUSH

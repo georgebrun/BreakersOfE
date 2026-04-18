@@ -8,62 +8,6 @@
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen">
 
-    <Window.Resources>
-
-        <!-- ── DataGrid column header style ── -->
-        <Style x:Key="DataGridColumnHeaderStyle"
-               TargetType="DataGridColumnHeader">
-            <Setter Property="Background"
-                    Value="{DynamicResource GridHeaderBrush}"/>
-            <Setter Property="Foreground"
-                    Value="{DynamicResource PrimaryTextBrush}"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderBrush"
-                    Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-            <Setter Property="Padding" Value="6,4"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-
-        <!-- ── DataGrid row style — binds to card color brushes ── -->
-        <Style x:Key="DataGridRowStyle" TargetType="DataGridRow">
-            <Setter Property="Background"
-                    Value="{Binding RowBackgroundBrush}"/>
-            <Setter Property="Foreground"
-                    Value="{Binding RowForegroundBrush}"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="BorderBrush"
-                            Value="{DynamicResource AccentBrush}"/>
-                    <Setter Property="BorderThickness" Value="1"/>
-                </Trigger>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Opacity" Value="0.85"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- ── DataGrid cell style — full border, theme-aware ── -->
-        <Style x:Key="DataGridCellStyle" TargetType="DataGridCell">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush"
-                    Value="{Binding CellBorderBrush}"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-            <Setter Property="Padding" Value="4,2"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="Foreground"
-                            Value="{Binding RowForegroundBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-    </Window.Resources>
-
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="25"/>
@@ -72,7 +16,7 @@
             <RowDefinition Height="25"/>
         </Grid.RowDefinitions>
 
-        <!-- ══════════════════════════════════════════════════════════════════
+        <!-- ══════════════════════════════════════════════════════════════
              ROW 0 — MENU BAR
         ══════════════════════════════════════════════════════════════════ -->
         <Menu Grid.Row="0"
@@ -89,8 +33,7 @@
             </Menu.Resources>
 
             <MenuItem Header="_File">
-                <MenuItem Header="_Preferences"
-                          Click="MenuPreferences_Click"/>
+                <MenuItem Header="_Preferences" Click="MenuPreferences_Click"/>
                 <Separator/>
                 <MenuItem Header="E_xit" Click="MenuExit_Click"/>
             </MenuItem>
@@ -102,42 +45,6 @@
                     <MenuItem Header="_Dark Mode"
                               Click="MenuThemeDark_Click"/>
                 </MenuItem>
-                <Separator/>
-                <MenuItem Header="_Pool"
-                          Click="MenuViewPool_Click"/>
-                <MenuItem Header="_Collection"
-                          Click="MenuViewCollection_Click"/>
-                <MenuItem Header="_Trade Binder"
-                          Click="MenuViewTradeBinder_Click"/>
-                <Separator/>
-                <MenuItem Header="To_kens"
-                          Click="MenuViewTokens_Click"/>
-                <MenuItem Header="My _Tokens"
-                          Click="MenuViewMyTokens_Click"/>
-                <Separator/>
-                <MenuItem Header="P_lanar Cards"
-                          Click="MenuViewPlanar_Click"/>
-                <MenuItem Header="My Planar _Cards"
-                          Click="MenuViewMyPlanar_Click"/>
-                <Separator/>
-                <MenuItem Header="_Schemes"
-                          Click="MenuViewSchemes_Click"/>
-                <MenuItem Header="My _Schemes"
-                          Click="MenuViewMySchemes_Click"/>
-                <Separator/>
-                <MenuItem Header="_Vanguard"
-                          Click="MenuViewVanguard_Click"/>
-                <Separator/>
-                <MenuItem Header="Conspirac_y"
-                          Click="MenuViewConspiracy_Click"/>
-                <Separator/>
-                <MenuItem Header="_Art Series"
-                          Click="MenuViewArtSeries_Click"/>
-                <MenuItem Header="My Art _Series"
-                          Click="MenuViewMyArtSeries_Click"/>
-                <Separator/>
-                <MenuItem Header="_Dashboard"
-                          Click="MenuViewDashboard_Click"/>
             </MenuItem>
 
             <MenuItem Header="_Tools">
@@ -153,7 +60,7 @@
             </MenuItem>
         </Menu>
 
-        <!-- ══════════════════════════════════════════════════════════════════
+        <!-- ══════════════════════════════════════════════════════════════
              ROW 1 — TOOLBAR
         ══════════════════════════════════════════════════════════════════ -->
         <Border Grid.Row="1"
@@ -162,6 +69,7 @@
                 BorderThickness="0,0,0,1">
             <DockPanel Margin="4,0" LastChildFill="False">
 
+                <!-- Update DB -->
                 <Button Name="BtnUpdateDb"
                         Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE117;"
@@ -172,6 +80,7 @@
                 <Separator Style="{DynamicResource ToolbarSeparatorStyle}"
                            DockPanel.Dock="Left"/>
 
+                <!-- Add 1 -->
                 <Button Name="BtnAdd1"
                         Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE109;"
@@ -180,6 +89,7 @@
                         Click="BtnAdd1_Click"
                         DockPanel.Dock="Left" Margin="2,4"/>
 
+                <!-- Add Foil -->
                 <Button Name="BtnAddFoil"
                         Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE1D9;"
@@ -188,6 +98,7 @@
                         Click="BtnAddFoil_Click"
                         DockPanel.Dock="Left" Margin="2,4"/>
 
+                <!-- Qty -->
                 <TextBox Name="TxtQty"
                          Width="46" Height="28"
                          Style="{DynamicResource BaseTextBoxStyle}"
@@ -197,6 +108,7 @@
                          IsEnabled="False"
                          DockPanel.Dock="Left" Margin="2,8"/>
 
+                <!-- Add Qty -->
                 <Button Name="BtnAddQty"
                         Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE1FE;"
@@ -205,6 +117,7 @@
                         Click="BtnAddQty_Click"
                         DockPanel.Dock="Left" Margin="2,4"/>
 
+                <!-- Remove 1 -->
                 <Button Name="BtnRemove1"
                         Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE108;"
@@ -216,36 +129,27 @@
                 <Separator Style="{DynamicResource ToolbarSeparatorStyle}"
                            DockPanel.Dock="Left"/>
 
-                <Button Name="BtnQtyPlus"
+                <!-- Lock -->
+                <Button Name="BtnLock"
                         Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1E8;"
-                        ToolTip="Increase Quantity"
+                        Content="&#xE1F6;"
+                        ToolTip="Lock/Unlock Collection"
                         IsEnabled="False"
-                        Visibility="Collapsed"
-                        Click="BtnQtyPlus_Click"
+                        Click="BtnLock_Click"
                         DockPanel.Dock="Left" Margin="2,4"/>
 
-                <Button Name="BtnQtyMinus"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1E9;"
-                        ToolTip="Decrease Quantity"
-                        IsEnabled="False"
-                        Visibility="Collapsed"
-                        Click="BtnQtyMinus_Click"
-                        DockPanel.Dock="Left" Margin="2,4"/>
-
-                <Separator Name="SepQty"
-                           Style="{DynamicResource ToolbarSeparatorStyle}"
-                           Visibility="Collapsed"
+                <Separator Style="{DynamicResource ToolbarSeparatorStyle}"
                            DockPanel.Dock="Left"/>
 
-                <Button Name="BtnFilterTop"
+                <!-- Filter -->
+                <Button Name="BtnFilter"
                         Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE16E;"
-                        ToolTip="Filter Top Table"
-                        Click="BtnFilterTop_Click"
+                        ToolTip="Filter Cards"
+                        Click="BtnFilter_Click"
                         DockPanel.Dock="Left" Margin="2,4"/>
 
+                <!-- Legality -->
                 <Button Name="BtnLegality"
                         Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE1C6;"
@@ -256,6 +160,7 @@
                 <Separator Style="{DynamicResource ToolbarSeparatorStyle}"
                            DockPanel.Dock="Left"/>
 
+                <!-- Theme -->
                 <Button Name="BtnTheme"
                         Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE706;"
@@ -263,6 +168,7 @@
                         Click="BtnTheme_Click"
                         DockPanel.Dock="Left" Margin="2,4"/>
 
+                <!-- Mode dropdown — RIGHT -->
                 <StackPanel Orientation="Horizontal"
                             DockPanel.Dock="Right"
                             VerticalAlignment="Center"
@@ -274,44 +180,29 @@
                                Margin="0,0,6,0"/>
                     <ComboBox Name="ViewModeComboBox"
                               Style="{DynamicResource BaseComboBoxStyle}"
-                              Width="220"
+                              Width="230"
                               SelectionChanged="ViewModeComboBox_SelectionChanged">
-                        <ComboBoxItem Content="── Browse ──"
-                                      IsEnabled="False"
-                                      FontWeight="Bold"/>
-                        <ComboBoxItem Content="Pool"            Tag="Pool"/>
-                        <ComboBoxItem Content="Collection"      Tag="Collection"/>
-                        <ComboBoxItem Content="Trade Binder"    Tag="TradeBinder"/>
-                        <ComboBoxItem Content="Token Database"  Tag="Tokens"/>
-                        <ComboBoxItem Content="My Tokens"       Tag="MyTokens"/>
-                        <ComboBoxItem Content="Planar Database" Tag="Planar"/>
-                        <ComboBoxItem Content="My Planar Cards" Tag="MyPlanar"/>
-                        <ComboBoxItem Content="Scheme Database" Tag="Schemes"/>
-                        <ComboBoxItem Content="My Schemes"      Tag="MySchemes"/>
-                        <ComboBoxItem Content="Vanguard"        Tag="Vanguard"/>
-                        <ComboBoxItem Content="Conspiracy"      Tag="Conspiracy"/>
-                        <ComboBoxItem Content="Art Series"      Tag="ArtSeries"/>
-                        <ComboBoxItem Content="My Art Series"   Tag="MyArtSeries"/>
-                        <ComboBoxItem Content="── Work ──"
-                                      IsEnabled="False"
-                                      FontWeight="Bold"/>
+
                         <ComboBoxItem Content="Pool → Collection"
                                       Tag="PoolToCollection"/>
-                        <ComboBoxItem Content="Pool → Deck"
-                                      Tag="PoolToDeck"/>
-                        <ComboBoxItem Content="Collection → Deck"
-                                      Tag="CollectionToDeck"/>
-                        <ComboBoxItem Content="── Other ──"
-                                      IsEnabled="False"
-                                      FontWeight="Bold"/>
-                        <ComboBoxItem Content="Dashboard"       Tag="Dashboard"/>
+                        <ComboBoxItem Content="Pool → Planechase"
+                                      Tag="PoolToPlanechase"/>
+                        <ComboBoxItem Content="Pool → Archenemy"
+                                      Tag="PoolToArchenemy"/>
+                        <ComboBoxItem Content="Pool → Vanguard"
+                                      Tag="PoolToVanguard"/>
+                        <ComboBoxItem Content="Pool → Tokens"
+                                      Tag="PoolToTokens"/>
+                        <ComboBoxItem Content="Pool → Art Series"
+                                      Tag="PoolToArtSeries"/>
+
                     </ComboBox>
                 </StackPanel>
 
             </DockPanel>
         </Border>
 
-        <!-- ══════════════════════════════════════════════════════════════════
+        <!-- ══════════════════════════════════════════════════════════════
              ROW 2 — MAIN CONTENT
         ══════════════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="2">
@@ -321,7 +212,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- ── LEFT PANEL ──────────────────────────────────────────── -->
+            <!-- ── LEFT PANEL ──────────────────────────────────────── -->
             <Border Grid.Column="0"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -344,7 +235,7 @@
                                    Style="{DynamicResource DetailLabelStyle}"/>
                         <TextBlock Name="DetailName"
                                    Style="{DynamicResource DetailValueStyle}"
-                                   FontSize="14" FontWeight="Bold"/>
+                                   FontSize="15" FontWeight="Bold"/>
 
                         <TextBlock Text="MANA COST"
                                    Style="{DynamicResource DetailLabelStyle}"/>
@@ -389,13 +280,13 @@
                                    Style="{DynamicResource DetailLabelStyle}"/>
                         <TextBlock Name="DetailOracle"
                                    Style="{DynamicResource DetailValueStyle}"
-                                   FontSize="11"/>
+                                   FontSize="12"/>
 
                         <TextBlock Text="FLAVOR TEXT"
                                    Style="{DynamicResource DetailLabelStyle}"/>
                         <TextBlock Name="DetailFlavor"
                                    Style="{DynamicResource DetailValueStyle}"
-                                   FontSize="11"
+                                   FontSize="12"
                                    FontStyle="Italic"
                                    Foreground="{DynamicResource MutedTextBrush}"/>
 
@@ -413,7 +304,7 @@
                                    Style="{DynamicResource DetailLabelStyle}"/>
                         <TextBlock Name="DetailPrices"
                                    Style="{DynamicResource DetailValueStyle}"
-                                   FontSize="11"/>
+                                   FontSize="12"/>
 
                         <TextBlock Text="FORMAT LEGALITY"
                                    Style="{DynamicResource DetailLabelStyle}"/>
@@ -424,26 +315,26 @@
                 </ScrollViewer>
             </Border>
 
-            <!-- ── SPLITTER ────────────────────────────────────────────── -->
+            <!-- ── SPLITTER ────────────────────────────────────────── -->
             <GridSplitter Grid.Column="1"
                           Width="4"
                           HorizontalAlignment="Stretch"
                           Background="{DynamicResource BorderBrush}"
                           Cursor="SizeWE"/>
 
-            <!-- ── RIGHT PANEL ────────────────────────────────────────── -->
+            <!-- ── RIGHT PANEL — TWO TABLES ──────────────────────── -->
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*" MinHeight="100"/>
+                    <RowDefinition Height="*" MinHeight="120"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*" MinHeight="80"/>
+                    <RowDefinition Height="*" MinHeight="100"/>
                 </Grid.RowDefinitions>
 
-                <!-- ── TOP TABLE ──────────────────────────────────────── -->
+                <!-- ── TOP TABLE ──────────────────────────────────── -->
                 <Grid Grid.Row="0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="26"/>
-                        <RowDefinition Height="36"/>
+                        <RowDefinition Height="38"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="28"/>
                     </Grid.RowDefinitions>
@@ -454,12 +345,12 @@
                         <TextBlock Name="TopGroupByLabel"
                                    Text="Drag a column header here to group by that column"
                                    Foreground="{DynamicResource MutedTextBrush}"
-                                   FontSize="11"
+                                   FontSize="12"
                                    VerticalAlignment="Center"
                                    Margin="6,0"/>
                     </Border>
 
-                    <!-- Search bar -->
+                    <!-- Search + label + lock indicator -->
                     <Border Grid.Row="1"
                             Background="{DynamicResource SurfaceBrush}"
                             BorderBrush="{DynamicResource BorderBrush}"
@@ -477,16 +368,26 @@
                                        Text="Pool"
                                        Foreground="{DynamicResource PrimaryTextBrush}"
                                        FontWeight="SemiBold"
-                                       FontSize="13"
+                                       FontSize="14"
                                        VerticalAlignment="Center"
-                                       Margin="0,0,12,0"
+                                       Margin="0,0,8,0"
                                        DockPanel.Dock="Left"/>
-                            <TextBox Name="TopSearchBox"
+                            <!-- Lock indicator -->
+                            <TextBlock Name="TopLockIndicator"
+                                       Text="&#xE1F6;"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"
+                                       Visibility="Collapsed"
+                                       DockPanel.Dock="Left"/>
+                            <TextBox Name="SearchBox"
                                      Style="{DynamicResource BaseTextBoxStyle}"
-                                     Height="26" Width="280"
+                                     Height="28" Width="300"
                                      VerticalContentAlignment="Center"
                                      DockPanel.Dock="Left"
-                                     TextChanged="TopSearchBox_TextChanged"/>
+                                     TextChanged="SearchBox_TextChanged"/>
                         </DockPanel>
                     </Border>
 
@@ -499,12 +400,13 @@
                               SelectionUnit="FullRow"
                               HeadersVisibility="Column"
                               SelectionChanged="TopDataGrid_SelectionChanged"
-                              KeyDown="TopDataGrid_KeyDown"
+                              PreviewKeyDown="TopDataGrid_PreviewKeyDown"
                               Background="{DynamicResource GridRowBrush}"
                               Foreground="{DynamicResource PrimaryTextBrush}"
                               BorderThickness="0"
                               GridLinesVisibility="None"
                               RowHeaderWidth="0"
+                              RowHeight="28"
                               CanUserResizeRows="True"
                               CanUserReorderColumns="True"
                               EnableRowVirtualization="True"
@@ -528,10 +430,10 @@
                                                     CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding FavoriteGlyph}"
-                                                   HorizontalAlignment="Center"
-                                                   Foreground="Gold"
-                                                   FontSize="12"/>
+                                        <TextBlock
+                                            Text="{Binding FavoriteGlyph}"
+                                            HorizontalAlignment="Center"
+                                            Foreground="Gold" FontSize="13"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -630,14 +532,14 @@
                             <TextBlock Name="TopFilterSummary"
                                        Text="No filter active"
                                        Foreground="{DynamicResource MutedTextBrush}"
-                                       FontSize="11"
+                                       FontSize="12"
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis"/>
                         </DockPanel>
                     </Border>
                 </Grid>
 
-                <!-- ── ACTION BUTTONS BAR ──────────────────────────────── -->
+                <!-- ── ACTION BAR + SPLITTER ──────────────────────── -->
                 <Border Grid.Row="1"
                         Background="{DynamicResource SurfaceAltBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
@@ -646,69 +548,56 @@
                     <StackPanel Orientation="Horizontal"
                                 VerticalAlignment="Center">
                         <TextBlock Name="ActionBarLabel"
-                                   Text="Select a mode to add cards"
+                                   Text=""
                                    Foreground="{DynamicResource MutedTextBrush}"
-                                   FontSize="11"
+                                   FontSize="12"
                                    VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>
 
-                <!-- ── BOTTOM TABLE ────────────────────────────────────── -->
+                <GridSplitter Grid.Row="1"
+                              Height="4"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Bottom"
+                              Background="{DynamicResource BorderBrush}"
+                              Cursor="SizeNS"
+                              Margin="0,-2,0,0"/>
+
+                <!-- ── BOTTOM TABLE ────────────────────────────────── -->
                 <Grid Grid.Row="2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="26"/>
-                        <RowDefinition Height="36"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="28"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Group by bar -->
+                    <!-- Bottom label bar -->
                     <Border Grid.Row="0"
                             Style="{DynamicResource GroupByBarStyle}">
-                        <TextBlock Name="BottomGroupByLabel"
-                                   Text="Drag a column header here to group by that column"
-                                   Foreground="{DynamicResource MutedTextBrush}"
-                                   FontSize="11"
-                                   VerticalAlignment="Center"
-                                   Margin="6,0"/>
-                    </Border>
-
-                    <!-- Search bar -->
-                    <Border Grid.Row="1"
-                            Background="{DynamicResource SurfaceBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1"
-                            Padding="8,4">
-                        <DockPanel>
-                            <TextBlock Text="&#xE11A;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="14"
-                                       Foreground="{DynamicResource MutedTextBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"
-                                       DockPanel.Dock="Left"/>
-                            <TextBlock Name="BottomSearchLabel"
+                        <DockPanel Margin="6,0">
+                            <TextBlock Name="BottomTableLabel"
                                        Text="Collection"
                                        Foreground="{DynamicResource PrimaryTextBrush}"
                                        FontWeight="SemiBold"
                                        FontSize="13"
                                        VerticalAlignment="Center"
-                                       Margin="0,0,12,0"
                                        DockPanel.Dock="Left"/>
-                            <TextBox Name="BottomSearchBox"
-                                     Style="{DynamicResource BaseTextBoxStyle}"
-                                     Height="26" Width="280"
-                                     VerticalContentAlignment="Center"
-                                     DockPanel.Dock="Left"
-                                     TextChanged="BottomSearchBox_TextChanged"/>
+                            <TextBlock Name="BottomLockIndicator"
+                                       Text="  &#xE1F6; LOCKED"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       VerticalAlignment="Center"
+                                       Visibility="Collapsed"
+                                       DockPanel.Dock="Left"/>
                         </DockPanel>
                     </Border>
 
                     <!-- Bottom DataGrid -->
                     <DataGrid Name="BottomDataGrid"
-                              Grid.Row="2"
+                              Grid.Row="1"
                               AutoGenerateColumns="False"
-                              IsReadOnly="False"
+                              IsReadOnly="True"
                               SelectionMode="Single"
                               SelectionUnit="FullRow"
                               HeadersVisibility="Column"
@@ -718,6 +607,7 @@
                               BorderThickness="0"
                               GridLinesVisibility="None"
                               RowHeaderWidth="0"
+                              RowHeight="28"
                               CanUserResizeRows="True"
                               CanUserReorderColumns="True"
                               EnableRowVirtualization="True"
@@ -753,10 +643,10 @@
                                                     CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding FavoriteGlyph}"
-                                                   HorizontalAlignment="Center"
-                                                   Foreground="Gold"
-                                                   FontSize="12"/>
+                                        <TextBlock
+                                            Text="{Binding FavoriteGlyph}"
+                                            HorizontalAlignment="Center"
+                                            Foreground="Gold" FontSize="13"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -780,64 +670,146 @@
                             <DataGridTextColumn Header="Edition Name"
                                 Binding="{Binding SetName}" Width="160"/>
 
-                            <!-- Qty spinner column -->
-                            <DataGridTemplateColumn Header="Qty" Width="90">
+                            <!-- Qty spinner — only visible on selected row -->
+                            <DataGridTemplateColumn Header="Qty" Width="95">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel Orientation="Horizontal"
-                                                    HorizontalAlignment="Center">
-                                            <Button Content="−"
-                                                    Width="22" Height="18"
-                                                    FontSize="12" Padding="0"
-                                                    Tag="{Binding}"
-                                                    Click="BtnQtyMinus_Row_Click"/>
-                                            <TextBox Width="34" Height="18"
-                                                     Text="{Binding Quantity,
-                                                         Mode=TwoWay,
-                                                         UpdateSourceTrigger=PropertyChanged}"
-                                                     TextAlignment="Center"
-                                                     FontSize="11" Padding="0"
-                                                     BorderThickness="1"
-                                                     Tag="{Binding}"
-                                                     TextChanged="TxtQtyRow_TextChanged"
-                                                     PreviewKeyDown="TxtQtyRow_KeyDown"/>
-                                            <Button Content="+"
-                                                    Width="22" Height="18"
-                                                    FontSize="12" Padding="0"
-                                                    Tag="{Binding}"
-                                                    Click="BtnQtyPlus_Row_Click"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <!-- Normal qty text -->
+                                            <TextBlock
+                                                Text="{Binding Quantity}"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                FontSize="14">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility"
+                                                                Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger
+                                                                Binding="{Binding IsSelected,
+                                                                    RelativeSource={RelativeSource
+                                                                    AncestorType=DataGridRow}}"
+                                                                Value="True">
+                                                                <Setter Property="Visibility"
+                                                                        Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <!-- Spinner — selected only -->
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Center">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility"
+                                                                Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger
+                                                                Binding="{Binding IsSelected,
+                                                                    RelativeSource={RelativeSource
+                                                                    AncestorType=DataGridRow}}"
+                                                                Value="True">
+                                                                <Setter Property="Visibility"
+                                                                        Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <Button Content="−"
+                                                        Width="22" Height="20"
+                                                        FontSize="13" Padding="0"
+                                                        Tag="{Binding}"
+                                                        Click="BtnQtyMinus_Row_Click"/>
+                                                <TextBox Width="34" Height="20"
+                                                         Text="{Binding Quantity,
+                                                             Mode=TwoWay,
+                                                             UpdateSourceTrigger=PropertyChanged}"
+                                                         TextAlignment="Center"
+                                                         FontSize="13" Padding="0"
+                                                         BorderThickness="1"
+                                                         Tag="{Binding}"
+                                                         TextChanged="TxtQtyRow_TextChanged"
+                                                         PreviewKeyDown="TxtQtyRow_KeyDown"/>
+                                                <Button Content="+"
+                                                        Width="22" Height="20"
+                                                        FontSize="13" Padding="0"
+                                                        Tag="{Binding}"
+                                                        Click="BtnQtyPlus_Row_Click"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- Foil Qty spinner column -->
-                            <DataGridTemplateColumn Header="Foil Qty" Width="100">
+                            <!-- Foil Qty spinner — only visible on selected row -->
+                            <DataGridTemplateColumn Header="Foil Qty" Width="105">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel Orientation="Horizontal"
-                                                    HorizontalAlignment="Center">
-                                            <Button Content="−"
-                                                    Width="22" Height="18"
-                                                    FontSize="12" Padding="0"
-                                                    Tag="{Binding}"
-                                                    Click="BtnFoilQtyMinus_Row_Click"/>
-                                            <TextBox Width="34" Height="18"
-                                                     Text="{Binding FoilQuantity,
-                                                         Mode=TwoWay,
-                                                         UpdateSourceTrigger=PropertyChanged}"
-                                                     TextAlignment="Center"
-                                                     FontSize="11" Padding="0"
-                                                     BorderThickness="1"
-                                                     Tag="{Binding}"
-                                                     TextChanged="TxtFoilQtyRow_TextChanged"
-                                                     PreviewKeyDown="TxtFoilQtyRow_KeyDown"/>
-                                            <Button Content="+"
-                                                    Width="22" Height="18"
-                                                    FontSize="12" Padding="0"
-                                                    Tag="{Binding}"
-                                                    Click="BtnFoilQtyPlus_Row_Click"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <TextBlock
+                                                Text="{Binding FoilQuantity}"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                FontSize="14">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility"
+                                                                Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger
+                                                                Binding="{Binding IsSelected,
+                                                                    RelativeSource={RelativeSource
+                                                                    AncestorType=DataGridRow}}"
+                                                                Value="True">
+                                                                <Setter Property="Visibility"
+                                                                        Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Center">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility"
+                                                                Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger
+                                                                Binding="{Binding IsSelected,
+                                                                    RelativeSource={RelativeSource
+                                                                    AncestorType=DataGridRow}}"
+                                                                Value="True">
+                                                                <Setter Property="Visibility"
+                                                                        Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <Button Content="−"
+                                                        Width="22" Height="20"
+                                                        FontSize="13" Padding="0"
+                                                        Tag="{Binding}"
+                                                        Click="BtnFoilQtyMinus_Row_Click"/>
+                                                <TextBox Width="34" Height="20"
+                                                         Text="{Binding FoilQuantity,
+                                                             Mode=TwoWay,
+                                                             UpdateSourceTrigger=PropertyChanged}"
+                                                         TextAlignment="Center"
+                                                         FontSize="13" Padding="0"
+                                                         BorderThickness="1"
+                                                         Tag="{Binding}"
+                                                         TextChanged="TxtFoilQtyRow_TextChanged"
+                                                         PreviewKeyDown="TxtFoilQtyRow_KeyDown"/>
+                                                <Button Content="+"
+                                                        Width="22" Height="20"
+                                                        FontSize="13" Padding="0"
+                                                        Tag="{Binding}"
+                                                        Click="BtnFoilQtyPlus_Row_Click"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -845,7 +817,7 @@
                             <DataGridTextColumn Header="Used"
                                 Binding="{Binding UsedCount}" Width="50"/>
                             <DataGridTextColumn Header="Available"
-                                Binding="{Binding AvailableCount}" Width="70"/>
+                                Binding="{Binding AvailableCount}" Width="75"/>
                             <DataGridTextColumn Header="Color"
                                 Binding="{Binding ColorIdentity}" Width="55"/>
                             <DataGridTextColumn Header="Type"
@@ -857,7 +829,7 @@
                             <DataGridTextColumn Header="P/T"
                                 Binding="{Binding PowerToughness}" Width="55"/>
                             <DataGridTextColumn Header="Condition"
-                                Binding="{Binding Condition}" Width="80"/>
+                                Binding="{Binding Condition}" Width="85"/>
                             <DataGridTextColumn Header="Language"
                                 Binding="{Binding Language}" Width="75"/>
                             <DataGridTextColumn Header="Storage"
@@ -870,7 +842,7 @@
                     </DataGrid>
 
                     <!-- Bottom filter bar -->
-                    <Border Grid.Row="3"
+                    <Border Grid.Row="2"
                             Style="{DynamicResource FilterBarStyle}">
                         <DockPanel>
                             <Button Name="BtnBottomFilterCustomize"
@@ -895,26 +867,16 @@
                             <TextBlock Name="BottomFilterSummary"
                                        Text="No filter active"
                                        Foreground="{DynamicResource MutedTextBrush}"
-                                       FontSize="11"
+                                       FontSize="12"
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis"/>
                         </DockPanel>
                     </Border>
                 </Grid>
-
-                <!-- Splitter between top and bottom tables -->
-                <GridSplitter Grid.Row="1"
-                              Height="4"
-                              HorizontalAlignment="Stretch"
-                              VerticalAlignment="Bottom"
-                              Background="{DynamicResource BorderBrush}"
-                              Cursor="SizeNS"
-                              Margin="0,-2,0,0"/>
-
             </Grid>
         </Grid>
 
-        <!-- ══════════════════════════════════════════════════════════════════
+        <!-- ══════════════════════════════════════════════════════════════
              ROW 3 — STATUS BAR
         ══════════════════════════════════════════════════════════════════ -->
         <Border Grid.Row="3"
@@ -922,12 +884,12 @@
             <DockPanel Margin="8,0">
                 <TextBlock Name="StatusText"
                            Foreground="White"
-                           FontSize="11"
+                           FontSize="12"
                            VerticalAlignment="Center"
                            DockPanel.Dock="Left"/>
                 <TextBlock Name="RowCountText"
                            Foreground="White"
-                           FontSize="11"
+                           FontSize="12"
                            VerticalAlignment="Center"
                            HorizontalAlignment="Right"
                            DockPanel.Dock="Right"/>

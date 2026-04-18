@@ -22,7 +22,6 @@ namespace BreakersOfE.Windows
             AddRow("Planar Cards", result.PlanarCardsImported);
             AddRow("Scheme Cards", result.SchemeCardsImported);
             AddRow("Vanguard Cards", result.VanguardCardsImported);
-            AddRow("Conspiracy Cards", result.ConspiracyCardsImported);
             AddRow("Art Series Cards", result.ArtSeriesCardsImported);
             AddRow("Skipped", result.SkippedCount);
             AddDivider();

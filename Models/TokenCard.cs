@@ -23,6 +23,7 @@ namespace BreakersOfE.Models
         public string ColorIdentity { get; set; } = string.Empty;
         public string SetCode { get; set; } = string.Empty;
         public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
         public string CollectorNumber { get; set; } = string.Empty;
         public string Rarity { get; set; } = string.Empty;
         public string Artist { get; set; } = string.Empty;
@@ -36,6 +37,10 @@ namespace BreakersOfE.Models
         public bool IsFavorite { get; set; }
 
         [NotMapped] public int RowIndex { get; set; }
+        [NotMapped] public string ManaCost => string.Empty;
+        [NotMapped] public double ManaValue => 0;
+        [NotMapped] public string PriceUsdDisplay => string.Empty;
+        [NotMapped] public string PriceUsdFoilDisplay => string.Empty;
 
         [NotMapped]
         public string PowerToughness =>
@@ -59,11 +64,6 @@ namespace BreakersOfE.Models
         public string FavoriteGlyph => IsFavorite ? "★" : string.Empty;
 
         [NotMapped]
-        public string ManaCost => string.Empty;
-        [NotMapped]
-        public double ManaValue => 0;
-
-        [NotMapped]
         public string SetSymbolPath
         {
             get
@@ -78,8 +78,7 @@ namespace BreakersOfE.Models
 
         [NotMapped]
         public Brush RowForegroundBrush =>
-            CardColorService.GetForeground(
-                ColorIdentity, TypeLine, IsFoil);
+            CardColorService.GetForeground(ColorIdentity, TypeLine, IsFoil);
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
