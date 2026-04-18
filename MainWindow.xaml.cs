@@ -20,6 +20,9 @@ namespace BreakersOfE
         private string _currentMode = "PoolToCollection";
         private bool _legalityVisible = false;
         private bool _bottomLocked = false;
+        private List<string> _topSelectedSetCodes = new();
+        private List<string> _bottomSelectedSetCodes = new();
+        private bool _bottomTableHasFocus = false;
 
         // ── Filter state ─────────────────────────────────────────────────────
         private FilterState _topFilter = new();
@@ -196,7 +199,24 @@ namespace BreakersOfE
                              .ThenBy(c => c.SetCode)
                              .ToList();
 
+            // Apply simple text search
             var filtered = FilterService.Apply(all, _topFilter, _searchText);
+
+            // Apply expression filter (from Filter Window)
+            if (_topFilterNode != null &&
+                FilterExpressionService.HasConditions(_topFilterNode))
+            {
+                filtered = FilterExpressionService.Apply(
+                    filtered, _topFilterNode,
+                    ChkTopFilter?.IsChecked == true);
+            }
+
+            // Apply set code filter from Tab 1
+            if (_topSelectedSetCodes.Count > 0)
+                filtered = filtered
+                    .Where(c => _topSelectedSetCodes.Contains(c.SetCode))
+                    .ToList();
+
             for (int i = 0; i < filtered.Count; i++)
                 filtered[i].RowIndex = i;
 
@@ -271,12 +291,26 @@ namespace BreakersOfE
         {
             using var db = new AppDbContext();
             var rows = BuildCollectionRows(db);
-            var filtered = FilterService.Apply(rows, _bottomFilter,
-                string.Empty);
-            for (int i = 0; i < filtered.Count; i++)
-                filtered[i].RowIndex = i;
-            BottomDataGrid.ItemsSource = filtered;
-            UpdateSummaryRow(filtered);
+
+            // Apply set code filter from Tab 1
+            if (_bottomSelectedSetCodes.Count > 0)
+                rows = rows
+                    .Where(c => _bottomSelectedSetCodes.Contains(c.SetCode))
+                    .ToList();
+
+            // Apply expression filter from Filter Window
+            if (_bottomFilterNode != null &&
+                FilterExpressionService.HasConditions(_bottomFilterNode))
+            {
+                rows = FilterExpressionService.Apply(
+                    rows, _bottomFilterNode, true);
+            }
+
+            for (int i = 0; i < rows.Count; i++)
+                rows[i].RowIndex = i;
+
+            BottomDataGrid.ItemsSource = rows;
+            UpdateSummaryRow(rows);
         }
 
         private void LoadBottomTable_PlanechaseCollection()
@@ -582,6 +616,12 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         // SELECTION HANDLERS
         // ════════════════════════════════════════════════════════════════════
+        private void TopDataGrid_GotFocus(object sender, RoutedEventArgs e)
+            => _bottomTableHasFocus = false;
+
+        private void BottomDataGrid_GotFocus(object sender, RoutedEventArgs e)
+            => _bottomTableHasFocus = true;
+
         private async void TopDataGrid_SelectionChanged(object sender,
             SelectionChangedEventArgs e)
         {
@@ -755,24 +795,123 @@ namespace BreakersOfE
             RefreshBottom();
         }
 
-        private void BtnTopFilterCustomize_Click(object sender,
-            RoutedEventArgs e)
+        private void BtnTopFilterCustomize_Click(object sender, RoutedEventArgs e)
+            => OpenFilterWindow(top: true);
+
+        private void BtnBottomFilterCustomize_Click(object sender, RoutedEventArgs e)
+            => OpenFilterWindow(top: false);
+
+        private void BtnFilter_Click(object sender, RoutedEventArgs e)
+            => OpenFilterWindow(top: !_bottomTableHasFocus);
+
+        private FilterNode? _topFilterNode = null;
+        private FilterNode? _bottomFilterNode = null;
+
+        private void OpenFilterWindow(bool top)
         {
-            MessageBox.Show("Filter window coming soon!",
-                "Filter", MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            var context = top
+                ? ModeToFilterContext(_currentMode, top: true)
+                : ModeToFilterContext(_currentMode, top: false);
+
+            var win = new BreakersOfE.Windows.FilterWindow(
+                context,
+                top ? _topFilterNode : _bottomFilterNode)
+            { Owner = this };
+
+            win.ApplyRequested += (s, e) =>
+            {
+                if (top) { _topFilterNode = win.ResultNode; LoadCurrentMode(); }
+                else { _bottomFilterNode = win.ResultNode; RefreshBottom(); }
+            };
+
+            if (win.ShowDialog() == true)
+            {
+                if (top)
+                {
+                    _topFilterNode = win.ResultNode;
+                    _topSelectedSetCodes = win.SelectedSetCodes;
+                    TopFilterSummary.Text = FilterExpressionService
+                        .Summarize(_topFilterNode);
+                    if (string.IsNullOrEmpty(TopFilterSummary.Text) &&
+                        _topSelectedSetCodes.Count == 0)
+                        TopFilterSummary.Text = "No filter active";
+                    else if (_topSelectedSetCodes.Count > 0)
+                        TopFilterSummary.Text =
+                            $"Editions: {_topSelectedSetCodes.Count} selected  " +
+                            TopFilterSummary.Text;
+                    LoadCurrentMode();
+                }
+                else
+                {
+                    _bottomFilterNode = win.ResultNode;
+                    _bottomSelectedSetCodes = win.SelectedSetCodes;
+                    BottomFilterSummary.Text = FilterExpressionService
+                        .Summarize(_bottomFilterNode);
+                    if (string.IsNullOrEmpty(BottomFilterSummary.Text) &&
+                        _bottomSelectedSetCodes.Count == 0)
+                        BottomFilterSummary.Text = "No filter active";
+                    RefreshBottom();
+                }
+            }
         }
 
-        private void BtnBottomFilterCustomize_Click(object sender,
-            RoutedEventArgs e)
+        private static FilterContext ModeToFilterContext(
+            string mode, bool top)
         {
-            MessageBox.Show("Filter window coming soon!",
-                "Filter", MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            if (!top) return FilterContext.Collection;
+            return mode switch
+            {
+                "PoolToCollection" => FilterContext.Pool,
+                "PoolToPlanechase" => FilterContext.Planechase,
+                "PoolToArchenemy" => FilterContext.Archenemy,
+                "PoolToVanguard" => FilterContext.Vanguard,
+                "PoolToTokens" => FilterContext.Tokens,
+                "PoolToArtSeries" => FilterContext.ArtSeries,
+                _ => FilterContext.Pool
+            };
         }
 
-        private void BtnFilter_Click(object sender, RoutedEventArgs e) =>
-            BtnTopFilterCustomize_Click(sender, e);
+        private void BtnSearch_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new BreakersOfE.Windows.SearchForCardWindow
+            { Owner = this };
+
+            if (win.ShowDialog() != true) return;
+
+            string name = win.CardName;
+            bool pool = win.SearchInPool;
+
+            // Search in the appropriate grid
+            var grid = pool ? TopDataGrid : BottomDataGrid;
+            var items = grid.ItemsSource as System.Collections.IEnumerable;
+            if (items == null) return;
+
+            foreach (var item in items)
+            {
+                string? itemName = item.GetType()
+                    .GetProperty("Name")?.GetValue(item)?.ToString();
+
+                if (itemName != null &&
+                    itemName.Contains(name,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    grid.SelectedItem = item;
+                    grid.UpdateLayout();
+                    grid.ScrollIntoView(item);
+                    // Force scroll to selected row
+                    var row = grid.ItemContainerGenerator
+                        .ContainerFromItem(item) as DataGridRow;
+                    row?.BringIntoView();
+                    SetStatus($"Found: {itemName}");
+                    return;
+                }
+            }
+
+            SetStatus($"Not found: {name}");
+            MessageBox.Show($"Card '{name}' not found.",
+                "Search", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
 
         // ════════════════════════════════════════════════════════════════════
         // TOOLBAR BUTTONS

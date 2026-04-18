@@ -209,6 +209,13 @@
                         Click="BtnFilter_Click"
                         DockPanel.Dock="Left" Margin="2,4"/>
 
+                <Button Name="BtnSearch"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE11A;"
+                        ToolTip="Search for Card"
+                        Click="BtnSearch_Click"
+                        DockPanel.Dock="Left" Margin="2,4"/>
+
                 <Button Name="BtnLegality"
                         Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE1C6;"
@@ -446,6 +453,7 @@
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               SelectionMode="Single"
+                              GotFocus="TopDataGrid_GotFocus"
                               SelectionUnit="FullRow"
                               HeadersVisibility="Column"
                               SelectionChanged="TopDataGrid_SelectionChanged"
@@ -652,6 +660,7 @@
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               SelectionMode="Single"
+                              GotFocus="BottomDataGrid_GotFocus"
                               SelectionUnit="FullRow"
                               HeadersVisibility="Column"
                               SelectionChanged="BottomDataGrid_SelectionChanged"
