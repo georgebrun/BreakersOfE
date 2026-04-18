@@ -276,6 +276,7 @@ namespace BreakersOfE
             for (int i = 0; i < filtered.Count; i++)
                 filtered[i].RowIndex = i;
             BottomDataGrid.ItemsSource = filtered;
+            UpdateSummaryRow(filtered);
         }
 
         private void LoadBottomTable_PlanechaseCollection()
@@ -444,7 +445,7 @@ namespace BreakersOfE
 
         // ── Shared collection row builder ────────────────────────────────────
         private static List<CollectionDisplayRow> BuildCollectionRows(
-            AppDbContext db)
+    AppDbContext db)
         {
             return db.CollectionEntries.AsNoTracking()
                 .Join(db.PoolCards.AsNoTracking(),
@@ -478,7 +479,10 @@ namespace BreakersOfE
                         StorageLocation = ce.StorageLocation,
                         Notes = ce.Notes,
                         DateAdded = ce.DateAdded,
-                        DateModified = ce.DateModified
+                        DateModified = ce.DateModified,
+                        // ── Pricing ──────────────────────────────────────────────
+                        PriceUsd = pc.PriceUsd,
+                        PriceUsdFoil = pc.PriceUsdFoil
                     })
                 .OrderBy(x => x.Name)
                 .ToList();
@@ -1368,7 +1372,7 @@ namespace BreakersOfE
             DetailPT.Text = c.PowerToughness;
             DetailPTLabel.Text = "POWER / TOUGHNESS";
             DetailFoilNonFoil.Text = BuildFoilStr(c.IsFoil, c.IsNonFoil);
-            DetailPrices.Text = string.Empty;
+            DetailPrices.Text = FormatCollectionPrices(c.PriceUsd, c.PriceUsdFoil);
             RenderManaCost(c.ManaCost);
             LoadSetSymbol(c.SetCode);
             DetailLegalityPanel.Children.Clear();
@@ -1638,6 +1642,17 @@ namespace BreakersOfE
             catch { return string.Empty; }
         }
 
+        private static string FormatCollectionPrices(
+            decimal? usd, decimal? usdFoil)
+        {
+            var sb = new System.Text.StringBuilder();
+            if (usd.HasValue)
+                sb.AppendLine($"USD:       ${usd.Value:F2}");
+            if (usdFoil.HasValue)
+                sb.AppendLine($"USD Foil:  ${usdFoil.Value:F2}");
+            return sb.ToString().Trim();
+        }
+
         // ════════════════════════════════════════════════════════════════════
         // MENU HANDLERS
         // ════════════════════════════════════════════════════════════════════
@@ -1681,6 +1696,32 @@ namespace BreakersOfE
                 LoadCurrentMode();
                 SetStatus("Database updated successfully!");
             }
+        }
+
+        private void UpdateSummaryRow(List<CollectionDisplayRow> rows)
+        {
+            if (rows == null || rows.Count == 0)
+            {
+                SummaryText.Text = "No cards in collection";
+                return;
+            }
+
+            int totalRows = rows.Count;
+            int totalCards = rows.Sum(r => r.Quantity);
+            int totalFoils = rows.Sum(r => r.FoilQuantity);
+            decimal totalValue = rows.Sum(r => r.TotalValue);
+
+            SummaryText.Text =
+                $"Rows: {totalRows:N0}   " +
+                $"Cards: {totalCards:N0}   " +
+                $"Foils: {totalFoils:N0}   " +
+                $"Total Value: ${totalValue:F2}";
+        }
+
+        private void MenuUpdatePrices_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Price update coming soon!", "Update Prices",
+                MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void MenuSettings_Click(object sender, RoutedEventArgs e) =>
