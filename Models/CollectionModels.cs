@@ -17,6 +17,7 @@ namespace BreakersOfE.Models
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
+        public int UsedCount { get; set; } = 0;
     }
 
     // ── Token Collection ────────────────────────────────────────────────────

@@ -68,54 +68,636 @@ namespace BreakersOfE
         private void MenuCloseDeck_Click(object sender, RoutedEventArgs e)
             => BtnCloseDeck_Click(sender, e);
 
-        // ── Deck toolbar handlers (stubs for now) ─────────────────────────────────
+        // ════════════════════════════════════════════════════════════════════
+        // DECK MANAGEMENT
+        // ════════════════════════════════════════════════════════════════════
         private void BtnNewDeck_Click(object sender, RoutedEventArgs e)
-            => MessageBox.Show("New Deck coming soon!", "New Deck",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        private void BtnOpenDeck_Click(object sender, RoutedEventArgs e)
-            => MessageBox.Show("Open Deck coming soon!", "Open Deck",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        private void BtnSaveDeck_Click(object sender, RoutedEventArgs e)
-            => MessageBox.Show("Save Deck coming soon!", "Save Deck",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        private void BtnSaveAllDecks_Click(object sender, RoutedEventArgs e)
-            => MessageBox.Show("Save All Decks coming soon!", "Save All",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        private void BtnCloseDeck_Click(object sender, RoutedEventArgs e)
-            => MessageBox.Show("Close Deck coming soon!", "Close Deck",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        private void BtnDeckProperties_Click(object sender, RoutedEventArgs e)
-            => MessageBox.Show("Deck Properties coming soon!", "Properties",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        private void BtnDeckStats_Click(object sender, RoutedEventArgs e)
-            => MessageBox.Show("Deck Statistics coming soon!", "Statistics",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-
-        // ── Tab control handler ───────────────────────────────────────────────────
-        private void BottomTabControl_SelectionChanged(object sender,
-            SelectionChangedEventArgs e)
         {
-            if (BottomTabControl.SelectedItem is TabItem tab)
+            var dialog = new BreakersOfE.Windows.NewDeckDialog
+            { Owner = this };
+
+            if (dialog.ShowDialog() != true) return;
+
+            var deck = DeckService.CreateNew(
+                dialog.DeckName, dialog.DeckType);
+
+            _openDecks.Add(deck);
+            AddDeckTab(deck);
+            SetStatus($"New {deck.DeckType} deck created: {deck.Name}");
+        }
+
+        private void BtnOpenDeck_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
             {
-                bool isDeck = tab.Tag?.ToString() != "Collection";
-                BtnSaveDeck.IsEnabled = isDeck;
-                BtnSaveAllDecks.IsEnabled = isDeck;
-                BtnCloseDeck.IsEnabled = isDeck;
-                BtnDeckProperties.IsEnabled = isDeck;
-                BtnDeckStats.IsEnabled = isDeck;
-                if (MenuSaveDeck != null)
-                    MenuSaveDeck.IsEnabled = isDeck;
-                if (MenuSaveAllDecks != null)
-                    MenuSaveAllDecks.IsEnabled = isDeck;
-                if (MenuCloseDeck != null)
-                    MenuCloseDeck.IsEnabled = isDeck;
+                Title = "Open Deck",
+                Filter = "Deck Files (*.deck)|*.deck|All Files (*.*)|*.*",
+                InitialDirectory = Services.AppFolderService.DecksFolder
+            };
+
+            if (dlg.ShowDialog() != true) return;
+
+            // Check if already open
+            var existing = _openDecks.FirstOrDefault(
+                d => d.FilePath == dlg.FileName);
+            if (existing != null)
+            {
+                // Switch to that tab
+                SelectDeckTab(existing);
+                return;
+            }
+
+            try
+            {
+                var deck = DeckService.Load(dlg.FileName);
+                if (deck == null) return;
+
+                _openDecks.Add(deck);
+                AddDeckTab(deck);
+                SetStatus($"Opened deck: {deck.Name}");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not open deck:\n{ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
+        private void BtnSaveDeck_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            SaveDeck(_activeDeck);
+        }
+
+        private void BtnSaveAllDecks_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var deck in _openDecks.Where(d => d.IsModified))
+                SaveDeck(deck);
+            SetStatus("All decks saved.");
+        }
+
+        private void BtnCloseDeck_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            CloseDeck(_activeDeck);
+        }
+
+        private void BtnDeckProperties_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            var win = new BreakersOfE.Windows.DeckPropertiesWindow(_activeDeck)
+            { Owner = this };
+            if (win.ShowDialog() == true)
+            {
+                UpdateDeckTabTitle(_activeDeck);
+                SetStatus($"Deck properties updated: {_activeDeck.Name}");
+            }
+        }
+
+        private void BtnDeckStats_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            MessageBox.Show("Deck Statistics window coming in Round 5!",
+                "Coming Soon", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        // ── Save deck ─────────────────────────────────────────────────────────────
+        private void SaveDeck(Deck deck)
+        {
+            if (string.IsNullOrEmpty(deck.FilePath) ||
+                !System.IO.File.Exists(deck.FilePath))
+            {
+                // Save As
+                var dlg = new Microsoft.Win32.SaveFileDialog
+                {
+                    Title = "Save Deck",
+                    Filter = "Deck Files (*.deck)|*.deck",
+                    InitialDirectory = Services.AppFolderService.DecksFolder,
+                    FileName = Services.AppFolderService
+                        .SafeFileName(deck.Name)
+                };
+                if (dlg.ShowDialog() != true) return;
+                deck.FilePath = dlg.FileName;
+            }
+
+            try
+            {
+                DeckService.Save(deck);
+                UpdateDeckTabTitle(deck);
+                SetStatus($"Saved: {deck.Name}");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not save deck:\n{ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // ── Close deck ────────────────────────────────────────────────────────────
+        private void CloseDeck(Deck deck)
+        {
+            if (deck.IsModified)
+            {
+                var result = MessageBox.Show(
+                    $"Save changes to '{deck.Name}' before closing?",
+                    "Unsaved Changes",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Cancel) return;
+                if (result == MessageBoxResult.Yes)
+                    SaveDeck(deck);
+            }
+
+            _openDecks.Remove(deck);
+            RemoveDeckTab(deck);
+
+            _activeDeck = null;
+            UpdateDeckToolbarState();
+            SetStatus($"Closed deck: {deck.Name}");
+        }
+
+        // ── Add deck tab ──────────────────────────────────────────────────────────
+        private void AddDeckTab(Deck deck)
+        {
+            var grid = BuildDeckDataGrid(deck);
+
+            var tab = new TabItem
+            {
+                Header = deck.TabTitle,
+                Tag = deck,
+                Content = grid,
+                Style = (Style)FindResource("DeckTabStyle")
+            };
+
+            DeckTabControl.Items.Add(tab);
+            DeckTabControl.SelectedItem = tab;
+            _activeDeck = deck;
+            UpdateDeckToolbarState();
+        }
+
+        // ── Build deck DataGrid ───────────────────────────────────────────────────
+        private DataGrid BuildDeckDataGrid(Deck deck)
+        {
+            var grid = new DataGrid
+            {
+                AutoGenerateColumns = false,
+                IsReadOnly = true,
+                SelectionMode = DataGridSelectionMode.Single,
+                SelectionUnit = DataGridSelectionUnit.FullRow,
+                HeadersVisibility = DataGridHeadersVisibility.Column,
+                Background = (System.Windows.Media.Brush)
+                    FindResource("GridRowBrush"),
+                Foreground = (System.Windows.Media.Brush)
+                    FindResource("PrimaryTextBrush"),
+                BorderThickness = new Thickness(0),
+                GridLinesVisibility = DataGridGridLinesVisibility.None,
+                RowHeaderWidth = 0,
+                RowHeight = 28,
+                CanUserResizeRows = true,
+                CanUserReorderColumns = true,
+                EnableRowVirtualization = true,
+                ColumnHeaderStyle = (Style)FindResource("DataGridColumnHeaderStyle"),
+                RowStyle = (Style)FindResource("DataGridRowStyle"),
+                CellStyle = (Style)FindResource("DataGridCellStyle"),
+                Tag = deck
+            };
+
+            // Suppress selection highlight
+            grid.Resources.Add(
+                SystemColors.HighlightBrushKey,
+                System.Windows.Media.Brushes.Transparent);
+            grid.Resources.Add(
+                SystemColors.InactiveSelectionHighlightBrushKey,
+                System.Windows.Media.Brushes.Transparent);
+
+            // Context menu
+            var ctx = new ContextMenu();
+            var removeOne = new MenuItem { Header = "Remove 1 Copy" };
+            removeOne.Click += DeckCtxRemove1_Click;
+            var removeAll = new MenuItem { Header = "Remove All Copies" };
+            removeAll.Click += DeckCtxRemoveAll_Click;
+            var setCommander = new MenuItem { Header = "Set as Commander" };
+            setCommander.Click += DeckCtxSetCommander_Click;
+            var setSideboard = new MenuItem { Header = "Move to Sideboard" };
+            setSideboard.Click += DeckCtxMoveSideboard_Click;
+            var setMainboard = new MenuItem { Header = "Move to Mainboard" };
+            setMainboard.Click += DeckCtxMoveMainboard_Click;
+            ctx.Items.Add(removeOne);
+            ctx.Items.Add(removeAll);
+            ctx.Items.Add(new Separator());
+            ctx.Items.Add(setCommander);
+            ctx.Items.Add(setSideboard);
+            ctx.Items.Add(setMainboard);
+            grid.ContextMenu = ctx;
+
+            grid.SelectionChanged += DeckGrid_SelectionChanged;
+
+            // Columns
+            grid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = "ES",
+                Width = new DataGridLength(32),
+                CanUserResize = false,
+                CellTemplate = CreateSetSymbolTemplate()
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Name",
+                Binding = new System.Windows.Data.Binding("Name"),
+                Width = new DataGridLength(200)
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Edition",
+                Binding = new System.Windows.Data.Binding("SetCode"),
+                Width = new DataGridLength(60)
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Qty",
+                Binding = new System.Windows.Data.Binding("Quantity"),
+                Width = new DataGridLength(45)
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Category",
+                Binding = new System.Windows.Data.Binding("CategoryDisplay"),
+                Width = new DataGridLength(85)
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Color",
+                Binding = new System.Windows.Data.Binding("ColorIdentity"),
+                Width = new DataGridLength(55)
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Type",
+                Binding = new System.Windows.Data.Binding("TypeLine"),
+                Width = new DataGridLength(160)
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Rarity",
+                Binding = new System.Windows.Data.Binding("RarityCode"),
+                Width = new DataGridLength(50)
+            });
+
+            grid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = "Cost",
+                Width = new DataGridLength(110),
+                CellTemplate = CreateManaCostTemplate()
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "P/T",
+                Binding = new System.Windows.Data.Binding("PowerToughness"),
+                Width = new DataGridLength(55)
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "USD",
+                Binding = new System.Windows.Data.Binding("PriceUsdDisplay"),
+                Width = new DataGridLength(70)
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Value",
+                Binding = new System.Windows.Data.Binding("ValueDisplay"),
+                Width = new DataGridLength(70)
+            });
+
+            // Load data
+            RefreshDeckGrid(grid, deck);
+            return grid;
+        }
+
+        private DataTemplate CreateSetSymbolTemplate()
+        {
+            var factory = new FrameworkElementFactory(typeof(Image));
+            var binding = new System.Windows.Data.Binding("SetSymbolPath")
+            {
+                Converter = (System.Windows.Data.IValueConverter)
+                    Application.Current.Resources["ImageSourceConverter"]
+            };
+            factory.SetBinding(Image.SourceProperty, binding);
+            factory.SetValue(Image.WidthProperty, 16.0);
+            factory.SetValue(Image.HeightProperty, 16.0);
+            factory.SetValue(Image.HorizontalAlignmentProperty,
+                HorizontalAlignment.Center);
+            factory.SetValue(Image.VerticalAlignmentProperty,
+                VerticalAlignment.Center);
+            return new DataTemplate { VisualTree = factory };
+        }
+
+        private DataTemplate CreateManaCostTemplate()
+        {
+            var factory = new FrameworkElementFactory(
+                typeof(ContentPresenter));
+            var binding = new System.Windows.Data.Binding("ManaCost")
+            {
+                Converter = (System.Windows.Data.IValueConverter)
+                    Application.Current.Resources["ManaCostConverter"]
+            };
+            factory.SetBinding(ContentPresenter.ContentProperty, binding);
+            factory.SetValue(ContentPresenter.VerticalAlignmentProperty,
+                VerticalAlignment.Center);
+            return new DataTemplate { VisualTree = factory };
+        }
+
+        // ── Refresh deck grid ─────────────────────────────────────────────────────
+        private static void RefreshDeckGrid(DataGrid grid, Deck deck)
+        {
+            grid.ItemsSource = deck.Cards
+                .OrderBy(c => c.Category)
+                .ThenBy(c => c.Name)
+                .ToList();
+        }
+
+        // ── Update deck tab title ─────────────────────────────────────────────────
+        private void UpdateDeckTabTitle(Deck deck)
+        {
+            foreach (TabItem tab in DeckTabControl.Items)
+            {
+                if (tab.Tag is Deck d && d == deck)
+                {
+                    tab.Header = deck.TabTitle;
+                    break;
+                }
+            }
+        }
+
+        // ── Remove deck tab ───────────────────────────────────────────────────────
+        private void RemoveDeckTab(Deck deck)
+        {
+            TabItem? toRemove = null;
+            foreach (TabItem tab in DeckTabControl.Items)
+                if (tab.Tag is Deck d && d == deck)
+                { toRemove = tab; break; }
+
+            if (toRemove != null)
+                DeckTabControl.Items.Remove(toRemove);
+
+            // Switch to collection tab
+            DeckTabControl.SelectedIndex = 0;
+        }
+
+        // ── Select deck tab ───────────────────────────────────────────────────────
+        private void SelectDeckTab(Deck deck)
+        {
+            foreach (TabItem tab in DeckTabControl.Items)
+            {
+                if (tab.Tag is Deck d && d == deck)
+                {
+                    DeckTabControl.SelectedItem = tab;
+                    _activeDeck = deck;
+                    break;
+                }
+            }
+        }
+
+        // ── Tab selection changed ─────────────────────────────────────────────────
+        private void DeckTabControl_SelectionChanged(object sender,
+            SelectionChangedEventArgs e)
+        {
+            if (DeckTabControl.SelectedItem is TabItem tab)
+            {
+                _activeDeck = tab.Tag as Deck;
+                bool isDeck = _activeDeck != null;
+
+                BtnSaveDeck.IsEnabled = isDeck;
+                BtnSaveAllDecks.IsEnabled = _openDecks.Any();
+                BtnCloseDeck.IsEnabled = isDeck;
+                BtnDeckProperties.IsEnabled = isDeck;
+                BtnDeckStats.IsEnabled = isDeck;
+
+                if (MenuSaveDeck != null)
+                    MenuSaveDeck.IsEnabled = isDeck;
+                if (MenuSaveAllDecks != null)
+                    MenuSaveAllDecks.IsEnabled = _openDecks.Any();
+                if (MenuCloseDeck != null)
+                    MenuCloseDeck.IsEnabled = isDeck;
+
+                // Update bottom label
+                if (isDeck && _activeDeck != null)
+                    BottomTableLabel.Text = _activeDeck.DeckType ==
+                        DeckType.Commander
+                        ? "Commander Deck"
+                        : "Standard Deck";
+                else
+                    BottomTableLabel.Text = "Collection";
+            }
+        }
+
+        // ── Update deck toolbar state ─────────────────────────────────────────────
+        private void UpdateDeckToolbarState()
+        {
+            bool isDeck = _activeDeck != null;
+            BtnSaveDeck.IsEnabled = isDeck;
+            BtnSaveAllDecks.IsEnabled = _openDecks.Any();
+            BtnCloseDeck.IsEnabled = isDeck;
+            BtnDeckProperties.IsEnabled = isDeck;
+            BtnDeckStats.IsEnabled = isDeck;
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // ADD CARDS TO DECK
+        // ════════════════════════════════════════════════════════════════════
+        private void AddCardToActiveDeck(PoolCard card,
+            DeckCardCategory category = DeckCardCategory.Mainboard)
+        {
+            if (_activeDeck == null)
+            {
+                MessageBox.Show("No deck is open. Create or open a deck first.",
+                    "No Deck Open", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var deckCard = DeckService.FromPoolCard(card);
+
+            bool added = DeckService.AddCard(
+                _activeDeck, deckCard, category, out string error);
+
+            if (!added)
+            {
+                MessageBox.Show(error, "Cannot Add Card",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Refresh the active deck grid
+            RefreshActiveDeckGrid();
+            UpdateDeckTabTitle(_activeDeck);
+            SetStatus($"Added {card.Name} to {_activeDeck.Name}");
+        }
+
+        private void AddCardToActiveDeck(CollectionDisplayRow row,
+            DeckCardCategory category = DeckCardCategory.Mainboard)
+        {
+            if (_activeDeck == null)
+            {
+                MessageBox.Show("No deck is open. Create or open a deck first.",
+                    "No Deck Open", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var deckCard = DeckService.FromCollectionRow(row);
+
+            bool added = DeckService.AddCard(
+                _activeDeck, deckCard, category, out string error);
+
+            if (!added)
+            {
+                MessageBox.Show(error, "Cannot Add Card",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Update used count in collection
+            UpdateUsedCount(row.PoolId, 1);
+
+            RefreshActiveDeckGrid();
+            UpdateDeckTabTitle(_activeDeck);
+            SetStatus($"Added {row.Name} to {_activeDeck.Name}");
+        }
+
+        private void RefreshActiveDeckGrid()
+        {
+            if (_activeDeck == null) return;
+
+            if (DeckTabControl.SelectedItem is TabItem tab &&
+                tab.Content is DataGrid grid)
+            {
+                RefreshDeckGrid(grid, _activeDeck);
+            }
+        }
+
+        // ── Update used count ─────────────────────────────────────────────────────
+        private void UpdateUsedCount(int poolId, int delta)
+        {
+            using var db = new Data.AppDbContext();
+            var entry = db.CollectionEntries
+                .FirstOrDefault(c => c.PoolId == poolId);
+            if (entry == null) return;
+
+            entry.UsedCount = Math.Max(0, entry.UsedCount + delta);
+            db.SaveChanges();
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // DECK CONTEXT MENU HANDLERS
+        // ════════════════════════════════════════════════════════════════════
+        private void DeckGrid_SelectionChanged(object sender,
+            SelectionChangedEventArgs e)
+        {
+            if (sender is DataGrid grid &&
+                grid.SelectedItem is DeckCard card)
+                _ = HandleSelectionAsync(card);
+        }
+
+        private void DeckCtxRemove1_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
+            {
+                DeckService.RemoveCard(_activeDeck, card, false);
+                RefreshActiveDeckGrid();
+                UpdateDeckTabTitle(_activeDeck);
+
+                // Update used count if came from collection
+                if (_currentMode == "CollectionToDeck")
+                    UpdateUsedCount(card.PoolId, -1);
+
+                SetStatus($"Removed 1x {card.Name} from deck.");
+            }
+        }
+
+        private void DeckCtxRemoveAll_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
+            {
+                int qty = card.Quantity;
+                DeckService.RemoveCard(_activeDeck, card, true);
+                RefreshActiveDeckGrid();
+                UpdateDeckTabTitle(_activeDeck);
+
+                if (_currentMode == "CollectionToDeck")
+                    UpdateUsedCount(card.PoolId, -qty);
+
+                SetStatus($"Removed all {card.Name} from deck.");
+            }
+        }
+
+        private void DeckCtxSetCommander_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck?.DeckType != DeckType.Commander) return;
+            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
+            {
+                card.Category = DeckCardCategory.Commander;
+                card.IsCommander = true;
+                _activeDeck.IsModified = true;
+                RefreshActiveDeckGrid();
+                SetStatus($"{card.Name} set as Commander.");
+            }
+        }
+
+        private void DeckCtxMoveSideboard_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
+            {
+                card.Category = DeckCardCategory.Sideboard;
+                _activeDeck.IsModified = true;
+                RefreshActiveDeckGrid();
+                SetStatus($"{card.Name} moved to Sideboard.");
+            }
+        }
+
+        private void DeckCtxMoveMainboard_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
+            {
+                card.Category = DeckCardCategory.Mainboard;
+                _activeDeck.IsModified = true;
+                RefreshActiveDeckGrid();
+                SetStatus($"{card.Name} moved to Mainboard.");
+            }
+        }
+
+        private DataGrid? GetActiveDeckGrid()
+        {
+            if (DeckTabControl.SelectedItem is TabItem tab &&
+                tab.Content is DataGrid grid)
+                return grid;
+            return null;
+        }
+
+        
         // ── Context menu deck usage ───────────────────────────────────────────────
         private void CtxShowDeckUsage_Click(object sender, RoutedEventArgs e)
             => MessageBox.Show("Deck Usage coming soon!", "Deck Usage",
                 MessageBoxButton.OK, MessageBoxImage.Information);
+
+        // ── Deck state ────────────────────────────────────────────────────────────
+        private List<Deck> _openDecks = new();
+        private Deck? _activeDeck = null;
 
         // ════════════════════════════════════════════════════════════════════
         // CONSTRUCTOR
@@ -190,6 +772,15 @@ namespace BreakersOfE
 
         private void LoadCurrentMode()
         {
+            // Show collection or deck area based on mode
+            bool isDeckMode = _currentMode == "PoolToDeck" ||
+                              _currentMode == "CollectionToDeck";
+
+            BottomDataGrid.Visibility = isDeckMode
+                ? Visibility.Collapsed : Visibility.Visible;
+            DeckTabControl.Visibility = isDeckMode
+                ? Visibility.Visible : Visibility.Collapsed;
+
             switch (_currentMode)
             {
                 case "PoolToCollection":
@@ -786,6 +1377,10 @@ namespace BreakersOfE
                     ShowCollectionRowDetail(cr);
                     await LoadCardImageAsync(cr.LocalImagePath, cr.ImageNormalUrl);
                     break;
+                case DeckCard dc:
+                    ShowDeckCardDetail(dc);
+                    await LoadCardImageAsync(dc.LocalImagePath, dc.ImageNormalUrl);
+                    break;
                 default:
                     ClearDetailPanel();
                     break;
@@ -797,6 +1392,17 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void TopDataGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            // Handle deck modes
+            if (_currentMode == "PoolToDeck" || _currentMode == "CollectionToDeck")
+            {
+                if (TopDataGrid.SelectedItem is PoolCard pc)
+                    AddCardToActiveDeck(pc);
+                else if (TopDataGrid.SelectedItem is CollectionDisplayRow cr)
+                    AddCardToActiveDeck(cr);
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key != Key.Enter || _bottomLocked) return;
 
             bool shift = Keyboard.IsKeyDown(Key.LeftShift) ||
@@ -2328,6 +2934,26 @@ namespace BreakersOfE
                 RefreshBottom();
                 SetStatus("Prices updated successfully!");
             }
+        }
+
+        private void ShowDeckCardDetail(DeckCard c)
+        {
+            DetailName.Text = c.Name;
+            DetailType.Text = c.TypeLine;
+            DetailSet.Text = $"{c.SetName} ({c.SetCode})";
+            DetailCollectorNumber.Text = c.CollectorNumber;
+            DetailRarity.Text = CapFirst(c.Rarity);
+            DetailOracle.Text = c.OracleText;
+            DetailFlavor.Text = string.Empty;
+            DetailArtist.Text = c.Artist;
+            DetailPT.Text = c.PowerToughness;
+            DetailPTLabel.Text = "POWER / TOUGHNESS";
+            DetailFoilNonFoil.Text = BuildFoilStr(c.IsFoil, c.IsNonFoil);
+            DetailPrices.Text = FormatCollectionPrices(
+                c.PriceUsd, c.PriceUsdFoil);
+            RenderManaCost(c.ManaCost);
+            LoadSetSymbol(c.SetCode);
+            DetailLegalityPanel.Children.Clear();
         }
 
         private void MenuSettings_Click(object sender, RoutedEventArgs e) =>
