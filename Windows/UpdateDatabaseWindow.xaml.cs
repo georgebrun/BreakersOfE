@@ -1,5 +1,4 @@
 ﻿using BreakersOfE.Services;
-using BreakersOfE.Windows;
 using System;
 using System.Diagnostics;
 using System.Threading;
@@ -13,6 +12,7 @@ namespace BreakersOfE.Windows
     {
         private CancellationTokenSource? _cts;
         private bool _isRunning = false;
+        private bool _priceOnly = false;
 
         // Animation storyboards
         private Storyboard? _dot1;
@@ -25,17 +25,20 @@ namespace BreakersOfE.Windows
 
         public ImportResult? Result { get; private set; }
 
-        public UpdateDatabaseWindow()
+        public UpdateDatabaseWindow(bool priceOnly = false)
         {
             InitializeComponent();
+            _priceOnly = priceOnly;
 
-            // Grab storyboards after init
+            if (_priceOnly)
+                Title = "Update Card Prices";
+
             _dot1 = (Storyboard)Resources["PulseDot1"];
             _dot2 = (Storyboard)Resources["PulseDot2"];
             _dot3 = (Storyboard)Resources["PulseDot3"];
         }
 
-        // ── Start/Stop animation helpers ─────────────────────────────────────
+        // ── Animation ─────────────────────────────────────────────────────────
         private void StartAnimation()
         {
             DotsPanel.Visibility = Visibility.Visible;
@@ -76,7 +79,7 @@ namespace BreakersOfE.Windows
             _stopwatch.Stop();
         }
 
-        // ── Button handlers ───────────────────────────────────────────────────
+        // ── Start button ──────────────────────────────────────────────────────
         private async void StartButton_Click(object sender, RoutedEventArgs e)
         {
             if (_isRunning) return;
@@ -99,7 +102,13 @@ namespace BreakersOfE.Windows
             });
 
             var service = new ScryfallService();
-            Result = await service.RunFullUpdateAsync(progress, _cts.Token);
+
+            if (_priceOnly)
+                Result = await service.RunPriceUpdateAsync(
+                    progress, _cts.Token);
+            else
+                Result = await service.RunFullUpdateAsync(
+                    progress, _cts.Token);
 
             StopAnimation();
             StopElapsedTimer();
@@ -107,10 +116,22 @@ namespace BreakersOfE.Windows
 
             if (Result.Success)
             {
-                var report = new VerificationReportWindow(Result) { Owner = this };
-                report.ShowDialog();
-                DialogResult = true;
-                Close();
+                if (_priceOnly)
+                {
+                    // No verification report for price-only
+                    StepLabel.Text = "Prices updated successfully!";
+                    DetailLabel.Text = string.Empty;
+                    DialogResult = true;
+                    Close();
+                }
+                else
+                {
+                    var report = new VerificationReportWindow(Result)
+                    { Owner = this };
+                    report.ShowDialog();
+                    DialogResult = true;
+                    Close();
+                }
             }
             else
             {
@@ -119,10 +140,11 @@ namespace BreakersOfE.Windows
                 StartButton.IsEnabled = true;
                 CancelButton.Content = "Close";
 
-                if (Result.ErrorMessage != "Import cancelled by user.")
+                if (Result.ErrorMessage != "Import cancelled by user." &&
+                    Result.ErrorMessage != "Price update cancelled by user.")
                 {
                     MessageBox.Show(
-                        $"Import failed:\n\n{Result.ErrorMessage}",
+                        $"Update failed:\n\n{Result.ErrorMessage}",
                         "Error",
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
@@ -130,6 +152,7 @@ namespace BreakersOfE.Windows
             }
         }
 
+        // ── Cancel button ─────────────────────────────────────────────────────
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             if (_isRunning)
@@ -145,14 +168,15 @@ namespace BreakersOfE.Windows
             }
         }
 
-        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        protected override void OnClosing(
+            System.ComponentModel.CancelEventArgs e)
         {
             if (_isRunning)
             {
                 e.Cancel = true;
                 MessageBox.Show(
-                    "Please wait for the import to finish or click Cancel first.",
-                    "Import Running",
+                    "Please wait for the update to finish or click Cancel first.",
+                    "Update Running",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return;

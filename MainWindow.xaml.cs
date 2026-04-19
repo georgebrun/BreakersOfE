@@ -1,7 +1,10 @@
 ﻿using BreakersOfE.Data;
 using BreakersOfE.Models;
 using BreakersOfE.Services;
+using BreakersOfE.Windows;
 using Microsoft.EntityFrameworkCore;
+using SharpVectors.Converters;
+using SharpVectors.Renderers.Wpf;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,6 +12,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 
@@ -23,11 +27,24 @@ namespace BreakersOfE
         private List<string> _topSelectedSetCodes = new();
         private List<string> _bottomSelectedSetCodes = new();
         private bool _bottomTableHasFocus = false;
+        
+        // ── In-memory card cache ──────────────────────────────────────────────────
+        private List<PoolCard>? _poolCache = null;
+        private List<TokenCard>? _tokenCache = null;
+        private List<PlanarCard>? _planarCache = null;
+        private List<SchemeCard>? _schemeCache = null;
+        private List<VanguardCard>? _vanguardCache = null;
+        private List<ArtSeriesCard>? _artSeriesCache = null;
 
         // ── Filter state ─────────────────────────────────────────────────────
         private FilterState _topFilter = new();
         private FilterState _bottomFilter = new();
         private string _searchText = string.Empty;
+        private string _bottomSearch = string.Empty;
+        private System.Windows.Threading.DispatcherTimer? _searchDebounceTimer;
+        private List<object> _searchMatches = new();
+        private int _searchMatchIndex = -1;
+        private string _lastSearchTerm = string.Empty;
 
         // ── Lock key prefix for AppSettings ──────────────────────────────────
         private const string LockKeyPrefix = "Lock_";
@@ -48,6 +65,7 @@ namespace BreakersOfE
         {
             InitializeComponent();
             EnsureDatabase();
+            LoadCaches();
             BtnTheme.Content = ThemeService.ThemeToggleIcon;
             BtnTheme.ToolTip = ThemeService.ThemeToggleTooltip;
             ViewModeComboBox.SelectedIndex = 0;
@@ -57,6 +75,29 @@ namespace BreakersOfE
         {
             using var db = new AppDbContext();
             db.Database.EnsureCreated();
+        }
+
+        private void LoadCaches()
+        {
+            SetStatus("Loading card data into memory...");
+            using var db = new AppDbContext();
+
+            _poolCache = db.PoolCards.AsNoTracking()
+                                .OrderBy(c => c.Name)
+                                .ThenBy(c => c.SetCode)
+                                .ToList();
+            _tokenCache = db.TokenCards.AsNoTracking()
+                                .OrderBy(c => c.Name).ToList();
+            _planarCache = db.PlanarCards.AsNoTracking()
+                                .OrderBy(c => c.Name).ToList();
+            _schemeCache = db.SchemeCards.AsNoTracking()
+                                .OrderBy(c => c.Name).ToList();
+            _vanguardCache = db.VanguardCards.AsNoTracking()
+                                .OrderBy(c => c.Name).ToList();
+            _artSeriesCache = db.ArtSeriesCards.AsNoTracking()
+                                .OrderBy(c => c.Name).ToList();
+
+            SetStatus("Ready.");
         }
 
         private static string EnsureFolder(string path)
@@ -77,7 +118,10 @@ namespace BreakersOfE
             {
                 _currentMode = tag;
                 _searchText = string.Empty;
+                _bottomSearch = string.Empty;
                 if (SearchBox != null) SearchBox.Text = string.Empty;
+                _topColumnFilters.ClearAll();
+                _bottomColumnFilters.ClearAll();
 
                 LoadCurrentMode();
                 LoadLockState();
@@ -193,25 +237,15 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void LoadTopTable_Pool()
         {
-            using var db = new AppDbContext();
-            var all = db.PoolCards.AsNoTracking()
-                             .OrderBy(c => c.Name)
-                             .ThenBy(c => c.SetCode)
-                             .ToList();
+            var all = _poolCache ?? new List<PoolCard>();
 
-            // Apply simple text search
             var filtered = FilterService.Apply(all, _topFilter, _searchText);
 
-            // Apply expression filter (from Filter Window)
             if (_topFilterNode != null &&
                 FilterExpressionService.HasConditions(_topFilterNode))
-            {
                 filtered = FilterExpressionService.Apply(
-                    filtered, _topFilterNode,
-                    ChkTopFilter?.IsChecked == true);
-            }
+                    filtered, _topFilterNode, true);
 
-            // Apply set code filter from Tab 1
             if (_topSelectedSetCodes.Count > 0)
                 filtered = filtered
                     .Where(c => _topSelectedSetCodes.Contains(c.SetCode))
@@ -225,45 +259,9 @@ namespace BreakersOfE
             SetStatus($"Pool — {filtered.Count:N0} cards");
         }
 
-        private void LoadTopTable_Planechase()
-        {
-            using var db = new AppDbContext();
-            var cards = db.PlanarCards.AsNoTracking()
-                             .OrderBy(c => c.Name).ToList();
-            for (int i = 0; i < cards.Count; i++) cards[i].RowIndex = i;
-            TopDataGrid.ItemsSource = cards;
-            UpdateRowCount(cards.Count, "Planechase");
-            SetStatus($"Planechase — {cards.Count:N0} cards");
-        }
-
-        private void LoadTopTable_Archenemy()
-        {
-            using var db = new AppDbContext();
-            var cards = db.SchemeCards.AsNoTracking()
-                             .OrderBy(c => c.Name).ToList();
-            for (int i = 0; i < cards.Count; i++) cards[i].RowIndex = i;
-            TopDataGrid.ItemsSource = cards;
-            UpdateRowCount(cards.Count, "Archenemy");
-            SetStatus($"Archenemy — {cards.Count:N0} cards");
-        }
-
-        private void LoadTopTable_Vanguard()
-        {
-            using var db = new AppDbContext();
-            var cards = db.VanguardCards.AsNoTracking()
-                             .OrderBy(c => c.Name).ToList();
-            for (int i = 0; i < cards.Count; i++) cards[i].RowIndex = i;
-            TopDataGrid.ItemsSource = cards;
-            UpdateRowCount(cards.Count, "Vanguard");
-            SetStatus($"Vanguard — {cards.Count:N0} cards");
-        }
-
         private void LoadTopTable_Tokens()
         {
-            using var db = new AppDbContext();
-            var all = db.TokenCards.AsNoTracking()
-                             .OrderBy(c => c.Name)
-                             .ThenBy(c => c.SetCode).ToList();
+            var all = _tokenCache ?? new List<TokenCard>();
             var filtered = FilterService.Apply(all, _topFilter, _searchText);
             for (int i = 0; i < filtered.Count; i++)
                 filtered[i].RowIndex = i;
@@ -272,16 +270,56 @@ namespace BreakersOfE
             SetStatus($"Tokens — {filtered.Count:N0} cards");
         }
 
+        private void LoadTopTable_Planechase()
+        {
+            var all = _planarCache ?? new List<PlanarCard>();
+            var filtered = string.IsNullOrWhiteSpace(_searchText)
+                ? all
+                : all.Where(c => c.Name.Contains(
+                    _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+            for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
+            TopDataGrid.ItemsSource = filtered;
+            UpdateRowCount(filtered.Count, "Planechase");
+            SetStatus($"Planechase — {filtered.Count:N0} cards");
+        }
+
+        private void LoadTopTable_Archenemy()
+        {
+            var all = _schemeCache ?? new List<SchemeCard>();
+            var filtered = string.IsNullOrWhiteSpace(_searchText)
+                ? all
+                : all.Where(c => c.Name.Contains(
+                    _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+            for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
+            TopDataGrid.ItemsSource = filtered;
+            UpdateRowCount(filtered.Count, "Archenemy");
+            SetStatus($"Archenemy — {filtered.Count:N0} cards");
+        }
+
+        private void LoadTopTable_Vanguard()
+        {
+            var all = _vanguardCache ?? new List<VanguardCard>();
+            var filtered = string.IsNullOrWhiteSpace(_searchText)
+                ? all
+                : all.Where(c => c.Name.Contains(
+                    _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+            for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
+            TopDataGrid.ItemsSource = filtered;
+            UpdateRowCount(filtered.Count, "Vanguard");
+            SetStatus($"Vanguard — {filtered.Count:N0} cards");
+        }
+
         private void LoadTopTable_ArtSeries()
         {
-            using var db = new AppDbContext();
-            var cards = db.ArtSeriesCards.AsNoTracking()
-                             .OrderBy(c => c.Name)
-                             .ThenBy(c => c.SetCode).ToList();
-            for (int i = 0; i < cards.Count; i++) cards[i].RowIndex = i;
-            TopDataGrid.ItemsSource = cards;
-            UpdateRowCount(cards.Count, "Art Series");
-            SetStatus($"Art Series — {cards.Count:N0} cards");
+            var all = _artSeriesCache ?? new List<ArtSeriesCard>();
+            var filtered = string.IsNullOrWhiteSpace(_searchText)
+                ? all
+                : all.Where(c => c.Name.Contains(
+                    _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+            for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
+            TopDataGrid.ItemsSource = filtered;
+            UpdateRowCount(filtered.Count, "Art Series");
+            SetStatus($"Art Series — {filtered.Count:N0} cards");
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -291,6 +329,11 @@ namespace BreakersOfE
         {
             using var db = new AppDbContext();
             var rows = BuildCollectionRows(db);
+
+            // Apply text search
+            if (!string.IsNullOrWhiteSpace(_bottomSearch))
+                rows = rows.Where(c => c.Name.Contains(
+                    _bottomSearch, StringComparison.OrdinalIgnoreCase)).ToList();
 
             // Apply set code filter from Tab 1
             if (_bottomSelectedSetCodes.Count > 0)
@@ -736,23 +779,77 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         // SEARCH
         // ════════════════════════════════════════════════════════════════════
-        private void SearchBox_TextChanged(object sender,
-            TextChangedEventArgs e)
+        // ── Search debounce timer ─────────────────────────────────────────────────
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _searchText = SearchBox.Text.Trim();
-
-            // Only reload top table — search filters source pool
-            switch (_currentMode)
+            _searchDebounceTimer?.Stop();
+            _searchDebounceTimer = new System.Windows.Threading.DispatcherTimer
             {
-                case "PoolToCollection":
-                case "PoolToPlanechase":
-                case "PoolToArchenemy":
-                case "PoolToVanguard":
-                case "PoolToTokens":
-                case "PoolToArtSeries":
+                Interval = TimeSpan.FromMilliseconds(300)
+            };
+            _searchDebounceTimer.Tick += (s, args) =>
+            {
+                _searchDebounceTimer.Stop();
+
+                if (_bottomTableHasFocus)
+                {
+                    _bottomSearch = SearchBox.Text.Trim();
+                    RefreshBottom();
+
+                    // Build match list from bottom table
+                    _lastSearchTerm = _bottomSearch;
+                    _searchMatches.Clear();
+                    _searchMatchIndex = -1;
+                    if (!string.IsNullOrEmpty(_lastSearchTerm) &&
+                        BottomDataGrid.ItemsSource is
+                            System.Collections.IEnumerable bottomItems)
+                    {
+                        foreach (var item in bottomItems)
+                        {
+                            string? name = item.GetType()
+                                .GetProperty("Name")?.GetValue(item)?.ToString();
+                            if (name != null && name.Contains(_lastSearchTerm,
+                                    StringComparison.OrdinalIgnoreCase))
+                                _searchMatches.Add(item);
+                        }
+                    }
+                }
+                else
+                {
+                    _searchText = SearchBox.Text.Trim();
                     LoadCurrentMode();
-                    break;
-            }
+
+                    // Build match list from top table
+                    _lastSearchTerm = _searchText;
+                    _searchMatches.Clear();
+                    _searchMatchIndex = -1;
+                    if (!string.IsNullOrEmpty(_lastSearchTerm) &&
+                        TopDataGrid.ItemsSource is
+                            System.Collections.IEnumerable topItems)
+                    {
+                        foreach (var item in topItems)
+                        {
+                            string? name = item.GetType()
+                                .GetProperty("Name")?.GetValue(item)?.ToString();
+                            if (name != null && name.Contains(_lastSearchTerm,
+                                    StringComparison.OrdinalIgnoreCase))
+                                _searchMatches.Add(item);
+                        }
+                    }
+                }
+
+                // Show match count AFTER loaders finish via background priority
+                System.Windows.Threading.Dispatcher.CurrentDispatcher
+                    .BeginInvoke(new Action(() =>
+                    {
+                        if (!string.IsNullOrEmpty(_lastSearchTerm))
+                            SetStatus(_searchMatches.Count > 0
+                                ? $"{_searchMatches.Count} matches for '{_lastSearchTerm}'"
+                                : $"No matches for '{_lastSearchTerm}'");
+                    }),
+                    System.Windows.Threading.DispatcherPriority.Background);
+            };
+            _searchDebounceTimer.Start();
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -806,6 +903,9 @@ namespace BreakersOfE
 
         private FilterNode? _topFilterNode = null;
         private FilterNode? _bottomFilterNode = null;
+        private GridColumnFilters _topColumnFilters = new();
+        private GridColumnFilters _bottomColumnFilters = new();
+        private ColumnFilterPopup? _activeFilterPopup = null;
 
         private void OpenFilterWindow(bool top)
         {
@@ -870,7 +970,6 @@ namespace BreakersOfE
                 _ => FilterContext.Pool
             };
         }
-
         private void BtnSearch_Click(object sender, RoutedEventArgs e)
         {
             var win = new BreakersOfE.Windows.SearchForCardWindow
@@ -880,37 +979,99 @@ namespace BreakersOfE
 
             string name = win.CardName;
             bool pool = win.SearchInPool;
-
-            // Search in the appropriate grid
             var grid = pool ? TopDataGrid : BottomDataGrid;
             var items = grid.ItemsSource as System.Collections.IEnumerable;
             if (items == null) return;
+
+            // Build match list
+            _searchMatches.Clear();
+            _lastSearchTerm = name;
+            _searchMatchIndex = -1;
 
             foreach (var item in items)
             {
                 string? itemName = item.GetType()
                     .GetProperty("Name")?.GetValue(item)?.ToString();
-
                 if (itemName != null &&
-                    itemName.Contains(name,
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    grid.SelectedItem = item;
-                    grid.UpdateLayout();
-                    grid.ScrollIntoView(item);
-                    // Force scroll to selected row
-                    var row = grid.ItemContainerGenerator
-                        .ContainerFromItem(item) as DataGridRow;
-                    row?.BringIntoView();
-                    SetStatus($"Found: {itemName}");
-                    return;
-                }
+                    itemName.Contains(name, StringComparison.OrdinalIgnoreCase))
+                    _searchMatches.Add(item);
             }
 
-            SetStatus($"Not found: {name}");
-            MessageBox.Show($"Card '{name}' not found.",
-                "Search", MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            if (_searchMatches.Count == 0)
+            {
+                SetStatus($"Not found: {name}");
+                MessageBox.Show($"Card '{name}' not found.",
+                    "Search", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            // Jump to first match
+            _searchMatchIndex = 0;
+            var match = _searchMatches[0];
+            grid.SelectedItem = match;
+            grid.UpdateLayout();
+            grid.ScrollIntoView(match);
+            var row = grid.ItemContainerGenerator
+                .ContainerFromItem(match) as DataGridRow;
+            row?.BringIntoView();
+
+            SetStatus($"Match 1 of {_searchMatches.Count}: '{name}'");
+        }
+
+        private void NavigateMatch(bool forward)
+        {
+            if (_searchMatches.Count == 0)
+            {
+                SetStatus($"No matches for '{_lastSearchTerm}'");
+                return;
+            }
+
+            if (forward)
+                _searchMatchIndex = (_searchMatchIndex + 1) %
+                                    _searchMatches.Count;
+            else
+                _searchMatchIndex = (_searchMatchIndex - 1 +
+                                    _searchMatches.Count) %
+                                    _searchMatches.Count;
+
+            var grid = _bottomTableHasFocus ? BottomDataGrid : TopDataGrid;
+            var item = _searchMatches[_searchMatchIndex];
+
+            grid.SelectedItem = item;
+            grid.UpdateLayout();
+            grid.ScrollIntoView(item);
+            var row = grid.ItemContainerGenerator
+                .ContainerFromItem(item) as DataGridRow;
+            row?.BringIntoView();
+
+            SetStatus($"Match {_searchMatchIndex + 1} of " +
+                      $"{_searchMatches.Count}: '{_lastSearchTerm}'");
+        }
+
+        private void BtnFindNext_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_lastSearchTerm))
+            {
+                BtnSearch_Click(sender, e);
+                return;
+            }
+            NavigateMatch(forward: true);
+        }
+
+        private void BtnFindPrev_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_lastSearchTerm))
+                return;
+            NavigateMatch(forward: false);
+        }
+
+        private void BtnClearSearch_Click(object sender, RoutedEventArgs e)
+        {
+            _searchMatches.Clear();
+            _searchMatchIndex = -1;
+            _lastSearchTerm = string.Empty;
+            SetStatus("Search cleared.");
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -1659,11 +1820,26 @@ namespace BreakersOfE
         {
             if (string.IsNullOrWhiteSpace(setCode))
             { DetailSetSymbol.Source = null; return; }
-            string path = Path.Combine(SetSymbolsFolder,
+
+            // Try PNG first, then SVG
+            string pngPath = Path.Combine(SetSymbolsFolder,
                 $"{setCode.ToLower()}.png");
-            if (!File.Exists(path))
-            { DetailSetSymbol.Source = null; return; }
-            DetailSetSymbol.Source = LoadBitmap(path);
+            string svgPath = Path.Combine(SetSymbolsFolder,
+                $"{setCode.ToLower()}.svg");
+
+            if (File.Exists(pngPath))
+            {
+                DetailSetSymbol.Source = LoadBitmap(pngPath);
+                return;
+            }
+
+            if (File.Exists(svgPath))
+            {
+                DetailSetSymbol.Source = LoadSvg(svgPath);
+                return;
+            }
+
+            DetailSetSymbol.Source = null;
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -1721,15 +1897,22 @@ namespace BreakersOfE
             catch { CardImage.Source = null; }
         }
 
-        private static BitmapImage? LoadBitmap(string path)
+        private static System.Windows.Media.ImageSource? LoadBitmap(string path)
         {
             try
             {
+                // Check if file is SVG by extension first
+                if (path.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+                    return LoadSvg(path);
+
+                // Check if file saved as .png is actually SVG content
                 byte[] header = new byte[5];
                 using (var fs = File.OpenRead(path))
                     fs.Read(header, 0, 5);
+
                 string h = System.Text.Encoding.UTF8.GetString(header);
-                if (h.TrimStart().StartsWith("<")) return null; // SVG
+                if (h.TrimStart().StartsWith("<"))
+                    return LoadSvg(path); // SVG disguised as PNG
 
                 var bmp = new BitmapImage();
                 bmp.BeginInit();
@@ -1740,6 +1923,27 @@ namespace BreakersOfE
                 return bmp;
             }
             catch { return null; }
+        }
+
+        private static System.Windows.Media.ImageSource? LoadSvg(string path)
+        {
+            try
+            {
+                var settings = new WpfDrawingSettings
+                {
+                    IncludeRuntime = true,
+                    TextAsGeometry = false
+                };
+
+                var converter = new FileSvgConverter(settings);
+                converter.Convert(path);
+
+                if (converter.Drawing != null)
+                    return new System.Windows.Media.DrawingImage(
+                        converter.Drawing);
+            }
+            catch { }
+            return null;
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -1832,6 +2036,7 @@ namespace BreakersOfE
             { Owner = this };
             if (win.ShowDialog() == true)
             {
+                LoadCaches();      // ← refresh cache after update
                 LoadCurrentMode();
                 SetStatus("Database updated successfully!");
             }
@@ -1857,10 +2062,199 @@ namespace BreakersOfE
                 $"Total Value: ${totalValue:F2}";
         }
 
+        // ════════════════════════════════════════════════════════════════════
+        // COLUMN HEADER FUNNEL CLICK
+        // ════════════════════════════════════════════════════════════════════
+        private void ColumnFunnel_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button btn) return;
+
+            var header = FindParent<DataGridColumnHeader>(btn);
+            if (header == null) return;
+
+            bool isTop = IsParentGrid(header, TopDataGrid);
+            var grid = isTop ? TopDataGrid : BottomDataGrid;
+            var filters = isTop ? _topColumnFilters : _bottomColumnFilters;
+
+            string columnName = btn.Tag?.ToString() ?? string.Empty;
+            string propName = GetPropertyNameForColumn(columnName, isTop);
+            if (string.IsNullOrEmpty(propName)) return;
+
+            var values = GetUniqueValues(grid, propName);
+            var state = filters.GetOrCreate(columnName, propName);
+
+            _activeFilterPopup?.Close();
+
+            var popup = new BreakersOfE.Windows.ColumnFilterPopup(
+                columnName, propName, values, state)
+            { Owner = this };
+
+            var screenPos = btn.PointToScreen(new Point(0, btn.ActualHeight));
+            popup.Left = screenPos.X;
+            popup.Top = screenPos.Y;
+
+            popup.FilterChanged += (s, ev) =>
+            {
+                UpdateFunnelIcon(header, state.IsActive);
+                if (isTop) ApplyTopColumnFilters();
+                else ApplyBottomColumnFilters();
+            };
+
+            _activeFilterPopup = popup;
+            popup.Show();
+            e.Handled = true;
+        }
+
+        private void UpdateFunnelIcon(
+            DataGridColumnHeader header, bool isActive)
+        {
+            if (header.Template.FindName(
+                    "FunnelIcon", header) is TextBlock icon)
+                icon.Foreground = isActive
+                    ? new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(0x00, 0x78, 0xD4))
+                    : System.Windows.Media.Brushes.Gray;
+
+            if (header.Template.FindName(
+                    "FunnelButton", header) is Button btn)
+                btn.Visibility = isActive
+                    ? Visibility.Visible : Visibility.Hidden;
+        }
+
+        private static List<string> GetUniqueValues(
+            DataGrid grid, string propName)
+        {
+            var values = new System.Collections.Generic.HashSet<string>();
+            if (grid.ItemsSource == null) return new List<string>();
+
+            foreach (var item in
+                (System.Collections.IEnumerable)grid.ItemsSource)
+            {
+                var prop = item.GetType().GetProperty(propName,
+                    System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.IgnoreCase);
+
+                string? val = prop?.GetValue(item)?.ToString();
+                values.Add(val ?? string.Empty);
+            }
+
+            return values.OrderBy(v => v).ToList();
+        }
+
+        private static string GetPropertyNameForColumn(
+            string columnName, bool isTop)
+        {
+            return columnName switch
+            {
+                "Name" => "Name",
+                "Edition" => "SetCode",
+                "Edition Name" => "SetName",
+                "Color" => "ColorIdentity",
+                "Type" => "TypeLine",
+                "Rarity" => "RarityCode",
+                "Cost" => "ManaCost",
+                "P/T" => "PowerToughness",
+                "Text" => "OracleText",
+                "Flavor" => "FlavorText",
+                "Artist" => "Artist",
+                "No" => "CollectorNumber",
+                "Power" => "Power",
+                "Toughness" => "Toughness",
+                "CMC" => "ManaValue",
+                "USD" => "PriceUsdDisplay",
+                "USD Foil" => "PriceUsdFoilDisplay",
+                "Qty" => "Quantity",
+                "Foil Qty" => "FoilQuantity",
+                "Used" => "UsedCount",
+                "Available" => "AvailableCount",
+                "Value" => "ValueDisplay",
+                "Foil Value" => "FoilValueDisplay",
+                "Total Value" => "TotalValueDisplay",
+                "Condition" => "Condition",
+                "Language" => "Language",
+                "Storage" => "StorageLocation",
+                _ => string.Empty
+            };
+        }
+
+        private void ApplyTopColumnFilters()
+        {
+            LoadCurrentMode();
+        }
+
+        private void ApplyBottomColumnFilters()
+        {
+            RefreshBottom();
+        }
+
+        private static T? FindParent<T>(DependencyObject child)
+            where T : DependencyObject
+        {
+            var parent = System.Windows.Media.VisualTreeHelper
+                .GetParent(child);
+            while (parent != null)
+            {
+                if (parent is T typed) return typed;
+                parent = System.Windows.Media.VisualTreeHelper
+                    .GetParent(parent);
+            }
+            return null;
+        }
+
+        private static bool IsParentGrid(
+            DependencyObject element, DataGrid grid)
+        {
+            var parent = System.Windows.Media.VisualTreeHelper
+                .GetParent(element);
+            while (parent != null)
+            {
+                if (parent == grid) return true;
+                parent = System.Windows.Media.VisualTreeHelper
+                    .GetParent(parent);
+            }
+            return false;
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // COLUMN CHOOSER
+        // ════════════════════════════════════════════════════════════════════
+        private void BtnColumnChooserTop_Click(object sender, RoutedEventArgs e)
+        {
+            var popup = new BreakersOfE.Windows.ColumnChooserPopup(TopDataGrid)
+            { Owner = this };
+            var btn = sender as Button;
+            var screenPos = btn!.PointToScreen(
+                new Point(0, btn.ActualHeight));
+            popup.Left = screenPos.X;
+            popup.Top = screenPos.Y;
+            popup.Show();
+        }
+
+        private void BtnColumnChooserBottom_Click(
+            object sender, RoutedEventArgs e)
+        {
+            var popup = new BreakersOfE.Windows.ColumnChooserPopup(BottomDataGrid)
+            { Owner = this };
+            var btn = sender as Button;
+            var screenPos = btn!.PointToScreen(
+                new Point(0, btn.ActualHeight));
+            popup.Left = screenPos.X;
+            popup.Top = screenPos.Y;
+            popup.Show();
+        }
+
         private void MenuUpdatePrices_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Price update coming soon!", "Update Prices",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            var win = new BreakersOfE.Windows.UpdateDatabaseWindow(priceOnly: true)
+            { Owner = this };
+
+            if (win.ShowDialog() == true)
+            {
+                LoadCaches();
+                RefreshBottom();
+                SetStatus("Prices updated successfully!");
+            }
         }
 
         private void MenuSettings_Click(object sender, RoutedEventArgs e) =>

@@ -10,21 +10,120 @@
 
     <Window.Resources>
 
-        <!-- ── DataGrid column header style ── -->
+        <!-- ── DataGrid column header with hover funnel ── -->
         <Style x:Key="DataGridColumnHeaderStyle"
-               TargetType="DataGridColumnHeader">
+       TargetType="DataGridColumnHeader">
             <Setter Property="Background"
-                    Value="{DynamicResource GridHeaderBrush}"/>
+            Value="{DynamicResource GridHeaderBrush}"/>
             <Setter Property="Foreground"
-                    Value="{DynamicResource PrimaryTextBrush}"/>
+            Value="{DynamicResource PrimaryTextBrush}"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="BorderBrush"
-                    Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-            <Setter Property="Padding"         Value="6,4"/>
             <Setter Property="FontFamily"      Value="Segoe UI"/>
             <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="BorderBrush"
+            Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="Padding"         Value="6,0,4,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridColumnHeader">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.ColumnSpan="3"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"/>
+
+                            <!-- Column label -->
+                            <TextBlock Grid.Column="0"
+                               Text="{TemplateBinding Content}"
+                               Padding="{TemplateBinding Padding}"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+
+                            <!-- Sort arrow -->
+                            <Path Grid.Column="1"
+                                    Name="SortArrow"
+                                    Visibility="Collapsed"
+                                    Fill="{DynamicResource PrimaryTextBrush}"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Width="8" Height="5"
+                                    Stretch="Fill"
+                                    Margin="0,0,4,0"
+                                    RenderTransformOrigin="0.5,0.5">
+                                <Path.Data>
+                                    <PathGeometry>
+                                        M 0,0 L 4,4 L 8,0 Z
+                                    </PathGeometry>
+                                </Path.Data>
+                                <Path.RenderTransform>
+                                    <RotateTransform Angle="0"/>
+                                </Path.RenderTransform>
+                            </Path>
+
+                            <!-- Funnel filter button -->
+                            <Button Grid.Column="2"
+                            Name="FunnelButton"
+                            Width="18" Height="18"
+                            Margin="0,0,4,0"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Visibility="Hidden"
+                            VerticalAlignment="Center"
+                            Tag="{TemplateBinding Content}"
+                            Click="ColumnFunnel_Click">
+                                <TextBlock Name="FunnelIcon"
+                                   Text="&#xE16E;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="11"
+                                   Foreground="Gray"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"/>
+                            </Button>
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <!-- Show funnel on hover -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="FunnelButton"
+                                Property="Visibility"
+                                Value="Visible"/>
+                            </Trigger>
+
+                            <!-- Sort ascending -->
+                            <Trigger Property="SortDirection"
+                             Value="Ascending">
+                                <Setter TargetName="SortArrow"
+                                Property="Visibility"
+                                Value="Visible"/>
+                                <Setter TargetName="SortArrow"
+                                Property="RenderTransform">
+                                    <Setter.Value>
+                                        <RotateTransform Angle="180"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+
+                            <!-- Sort descending -->
+                            <Trigger Property="SortDirection"
+                             Value="Descending">
+                                <Setter TargetName="SortArrow"
+                                Property="Visibility"
+                                Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
+
 
         <!-- ── DataGrid row style ── -->
         <Style x:Key="DataGridRowStyle" TargetType="DataGridRow">
@@ -214,6 +313,27 @@
                         Content="&#xE11A;"
                         ToolTip="Search for Card"
                         Click="BtnSearch_Click"
+                        DockPanel.Dock="Left" Margin="2,4"/>
+
+                <Button Name="BtnFindNext"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE111;"
+                        ToolTip="Find Next"
+                        Click="BtnFindNext_Click"
+                        DockPanel.Dock="Left" Margin="2,4"/>
+
+                <Button Name="BtnFindPrev"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE112;"
+                        ToolTip="Find Previous"
+                        Click="BtnFindPrev_Click"
+                        DockPanel.Dock="Left" Margin="2,4"/>
+
+                <Button Name="BtnClearSearch"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE10A;"
+                        ToolTip="Clear Search"
+                        Click="BtnClearSearch_Click"
                         DockPanel.Dock="Left" Margin="2,4"/>
 
                 <Button Name="BtnLegality"
@@ -495,13 +615,14 @@
                             </DataGridTemplateColumn>
 
                             <DataGridTemplateColumn Header="ES" Width="32"
-                                                    CanUserResize="False">
+                        CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Image Source="{Binding SetSymbolPath}"
-                                               Width="16" Height="16"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
+                                        <Image Source="{Binding SetSymbolPath,
+                                                Converter={StaticResource ImageSourceConverter}}"
+                                            Width="16" Height="16"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -518,8 +639,16 @@
                                 Binding="{Binding TypeLine}" Width="180"/>
                             <DataGridTextColumn Header="Rarity"
                                 Binding="{Binding RarityCode}" Width="50"/>
-                            <DataGridTextColumn Header="Cost"
-                                Binding="{Binding ManaCost}" Width="90"/>
+                            <DataGridTemplateColumn Header="Cost" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentPresenter
+                                            Content="{Binding ManaCost,
+                                                Converter={StaticResource ManaCostConverter}}"
+                                            VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="P/T"
                                 Binding="{Binding PowerToughness}" Width="55"/>
 
@@ -713,13 +842,14 @@
                             </DataGridTemplateColumn>
 
                             <DataGridTemplateColumn Header="ES" Width="32"
-                                                    CanUserResize="False">
+                        CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Image Source="{Binding SetSymbolPath}"
-                                               Width="16" Height="16"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
+                                        <Image Source="{Binding SetSymbolPath,
+                                                Converter={StaticResource ImageSourceConverter}}"
+                                            Width="16" Height="16"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -886,8 +1016,16 @@
                                 Binding="{Binding TypeLine}" Width="160"/>
                             <DataGridTextColumn Header="Rarity"
                                 Binding="{Binding RarityCode}" Width="50"/>
-                            <DataGridTextColumn Header="Cost"
-                                Binding="{Binding ManaCost}" Width="90"/>
+                            <DataGridTemplateColumn Header="Cost" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentPresenter
+                                            Content="{Binding ManaCost,
+                                                Converter={StaticResource ManaCostConverter}}"
+                                            VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="P/T"
                                 Binding="{Binding PowerToughness}" Width="55"/>
                             <DataGridTextColumn Header="Condition"
