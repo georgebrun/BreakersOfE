@@ -25,16 +25,12 @@ namespace BreakersOfE.Data
 
         // ── Other Tables ────────────────────────────────────────────────────
         public DbSet<TradeBinderEntry> TradeBinderEntries { get; set; }
-        public DbSet<Deck> Decks { get; set; }
-        public DbSet<DeckCard> DeckCards { get; set; }
         public DbSet<AppSetting> AppSettings { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             // Always store the database next to the executable
-            string dbPath = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory,
-                "breakersofe.db");
+            string dbPath = Services.AppFolderService.DatabasePath;
 
             optionsBuilder.UseSqlite($"Data Source={dbPath}");
         }

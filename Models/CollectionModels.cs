@@ -130,36 +130,6 @@ namespace BreakersOfE.Models
         public DateTime DateModified { get; set; } = DateTime.Now;
     }
 
-    // ── Deck ────────────────────────────────────────────────────────────────
-    public class Deck
-    {
-        [Key]
-        public int DeckId { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Format { get; set; } = string.Empty;
-        public string DeckType { get; set; } = string.Empty;
-        public int? CommanderPoolId { get; set; }
-        public int? PartnerCommanderPoolId { get; set; }
-        public int? CompanionPoolId { get; set; }
-        public string Description { get; set; } = string.Empty;
-        public DateTime DateCreated { get; set; } = DateTime.Now;
-        public DateTime DateModified { get; set; } = DateTime.Now;
-    }
-
-    // ── Deck Cards ──────────────────────────────────────────────────────────
-    public class DeckCard
-    {
-        [Key]
-        public int DeckCardId { get; set; }
-        public int DeckId { get; set; }
-        public int PoolId { get; set; }
-        public int Quantity { get; set; }
-        public bool IsCommander { get; set; }
-        public bool IsSideboard { get; set; }
-        public bool IsMaybeboard { get; set; }
-        public string Category { get; set; } = string.Empty;
-    }
-
     // ── App Settings ─────────────────────────────────────────────────────────
     public class AppSetting
     {

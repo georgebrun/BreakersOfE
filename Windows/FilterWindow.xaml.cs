@@ -23,19 +23,8 @@ namespace BreakersOfE.Windows
         private bool _useNonFoilPrice = true;
 
         // ── Filter folder ─────────────────────────────────────────────────────
-        private static string FilterFolder
-        {
-            get
-            {
-                string path = Path.Combine(
-                    Environment.GetFolderPath(
-                        Environment.SpecialFolder.ApplicationData),
-                    "BreakersOfE", "Filters");
-                if (!Directory.Exists(path))
-                    Directory.CreateDirectory(path);
-                return path;
-            }
-        }
+        private static string FilterFolder =>
+            Services.AppFolderService.FiltersFolder;
 
         // ── Result ────────────────────────────────────────────────────────────
         public FilterNode? ResultNode { get; private set; }

@@ -51,12 +51,71 @@ namespace BreakersOfE
 
         // ── Asset folders ────────────────────────────────────────────────────
         private string SetSymbolsFolder =>
-            EnsureFolder(Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory, "SetSymbols"));
+            Services.AppFolderService.SetSymbolsFolder;
 
         private string ManaSymbolsFolder =>
-            EnsureFolder(Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory, "ManaSymbols"));
+            Services.AppFolderService.ManaSymbolsFolder;
+
+        // ── Deck menu handlers ────────────────────────────────────────────────────
+        private void MenuNewDeck_Click(object sender, RoutedEventArgs e)
+            => BtnNewDeck_Click(sender, e);
+        private void MenuOpenDeck_Click(object sender, RoutedEventArgs e)
+            => BtnOpenDeck_Click(sender, e);
+        private void MenuSaveDeck_Click(object sender, RoutedEventArgs e)
+            => BtnSaveDeck_Click(sender, e);
+        private void MenuSaveAllDecks_Click(object sender, RoutedEventArgs e)
+            => BtnSaveAllDecks_Click(sender, e);
+        private void MenuCloseDeck_Click(object sender, RoutedEventArgs e)
+            => BtnCloseDeck_Click(sender, e);
+
+        // ── Deck toolbar handlers (stubs for now) ─────────────────────────────────
+        private void BtnNewDeck_Click(object sender, RoutedEventArgs e)
+            => MessageBox.Show("New Deck coming soon!", "New Deck",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        private void BtnOpenDeck_Click(object sender, RoutedEventArgs e)
+            => MessageBox.Show("Open Deck coming soon!", "Open Deck",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        private void BtnSaveDeck_Click(object sender, RoutedEventArgs e)
+            => MessageBox.Show("Save Deck coming soon!", "Save Deck",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        private void BtnSaveAllDecks_Click(object sender, RoutedEventArgs e)
+            => MessageBox.Show("Save All Decks coming soon!", "Save All",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        private void BtnCloseDeck_Click(object sender, RoutedEventArgs e)
+            => MessageBox.Show("Close Deck coming soon!", "Close Deck",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        private void BtnDeckProperties_Click(object sender, RoutedEventArgs e)
+            => MessageBox.Show("Deck Properties coming soon!", "Properties",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        private void BtnDeckStats_Click(object sender, RoutedEventArgs e)
+            => MessageBox.Show("Deck Statistics coming soon!", "Statistics",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+
+        // ── Tab control handler ───────────────────────────────────────────────────
+        private void BottomTabControl_SelectionChanged(object sender,
+            SelectionChangedEventArgs e)
+        {
+            if (BottomTabControl.SelectedItem is TabItem tab)
+            {
+                bool isDeck = tab.Tag?.ToString() != "Collection";
+                BtnSaveDeck.IsEnabled = isDeck;
+                BtnSaveAllDecks.IsEnabled = isDeck;
+                BtnCloseDeck.IsEnabled = isDeck;
+                BtnDeckProperties.IsEnabled = isDeck;
+                BtnDeckStats.IsEnabled = isDeck;
+                if (MenuSaveDeck != null)
+                    MenuSaveDeck.IsEnabled = isDeck;
+                if (MenuSaveAllDecks != null)
+                    MenuSaveAllDecks.IsEnabled = isDeck;
+                if (MenuCloseDeck != null)
+                    MenuCloseDeck.IsEnabled = isDeck;
+            }
+        }
+
+        // ── Context menu deck usage ───────────────────────────────────────────────
+        private void CtxShowDeckUsage_Click(object sender, RoutedEventArgs e)
+            => MessageBox.Show("Deck Usage coming soon!", "Deck Usage",
+                MessageBoxButton.OK, MessageBoxImage.Information);
 
         // ════════════════════════════════════════════════════════════════════
         // CONSTRUCTOR
@@ -180,6 +239,20 @@ namespace BreakersOfE
                     TopSearchLabel.Text = "Art Series  (read only)";
                     BottomTableLabel.Text = "My Art Series";
                     ActionBarLabel.Text = "Select a card → Enter to add";
+                    break;
+
+                case "PoolToDeck":
+                    LoadTopTable_Pool();
+                    TopSearchLabel.Text = "Pool  (read only)";
+                    BottomTableLabel.Text = "Deck";
+                    ActionBarLabel.Text = "Select a card → Enter to add to deck";
+                    break;
+
+                case "CollectionToDeck":
+                    LoadBottomTable_Collection();
+                    TopSearchLabel.Text = "Collection";
+                    BottomTableLabel.Text = "Deck";
+                    ActionBarLabel.Text = "Select a card → Enter to add to deck";
                     break;
             }
         }
