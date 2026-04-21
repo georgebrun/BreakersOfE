@@ -10,18 +10,14 @@
 
     <Window.Resources>
 
-        <!-- ── DataGrid column header with hover funnel ── -->
-        <Style x:Key="DataGridColumnHeaderStyle"
-               TargetType="DataGridColumnHeader">
-            <Setter Property="Background"
-                    Value="{DynamicResource GridHeaderBrush}"/>
-            <Setter Property="Foreground"
-                    Value="{DynamicResource PrimaryTextBrush}"/>
+        <!-- ── DataGrid column header with hover funnel + sort arrow ── -->
+        <Style x:Key="DataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background"      Value="{DynamicResource GridHeaderBrush}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource PrimaryTextBrush}"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
             <Setter Property="FontFamily"      Value="Segoe UI"/>
             <Setter Property="FontSize"        Value="13"/>
-            <Setter Property="BorderBrush"
-                    Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
             <Setter Property="Padding"         Value="6,0,4,0"/>
             <Setter Property="Template">
@@ -41,16 +37,13 @@
                                        Padding="{TemplateBinding Padding}"
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis"/>
-                            <Path Grid.Column="1"
-                                  Name="SortArrow"
+                            <Path Grid.Column="1" Name="SortArrow"
                                   Visibility="Collapsed"
                                   Fill="{DynamicResource PrimaryTextBrush}"
                                   VerticalAlignment="Center"
                                   HorizontalAlignment="Center"
-                                  Width="8" Height="5"
-                                  Stretch="Fill"
-                                  Margin="0,0,4,0"
-                                  RenderTransformOrigin="0.5,0.5">
+                                  Width="8" Height="5" Stretch="Fill"
+                                  Margin="0,0,4,0" RenderTransformOrigin="0.5,0.5">
                                 <Path.Data>
                                     <PathGeometry>M 0,0 L 4,4 L 8,0 Z</PathGeometry>
                                 </Path.Data>
@@ -58,48 +51,35 @@
                                     <RotateTransform Angle="0"/>
                                 </Path.RenderTransform>
                             </Path>
-                            <Button Grid.Column="2"
-                                    Name="FunnelButton"
-                                    Width="18" Height="18"
-                                    Margin="0,0,4,0"
-                                    Padding="0"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Cursor="Hand"
-                                    Visibility="Hidden"
-                                    VerticalAlignment="Center"
+                            <Button Grid.Column="2" Name="FunnelButton"
+                                    Width="18" Height="18" Margin="0,0,4,0"
+                                    Padding="0" Background="Transparent"
+                                    BorderThickness="0" Cursor="Hand"
+                                    Visibility="Hidden" VerticalAlignment="Center"
                                     Tag="{TemplateBinding Content}"
                                     Click="ColumnFunnel_Click">
-                                <TextBlock Name="FunnelIcon"
-                                           Text="&#xE16E;"
+                                <TextBlock Name="FunnelIcon" Text="&#xE16E;"
                                            FontFamily="Segoe MDL2 Assets"
-                                           FontSize="11"
-                                           Foreground="Gray"
+                                           FontSize="11" Foreground="Gray"
                                            VerticalAlignment="Center"
                                            HorizontalAlignment="Center"/>
                             </Button>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="FunnelButton"
-                                        Property="Visibility"
-                                        Value="Visible"/>
+                                <Setter TargetName="FunnelButton" Property="Visibility" Value="Visible"/>
                             </Trigger>
                             <Trigger Property="SortDirection" Value="Ascending">
-                                <Setter TargetName="SortArrow"
-                                        Property="Visibility" Value="Visible"/>
-                                <Setter TargetName="SortArrow"
-                                        Property="RenderTransform">
+                                <Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="SortArrow" Property="RenderTransform">
                                     <Setter.Value>
                                         <RotateTransform Angle="180" CenterX="4" CenterY="2.5"/>
                                     </Setter.Value>
                                 </Setter>
                             </Trigger>
                             <Trigger Property="SortDirection" Value="Descending">
-                                <Setter TargetName="SortArrow"
-                                        Property="Visibility" Value="Visible"/>
-                                <Setter TargetName="SortArrow"
-                                        Property="RenderTransform">
+                                <Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="SortArrow" Property="RenderTransform">
                                     <Setter.Value>
                                         <RotateTransform Angle="0" CenterX="4" CenterY="2.5"/>
                                     </Setter.Value>
@@ -120,7 +100,7 @@
             <Setter Property="MinHeight"  Value="26"/>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                    <Setter Property="BorderBrush"     Value="{DynamicResource AccentBrush}"/>
                     <Setter Property="BorderThickness" Value="0,1,0,1"/>
                 </Trigger>
             </Style.Triggers>
@@ -169,7 +149,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="25"/>
-            <RowDefinition Height="44"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="25"/>
         </Grid.RowDefinitions>
@@ -185,141 +165,204 @@
                     <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}"/>
                 </Style>
             </Menu.Resources>
-
             <MenuItem Header="_File">
-                <MenuItem Header="_New Deck..."       Click="MenuNewDeck_Click"/>
-                <MenuItem Header="_Open Deck..."      Click="MenuOpenDeck_Click"/>
-                <MenuItem Header="_Save Deck"
-                          Name="MenuSaveDeck"
-                          IsEnabled="False"           Click="MenuSaveDeck_Click"/>
-                <MenuItem Header="Save _All Decks"
-                          Name="MenuSaveAllDecks"
-                          IsEnabled="False"           Click="MenuSaveAllDecks_Click"/>
-                <MenuItem Header="_Close Deck"
-                          Name="MenuCloseDeck"
-                          IsEnabled="False"           Click="MenuCloseDeck_Click"/>
+                <MenuItem Header="_New Deck..."      Click="MenuNewDeck_Click"/>
+                <MenuItem Header="_Open Deck..."     Click="MenuOpenDeck_Click"/>
+                <MenuItem Header="_Save Deck"        Name="MenuSaveDeck"    IsEnabled="False" Click="MenuSaveDeck_Click"/>
+                <MenuItem Header="Save _All Decks"   Name="MenuSaveAllDecks" IsEnabled="False" Click="MenuSaveAllDecks_Click"/>
+                <MenuItem Header="Close _All Decks"  Name="MenuCloseAllDecks" IsEnabled="False" Click="MenuCloseAllDecks_Click"/>
                 <Separator/>
-                <MenuItem Header="_Preferences"       Click="MenuPreferences_Click"/>
+                <MenuItem Header="_Preferences"      Click="MenuPreferences_Click"/>
                 <Separator/>
-                <MenuItem Header="E_xit"              Click="MenuExit_Click"/>
+                <MenuItem Header="E_xit"             Click="MenuExit_Click"/>
             </MenuItem>
-
             <MenuItem Header="_View">
                 <MenuItem Header="_Theme">
                     <MenuItem Header="_Light Mode" Click="MenuThemeLight_Click"/>
                     <MenuItem Header="_Dark Mode"  Click="MenuThemeDark_Click"/>
                 </MenuItem>
             </MenuItem>
-
             <MenuItem Header="_Tools">
                 <MenuItem Header="_Update Card Database" Click="MenuUpdateDatabase_Click"/>
                 <MenuItem Header="_Update Prices Only"   Click="MenuUpdatePrices_Click"/>
                 <Separator/>
                 <MenuItem Header="_Settings"             Click="MenuSettings_Click"/>
             </MenuItem>
-
             <MenuItem Header="_Help">
                 <MenuItem Header="_About" Click="MenuAbout_Click"/>
             </MenuItem>
         </Menu>
 
-        <!-- ══ ROW 1 — TOOLBAR ══ -->
+        <!-- ══ ROW 1 — TOOLBAR (Auto height, wraps if needed) ══ -->
         <Border Grid.Row="1"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
-            <DockPanel Margin="4,0" LastChildFill="False">
+            <WrapPanel Margin="4,2" Orientation="Horizontal">
 
-                <Button Name="BtnUpdateDb" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE117;" ToolTip="Update Card Database"
-                        Click="BtnUpdateDb_Click" DockPanel.Dock="Left" Margin="2,4"/>
-
-                <Separator Style="{DynamicResource ToolbarSeparatorStyle}" DockPanel.Dock="Left"/>
-
-                <Button Name="BtnAdd1" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE109;" ToolTip="Add 1 Copy" IsEnabled="False"
-                        Click="BtnAdd1_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnAddFoil" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1D9;" ToolTip="Add 1 Foil Copy" IsEnabled="False"
-                        Click="BtnAddFoil_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <TextBox Name="TxtQty" Width="46" Height="28"
-                         Style="{DynamicResource BaseTextBoxStyle}"
-                         Text="1" VerticalContentAlignment="Center"
-                         TextAlignment="Center" IsEnabled="False"
-                         DockPanel.Dock="Left" Margin="2,8"/>
-                <Button Name="BtnAddQty" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1FE;" ToolTip="Add Quantity" IsEnabled="False"
-                        Click="BtnAddQty_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnRemove1" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE108;" ToolTip="Remove 1 Copy" IsEnabled="False"
-                        Click="BtnRemove1_Click" DockPanel.Dock="Left" Margin="2,4"/>
-
-                <Separator Style="{DynamicResource ToolbarSeparatorStyle}" DockPanel.Dock="Left"/>
-
-                <Button Name="BtnLock" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1F6;" ToolTip="Lock/Unlock Collection" IsEnabled="False"
-                        Click="BtnLock_Click" DockPanel.Dock="Left" Margin="2,4"/>
-
-                <Separator Style="{DynamicResource ToolbarSeparatorStyle}" DockPanel.Dock="Left"/>
-
-                <!-- Deck buttons -->
-                <Button Name="BtnNewDeck" Style="{DynamicResource ToolbarButtonStyle}"
+                <!-- ── GROUP 1: DECK FILE OPERATIONS ── -->
+                <Button Name="BtnNewDeck"
+                        Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE132;" ToolTip="New Deck"
-                        Click="BtnNewDeck_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnOpenDeck" Style="{DynamicResource ToolbarButtonStyle}"
+                        IsEnabled="False"
+                        Click="BtnNewDeck_Click" Margin="2,2"/>
+                <Button Name="BtnOpenDeck"
+                        Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE1A5;" ToolTip="Open Deck"
-                        Click="BtnOpenDeck_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnSaveDeck" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE105;" ToolTip="Save Deck" IsEnabled="False"
-                        Click="BtnSaveDeck_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnSaveAllDecks" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE116;" ToolTip="Save All Decks" IsEnabled="False"
-                        Click="BtnSaveAllDecks_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnCloseDeck" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE10A;" ToolTip="Close Deck" IsEnabled="False"
-                        Click="BtnCloseDeck_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnDeckProperties" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE946;" ToolTip="Deck Properties" IsEnabled="False"
-                        Click="BtnDeckProperties_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnDeckStats" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE9F9;" ToolTip="Deck Statistics" IsEnabled="False"
-                        Click="BtnDeckStats_Click" DockPanel.Dock="Left" Margin="2,4"/>
+                        IsEnabled="False"
+                        Click="BtnOpenDeck_Click" Margin="2,2"/>
+                <Button Name="BtnSaveDeck"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE105;" ToolTip="Save Deck"
+                        IsEnabled="False"
+                        Click="BtnSaveDeck_Click" Margin="2,2"/>
+                <Button Name="BtnSaveAllDecks"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE116;" ToolTip="Save All Decks"
+                        IsEnabled="False"
+                        Click="BtnSaveAllDecks_Click" Margin="2,2"/>
+                <Button Name="BtnCloseAllDecks"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE10A;" ToolTip="Close All Decks"
+                        IsEnabled="False"
+                        Click="BtnCloseAllDecks_Click" Margin="2,2"/>
+                <Button Name="BtnDeckProperties"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE946;" ToolTip="Deck Properties"
+                        IsEnabled="False"
+                        Click="BtnDeckProperties_Click" Margin="2,2"/>
+                <Button Name="BtnDeckLegality"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE1C6;" ToolTip="Deck Legality"
+                        IsEnabled="False"
+                        Click="BtnDeckLegality_Click" Margin="2,2"/>
+                <Button Name="BtnDeckStats"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE9F9;" ToolTip="Deck Statistics"
+                        IsEnabled="False"
+                        Click="BtnDeckStats_Click" Margin="2,2"/>
 
-                <Separator Style="{DynamicResource ToolbarSeparatorStyle}" DockPanel.Dock="Left"/>
+                <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
 
-                <Button Name="BtnFilter" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE16E;" ToolTip="Filter Cards"
-                        Click="BtnFilter_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnSearch" Style="{DynamicResource ToolbarButtonStyle}"
+                <!-- ── GROUP 2: DECK CARD OPERATIONS ── -->
+                <Button Name="BtnAddToDeck"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE109;" ToolTip="Add 1 Card to Deck"
+                        IsEnabled="False"
+                        Click="BtnAddToDeck_Click" Margin="2,2"/>
+                <Button Name="BtnAdd4ToDeck"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE1FE;" ToolTip="Add 4 Cards to Deck (Standard only)"
+                        IsEnabled="False"
+                        Click="BtnAdd4ToDeck_Click" Margin="2,2"/>
+                <Button Name="BtnAddFoilToDeck"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE1D9;" ToolTip="Add 1 Foil Card to Deck"
+                        IsEnabled="False"
+                        Click="BtnAddFoilToDeck_Click" Margin="2,2"/>
+                <Button Name="BtnRemoveFromDeck"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE108;" ToolTip="Remove Card from Deck"
+                        IsEnabled="False"
+                        Click="BtnRemoveFromDeck_Click" Margin="2,2"/>
+                <Button Name="BtnDeckQtyIncrease"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        ToolTip="Increase Card Quantity in Deck"
+                        IsEnabled="False"
+                        Click="BtnDeckQtyIncrease_Click" Margin="2,2">
+                    <Button.Content>
+                        <TextBlock Text="+" FontSize="16" FontWeight="Bold"/>
+                    </Button.Content>
+                </Button>
+                <Button Name="BtnDeckQtyDecrease"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        ToolTip="Decrease Card Quantity in Deck"
+                        IsEnabled="False"
+                        Click="BtnDeckQtyDecrease_Click" Margin="2,2">
+                    <Button.Content>
+                        <TextBlock Text="−" FontSize="16" FontWeight="Bold"/>
+                    </Button.Content>
+                </Button>
+
+                <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
+
+                <!-- ── GROUP 3: COLLECTION OPERATIONS ── -->
+                <Button Name="BtnAddToCollection"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE109;" ToolTip="Add 1 Card to Collection"
+                        IsEnabled="False"
+                        Click="BtnAddToCollection_Click" Margin="2,2"/>
+                <Button Name="BtnAddFoilToCollection"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE1D9;" ToolTip="Add 1 Foil Card to Collection"
+                        IsEnabled="False"
+                        Click="BtnAddFoilToCollection_Click" Margin="2,2"/>
+                <Button Name="BtnRemoveFromCollection"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE108;" ToolTip="Remove Card from Collection"
+                        IsEnabled="False"
+                        Click="BtnRemoveFromCollection_Click" Margin="2,2"/>
+
+                <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
+
+                <!-- ── GROUP 4: FILTER & SEARCH ── -->
+                <Button Name="BtnFilter"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE16E;" ToolTip="Filter Cards (Filter Card Pool)"
+                        Click="BtnFilter_Click" Margin="2,2"/>
+                <Button Name="BtnAdvancedFilter"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE16F;" ToolTip="Advanced Filter (AND/OR/NAND/NOR)"
+                        Click="BtnAdvancedFilter_Click" Margin="2,2"/>
+                <Button Name="BtnSearch"
+                        Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE11A;" ToolTip="Search for Card"
-                        Click="BtnSearch_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnFindNext" Style="{DynamicResource ToolbarButtonStyle}"
+                        Click="BtnSearch_Click" Margin="2,2"/>
+                <Button Name="BtnFindNext"
+                        Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE111;" ToolTip="Find Next"
-                        Click="BtnFindNext_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnFindPrev" Style="{DynamicResource ToolbarButtonStyle}"
+                        Click="BtnFindNext_Click" Margin="2,2"/>
+                <Button Name="BtnFindPrev"
+                        Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE112;" ToolTip="Find Previous"
-                        Click="BtnFindPrev_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnClearSearch" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE10A;" ToolTip="Clear Search"
-                        Click="BtnClearSearch_Click" DockPanel.Dock="Left" Margin="2,4"/>
-                <Button Name="BtnLegality" Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1C6;" ToolTip="Toggle Legality Columns"
-                        Click="BtnLegality_Click" DockPanel.Dock="Left" Margin="2,4"/>
+                        Click="BtnFindPrev_Click" Margin="2,2"/>
+                <Button Name="BtnClearSearch"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE10A;" ToolTip="Cancel Incremental Search"
+                        Click="BtnClearSearch_Click" Margin="2,2"/>
+                <Button Name="BtnToggleLegality"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE14C;" ToolTip="Toggle Legality Columns"
+                        Click="BtnLegality_Click" Margin="2,2"/>
+                <Button Name="BtnColumnChooser"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE179;" ToolTip="Show/Hide Columns"
+                        Click="BtnColumnChooser_Click" Margin="2,2"/>
 
-                <Separator Style="{DynamicResource ToolbarSeparatorStyle}" DockPanel.Dock="Left"/>
+                <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
 
-                <Button Name="BtnTheme" Style="{DynamicResource ToolbarButtonStyle}"
+                <!-- ── GROUP 5: VIEW ── -->
+                <Button Name="BtnUpdateDb"
+                        Style="{DynamicResource ToolbarButtonStyle}"
+                        Content="&#xE117;" ToolTip="Update Card Database"
+                        Click="BtnUpdateDb_Click" Margin="2,2"/>
+                <Button Name="BtnTheme"
+                        Style="{DynamicResource ToolbarButtonStyle}"
                         Content="&#xE706;" ToolTip="Toggle Light/Dark Mode"
-                        Click="BtnTheme_Click" DockPanel.Dock="Left" Margin="2,4"/>
+                        Click="BtnTheme_Click" Margin="2,2"/>
 
                 <!-- Mode dropdown -->
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
-                            VerticalAlignment="Center" Margin="0,0,8,0">
-                    <TextBlock Text="Mode:" Foreground="{DynamicResource MutedTextBrush}"
-                               FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Margin="8,2,4,2">
+                    <TextBlock Text="Mode:"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0"/>
                     <ComboBox Name="ViewModeComboBox"
                               Style="{DynamicResource BaseComboBoxStyle}"
-                              Width="230"
+                              Width="220" Height="28"
                               SelectionChanged="ViewModeComboBox_SelectionChanged">
                         <ComboBoxItem Content="Pool → Collection"  Tag="PoolToCollection"/>
                         <ComboBoxItem Content="Pool → Planechase"  Tag="PoolToPlanechase"/>
@@ -332,7 +375,7 @@
                     </ComboBox>
                 </StackPanel>
 
-            </DockPanel>
+            </WrapPanel>
         </Border>
 
         <!-- ══ ROW 2 — MAIN CONTENT ══ -->
@@ -420,19 +463,13 @@
                         <RowDefinition Height="28"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Column chooser bar -->
+                    <!-- Top bar -->
                     <Border Grid.Row="0" Style="{DynamicResource GroupByBarStyle}">
                         <DockPanel>
-                            <Button Name="BtnColumnChooserTop"
-                                    Content="&#xE179;" FontFamily="Segoe MDL2 Assets"
-                                    FontSize="13" Width="26" Height="22"
-                                    Margin="4,0,8,0" Background="Transparent"
-                                    BorderThickness="1" Cursor="Hand"
-                                    ToolTip="Show/Hide Columns" DockPanel.Dock="Left"
-                                    Click="BtnColumnChooserTop_Click"/>
                             <TextBlock Text="Hover a column header to filter"
                                        Foreground="{DynamicResource MutedTextBrush}"
-                                       FontSize="12" VerticalAlignment="Center"/>
+                                       FontSize="12" VerticalAlignment="Center"
+                                       Margin="6,0"/>
                         </DockPanel>
                     </Border>
 
@@ -443,19 +480,15 @@
                             BorderThickness="0,0,0,1" Padding="8,4">
                         <DockPanel>
                             <TextBlock Text="&#xE11A;" FontFamily="Segoe MDL2 Assets"
-                                       FontSize="14" Foreground="{DynamicResource MutedTextBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,6,0"
-                                       DockPanel.Dock="Left"/>
+                                       FontSize="14"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0" DockPanel.Dock="Left"/>
                             <TextBlock Name="TopSearchLabel" Text="Pool"
                                        Foreground="{DynamicResource PrimaryTextBrush}"
                                        FontWeight="SemiBold" FontSize="14"
-                                       VerticalAlignment="Center" Margin="0,0,8,0"
-                                       DockPanel.Dock="Left"/>
-                            <TextBlock Name="TopLockIndicator" Text="&#xE1F6;"
-                                       FontFamily="Segoe MDL2 Assets" FontSize="13"
-                                       Foreground="{DynamicResource AccentBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,8,0"
-                                       Visibility="Collapsed" DockPanel.Dock="Left"/>
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" DockPanel.Dock="Left"/>
                             <TextBox Name="SearchBox"
                                      Style="{DynamicResource BaseTextBoxStyle}"
                                      Height="28" Width="300"
@@ -476,7 +509,8 @@
                               Foreground="{DynamicResource PrimaryTextBrush}"
                               BorderThickness="0" GridLinesVisibility="None"
                               RowHeaderWidth="0" RowHeight="28"
-                              CanUserResizeRows="True" CanUserReorderColumns="True"
+                              CanUserResizeRows="True" CanUserResizeColumns="True"
+                              CanUserReorderColumns="True"
                               EnableRowVirtualization="True"
                               VirtualizingPanel.IsVirtualizing="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
@@ -484,10 +518,8 @@
                               RowStyle="{DynamicResource DataGridRowStyle}"
                               CellStyle="{DynamicResource DataGridCellStyle}">
                         <DataGrid.Resources>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
-                                             Color="Transparent"/>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
-                                             Color="Transparent"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
                         </DataGrid.Resources>
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Header="★" Width="28" CanUserResize="False">
@@ -517,29 +549,27 @@
                             <DataGridTemplateColumn Header="Cost" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <ContentPresenter
-                                            Content="{Binding ManaCost, Converter={StaticResource ManaCostConverter}}"
-                                            VerticalAlignment="Center"/>
+                                        <ContentPresenter Content="{Binding ManaCost, Converter={StaticResource ManaCostConverter}}" VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="P/T"          Binding="{Binding PowerToughness}"  Width="55"/>
-                            <DataGridTextColumn Header="USD"          Binding="{Binding PriceUsdDisplay}" Width="70"/>
+                            <DataGridTextColumn Header="P/T"          Binding="{Binding PowerToughness}"      Width="55"/>
+                            <DataGridTextColumn Header="USD"          Binding="{Binding PriceUsdDisplay}"     Width="70"/>
                             <DataGridTextColumn Header="USD Foil"     Binding="{Binding PriceUsdFoilDisplay}" Width="75"/>
-                            <DataGridTextColumn Header="Text"         Binding="{Binding OracleText}"      Width="220"/>
-                            <DataGridTextColumn Header="Flavor"       Binding="{Binding FlavorText}"      Width="160"/>
-                            <DataGridTextColumn Header="Artist"       Binding="{Binding Artist}"          Width="130"/>
-                            <DataGridTextColumn Header="No"           Binding="{Binding CollectorNumber}" Width="55"/>
-                            <DataGridTextColumn Header="Power"        Binding="{Binding Power}"           Width="50"/>
-                            <DataGridTextColumn Header="Toughness"    Binding="{Binding Toughness}"       Width="70"/>
-                            <DataGridTextColumn Header="CMC"          Binding="{Binding ManaValue}"       Width="45"/>
-                            <DataGridTextColumn Header="Standard"     Binding="{Binding LegalityStandard}"  Width="70" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Pioneer"      Binding="{Binding LegalityPioneer}"   Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Modern"       Binding="{Binding LegalityModern}"    Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Legacy"       Binding="{Binding LegalityLegacy}"    Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Vintage"      Binding="{Binding LegalityVintage}"   Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Commander"    Binding="{Binding LegalityCommander}" Width="80" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Pauper"       Binding="{Binding LegalityPauper}"    Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Text"         Binding="{Binding OracleText}"          Width="220"/>
+                            <DataGridTextColumn Header="Flavor"       Binding="{Binding FlavorText}"          Width="160"/>
+                            <DataGridTextColumn Header="Artist"       Binding="{Binding Artist}"              Width="130"/>
+                            <DataGridTextColumn Header="No"           Binding="{Binding CollectorNumber}"     Width="55"/>
+                            <DataGridTextColumn Header="Power"        Binding="{Binding Power}"               Width="50"/>
+                            <DataGridTextColumn Header="Toughness"    Binding="{Binding Toughness}"           Width="70"/>
+                            <DataGridTextColumn Header="CMC"          Binding="{Binding ManaValue}"           Width="45"/>
+                            <DataGridTextColumn Header="Standard"  Binding="{Binding LegalityStandard}"  Width="70" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Pioneer"   Binding="{Binding LegalityPioneer}"   Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Modern"    Binding="{Binding LegalityModern}"    Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Legacy"    Binding="{Binding LegalityLegacy}"    Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Vintage"   Binding="{Binding LegalityVintage}"   Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Commander" Binding="{Binding LegalityCommander}" Width="80" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Pauper"    Binding="{Binding LegalityPauper}"    Width="65" Visibility="Collapsed"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -585,7 +615,7 @@
                               Background="{DynamicResource BorderBrush}"
                               Cursor="SizeNS" Margin="0,-2,0,0"/>
 
-                <!-- ── BOTTOM AREA ────────────────────────────────── -->
+                <!-- BOTTOM AREA -->
                 <Grid Grid.Row="2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="26"/>
@@ -595,332 +625,216 @@
                     </Grid.RowDefinitions>
 
                     <!-- Bottom label bar -->
-                    <Border Grid.Row="0"
-                            Style="{DynamicResource GroupByBarStyle}">
-                        <DockPanel>
-                            <Button Name="BtnColumnChooserBottom"
-                                Content="&#xE179;"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="13"
-                                Width="26" Height="22"
-                                Margin="4,0,8,0"
-                                Background="Transparent"
-                                BorderThickness="1"
-                                Cursor="Hand"
-                                ToolTip="Show/Hide Columns"
-                                DockPanel.Dock="Left"
-                                Click="BtnColumnChooserBottom_Click"/>
-                            <TextBlock Name="BottomTableLabel"
-                                Text="Collection"
-                                Foreground="{DynamicResource PrimaryTextBrush}"
-                                FontWeight="SemiBold" FontSize="13"
-                                VerticalAlignment="Center"
-                                DockPanel.Dock="Left"/>
-                            <TextBlock Name="BottomLockIndicator"
-                                Text="  &#xE1F6; LOCKED"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="12"
-                                Foreground="{DynamicResource AccentBrush}"
-                                VerticalAlignment="Center"
-                                Visibility="Collapsed"
-                                DockPanel.Dock="Left"/>
+                    <Border Grid.Row="0" Style="{DynamicResource GroupByBarStyle}">
+                        <DockPanel Margin="6,0">
+                            <TextBlock Name="BottomTableLabel" Text="Collection"
+                                       Foreground="{DynamicResource PrimaryTextBrush}"
+                                       FontWeight="SemiBold" FontSize="13"
+                                       VerticalAlignment="Center" DockPanel.Dock="Left"/>
                         </DockPanel>
                     </Border>
 
-                    <!-- ── COLLECTION DataGrid — shown in collection modes ── -->
-                    <DataGrid Name="BottomDataGrid"
-              Grid.Row="1"
-              AutoGenerateColumns="False"
-              IsReadOnly="True"
-              SelectionMode="Single"
-              GotFocus="BottomDataGrid_GotFocus"
-              SelectionUnit="FullRow"
-              HeadersVisibility="Column"
-              SelectionChanged="BottomDataGrid_SelectionChanged"
-              Background="{DynamicResource GridRowBrush}"
-              Foreground="{DynamicResource PrimaryTextBrush}"
-              BorderThickness="0"
-              GridLinesVisibility="None"
-              RowHeaderWidth="0"
-              RowHeight="28"
-              CanUserResizeRows="True"
-              CanUserReorderColumns="True"
-              EnableRowVirtualization="True"
-              VirtualizingPanel.IsVirtualizing="True"
-              VirtualizingPanel.VirtualizationMode="Recycling"
-              ColumnHeaderStyle="{DynamicResource DataGridColumnHeaderStyle}"
-              RowStyle="{DynamicResource DataGridRowStyle}"
-              CellStyle="{DynamicResource DataGridCellStyle}">
-
+                    <!-- COLLECTION DataGrid — shown in collection modes -->
+                    <DataGrid Name="BottomDataGrid" Grid.Row="1"
+                              AutoGenerateColumns="False" IsReadOnly="False"
+                              SelectionMode="Single" GotFocus="BottomDataGrid_GotFocus"
+                              SelectionUnit="FullRow" HeadersVisibility="Column"
+                              SelectionChanged="BottomDataGrid_SelectionChanged"
+                              Background="{DynamicResource GridRowBrush}"
+                              Foreground="{DynamicResource PrimaryTextBrush}"
+                              BorderThickness="0" GridLinesVisibility="None"
+                              RowHeaderWidth="0" RowHeight="28"
+                              CanUserResizeRows="True" CanUserResizeColumns="True"
+                              CanUserReorderColumns="True"
+                              EnableRowVirtualization="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ColumnHeaderStyle="{DynamicResource DataGridColumnHeaderStyle}"
+                              RowStyle="{DynamicResource DataGridRowStyle}"
+                              CellStyle="{DynamicResource DataGridCellStyle}">
                         <DataGrid.Resources>
-                            <SolidColorBrush
-                x:Key="{x:Static SystemColors.HighlightBrushKey}"
-                Color="Transparent"/>
-                            <SolidColorBrush
-                x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
-                Color="Transparent"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
                         </DataGrid.Resources>
-
                         <DataGrid.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="Remove 1 Copy"
-                          Click="CtxRemove1_Click"/>
-                                <MenuItem Header="Remove All Copies"
-                          Click="CtxRemoveAll_Click"/>
+                                <MenuItem Header="Remove 1 Copy"     Click="CtxRemove1_Click"/>
+                                <MenuItem Header="Remove All Copies"  Click="CtxRemoveAll_Click"/>
                                 <Separator/>
-                                <MenuItem Header="Show Deck Usage"
-                          Click="CtxShowDeckUsage_Click"/>
+                                <MenuItem Header="Show Deck Usage"   Click="CtxShowDeckUsage_Click"/>
                                 <Separator/>
-                                <MenuItem Header="View Card Details"
-                          Click="CtxViewDetails_Click"/>
+                                <MenuItem Header="View Card Details"  Click="CtxViewDetails_Click"/>
                             </ContextMenu>
                         </DataGrid.ContextMenu>
-
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="★" Width="28"
-                                    CanUserResize="False">
+                            <DataGridTemplateColumn Header="★" Width="28" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding FavoriteGlyph}"
-                                   HorizontalAlignment="Center"
-                                   Foreground="Gold" FontSize="13"/>
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="Gold" FontSize="13"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="ES" Width="32"
-                                    CanUserResize="False">
+                            <DataGridTemplateColumn Header="ES" Width="32" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Image Source="{Binding SetSymbolPath,
-                                Converter={StaticResource ImageSourceConverter}}"
-                               Width="16" Height="16"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
+                                        <Image Source="{Binding SetSymbolPath, Converter={StaticResource ImageSourceConverter}}"
+                                               Width="16" Height="16"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Name"
-                Binding="{Binding Name}" Width="200"/>
-                            <DataGridTextColumn Header="Edition"
-                Binding="{Binding SetCode}" Width="60"/>
-                            <DataGridTextColumn Header="Edition Name"
-                Binding="{Binding SetName}" Width="160"/>
+                            <DataGridTextColumn Header="Name"         Binding="{Binding Name}"            Width="200"/>
+                            <DataGridTextColumn Header="Edition"      Binding="{Binding SetCode}"         Width="60"/>
+                            <DataGridTextColumn Header="Edition Name" Binding="{Binding SetName}"         Width="160"/>
+                            <!-- Qty spinner -->
                             <DataGridTemplateColumn Header="Qty" Width="95">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
-                                            <TextBlock Text="{Binding Quantity}"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       FontSize="14">
+                                            <TextBlock Text="{Binding Quantity}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Visibility" Value="Visible"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsSelected,
-                                                RelativeSource={RelativeSource AncestorType=DataGridRow}}"
-                                                Value="True">
+                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <StackPanel Orientation="Horizontal"
-                                        HorizontalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                 <StackPanel.Style>
                                                     <Style TargetType="StackPanel">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsSelected,
-                                                RelativeSource={RelativeSource AncestorType=DataGridRow}}"
-                                                Value="True">
+                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
                                                                 <Setter Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </StackPanel.Style>
-                                                <Button Content="−" Width="22" Height="20"
-                                        FontSize="13" Padding="0"
-                                        Tag="{Binding}"
-                                        Click="BtnQtyMinus_Row_Click"/>
-                                                <TextBox Width="34" Height="20"
-                                         Text="{Binding Quantity, Mode=TwoWay,
-                                             UpdateSourceTrigger=PropertyChanged}"
-                                         TextAlignment="Center"
-                                         FontSize="13" Padding="0"
-                                         BorderThickness="1" Tag="{Binding}"
-                                         TextChanged="TxtQtyRow_TextChanged"
-                                         PreviewKeyDown="TxtQtyRow_KeyDown"/>
-                                                <Button Content="+" Width="22" Height="20"
-                                        FontSize="13" Padding="0"
-                                        Tag="{Binding}"
-                                        Click="BtnQtyPlus_Row_Click"/>
+                                                <Button Content="−" Width="22" Height="20" FontSize="13" Padding="0" Tag="{Binding}" Click="BtnQtyMinus_Row_Click"/>
+                                                <TextBox Width="34" Height="20" Text="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" FontSize="13" Padding="0" BorderThickness="1" Tag="{Binding}" TextChanged="TxtQtyRow_TextChanged" PreviewKeyDown="TxtQtyRow_KeyDown"/>
+                                                <Button Content="+" Width="22" Height="20" FontSize="13" Padding="0" Tag="{Binding}" Click="BtnQtyPlus_Row_Click"/>
                                             </StackPanel>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
+                            <!-- Foil Qty spinner -->
                             <DataGridTemplateColumn Header="Foil Qty" Width="105">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
-                                            <TextBlock Text="{Binding FoilQuantity}"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       FontSize="14">
+                                            <TextBlock Text="{Binding FoilQuantity}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Visibility" Value="Visible"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsSelected,
-                                                RelativeSource={RelativeSource AncestorType=DataGridRow}}"
-                                                Value="True">
+                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <StackPanel Orientation="Horizontal"
-                                        HorizontalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                 <StackPanel.Style>
                                                     <Style TargetType="StackPanel">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsSelected,
-                                                RelativeSource={RelativeSource AncestorType=DataGridRow}}"
-                                                Value="True">
+                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
                                                                 <Setter Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </StackPanel.Style>
-                                                <Button Content="−" Width="22" Height="20"
-                                        FontSize="13" Padding="0"
-                                        Tag="{Binding}"
-                                        Click="BtnFoilQtyMinus_Row_Click"/>
-                                                <TextBox Width="34" Height="20"
-                                         Text="{Binding FoilQuantity, Mode=TwoWay,
-                                             UpdateSourceTrigger=PropertyChanged}"
-                                         TextAlignment="Center"
-                                         FontSize="13" Padding="0"
-                                         BorderThickness="1" Tag="{Binding}"
-                                         TextChanged="TxtFoilQtyRow_TextChanged"
-                                         PreviewKeyDown="TxtFoilQtyRow_KeyDown"/>
-                                                <Button Content="+" Width="22" Height="20"
-                                        FontSize="13" Padding="0"
-                                        Tag="{Binding}"
-                                        Click="BtnFoilQtyPlus_Row_Click"/>
+                                                <Button Content="−" Width="22" Height="20" FontSize="13" Padding="0" Tag="{Binding}" Click="BtnFoilQtyMinus_Row_Click"/>
+                                                <TextBox Width="34" Height="20" Text="{Binding FoilQuantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" FontSize="13" Padding="0" BorderThickness="1" Tag="{Binding}" TextChanged="TxtFoilQtyRow_TextChanged" PreviewKeyDown="TxtFoilQtyRow_KeyDown"/>
+                                                <Button Content="+" Width="22" Height="20" FontSize="13" Padding="0" Tag="{Binding}" Click="BtnFoilQtyPlus_Row_Click"/>
                                             </StackPanel>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Used"
-                Binding="{Binding UsedCount}" Width="50"/>
-                            <DataGridTextColumn Header="Available"
-                Binding="{Binding AvailableCount}" Width="75"/>
-                            <DataGridTextColumn Header="USD"
-                Binding="{Binding PriceUsdDisplay}" Width="70"/>
-                            <DataGridTextColumn Header="USD Foil"
-                Binding="{Binding PriceUsdFoilDisplay}" Width="80"/>
-                            <DataGridTextColumn Header="Value"
-                Binding="{Binding ValueDisplay}" Width="75"/>
-                            <DataGridTextColumn Header="Foil Value"
-                Binding="{Binding FoilValueDisplay}" Width="80"/>
-                            <DataGridTextColumn Header="Total Value"
-                Binding="{Binding TotalValueDisplay}" Width="85"/>
-                            <DataGridTextColumn Header="Color"
-                Binding="{Binding ColorIdentity}" Width="55"/>
-                            <DataGridTextColumn Header="Type"
-                Binding="{Binding TypeLine}" Width="160"/>
-                            <DataGridTextColumn Header="Rarity"
-                Binding="{Binding RarityCode}" Width="50"/>
+                            <DataGridTextColumn Header="Used"        Binding="{Binding UsedCount}"          Width="50"/>
+                            <DataGridTextColumn Header="Available"   Binding="{Binding AvailableCount}"     Width="75"/>
+                            <DataGridTextColumn Header="USD"         Binding="{Binding PriceUsdDisplay}"    Width="70"/>
+                            <DataGridTextColumn Header="USD Foil"    Binding="{Binding PriceUsdFoilDisplay}" Width="80"/>
+                            <DataGridTextColumn Header="Value"       Binding="{Binding ValueDisplay}"       Width="75"/>
+                            <DataGridTextColumn Header="Foil Value"  Binding="{Binding FoilValueDisplay}"   Width="80"/>
+                            <DataGridTextColumn Header="Total Value" Binding="{Binding TotalValueDisplay}"  Width="85"/>
+                            <DataGridTextColumn Header="Color"       Binding="{Binding ColorIdentity}"      Width="55"/>
+                            <DataGridTextColumn Header="Type"        Binding="{Binding TypeLine}"           Width="160"/>
+                            <DataGridTextColumn Header="Rarity"      Binding="{Binding RarityCode}"         Width="50"/>
                             <DataGridTemplateColumn Header="Cost" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <ContentPresenter
-                            Content="{Binding ManaCost,
-                                Converter={StaticResource ManaCostConverter}}"
-                            VerticalAlignment="Center"/>
+                                        <ContentPresenter Content="{Binding ManaCost, Converter={StaticResource ManaCostConverter}}" VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="P/T"
-                Binding="{Binding PowerToughness}" Width="55"/>
-                            <DataGridTextColumn Header="Condition"
-                Binding="{Binding Condition}" Width="85"/>
-                            <DataGridTextColumn Header="Language"
-                Binding="{Binding Language}" Width="75"/>
-                            <DataGridTextColumn Header="Storage"
-                Binding="{Binding StorageLocation}" Width="100"/>
-                            <DataGridTextColumn Header="Artist"
-                Binding="{Binding Artist}" Width="130"/>
-                            <DataGridTextColumn Header="No"
-                Binding="{Binding CollectorNumber}" Width="55"/>
+                            <DataGridTextColumn Header="P/T"         Binding="{Binding PowerToughness}"     Width="55"/>
+                            <DataGridTextColumn Header="Condition"   Binding="{Binding Condition}"          Width="85"/>
+                            <DataGridTextColumn Header="Language"    Binding="{Binding Language}"           Width="75"/>
+                            <DataGridTextColumn Header="Storage"     Binding="{Binding StorageLocation}"    Width="100"/>
+                            <DataGridTextColumn Header="Artist"      Binding="{Binding Artist}"             Width="130"/>
+                            <DataGridTextColumn Header="No"          Binding="{Binding CollectorNumber}"    Width="55"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <!-- ── DECK TabControl — shown in deck modes only ── -->
-                    <TabControl Name="DeckTabControl"
-                Grid.Row="1"
-                TabStripPlacement="Bottom"
-                Visibility="Collapsed"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderThickness="0,1,0,0"
-                BorderBrush="{DynamicResource BorderBrush}"
-                SelectionChanged="DeckTabControl_SelectionChanged">
+                    <!-- DECK TabControl — shown in deck modes only -->
+                    <TabControl Name="DeckTabControl" Grid.Row="1"
+                                TabStripPlacement="Bottom"
+                                Visibility="Collapsed"
+                                Background="{DynamicResource SurfaceBrush}"
+                                BorderThickness="0,1,0,0"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                SelectionChanged="DeckTabControl_SelectionChanged">
                         <!-- Deck tabs added dynamically in code-behind -->
                     </TabControl>
 
                     <!-- Bottom filter bar -->
-                    <Border Grid.Row="2"
-            Style="{DynamicResource FilterBarStyle}">
+                    <Border Grid.Row="2" Style="{DynamicResource FilterBarStyle}">
                         <DockPanel>
-                            <Button Name="BtnBottomFilterCustomize"
-                    Content="Customize"
-                    Style="{DynamicResource BaseButtonStyle}"
-                    Height="20" FontSize="11" Padding="6,1"
-                    DockPanel.Dock="Right" Margin="4,0"
-                    Click="BtnBottomFilterCustomize_Click"/>
-                            <Button Name="BtnBottomFilterClear"
-                    Content="Clear"
-                    Style="{DynamicResource BaseButtonStyle}"
-                    Height="20" FontSize="11" Padding="6,1"
-                    DockPanel.Dock="Right" Margin="0,0,2,0"
-                    Click="BtnBottomFilterClear_Click"/>
-                            <CheckBox Name="ChkBottomFilter"
-                      IsChecked="False"
-                      VerticalAlignment="Center"
-                      Margin="0,0,6,0"
-                      DockPanel.Dock="Left"
-                      Checked="ChkBottomFilter_Changed"
-                      Unchecked="ChkBottomFilter_Changed"/>
-                            <TextBlock Name="BottomFilterSummary"
-                       Text="No filter active"
-                       Foreground="{DynamicResource MutedTextBrush}"
-                       FontSize="12" VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis"/>
+                            <Button Name="BtnBottomFilterCustomize" Content="Customize"
+                                    Style="{DynamicResource BaseButtonStyle}"
+                                    Height="20" FontSize="11" Padding="6,1"
+                                    DockPanel.Dock="Right" Margin="4,0"
+                                    Click="BtnBottomFilterCustomize_Click"/>
+                            <Button Name="BtnBottomFilterClear" Content="Clear"
+                                    Style="{DynamicResource BaseButtonStyle}"
+                                    Height="20" FontSize="11" Padding="6,1"
+                                    DockPanel.Dock="Right" Margin="0,0,2,0"
+                                    Click="BtnBottomFilterClear_Click"/>
+                            <CheckBox Name="ChkBottomFilter" IsChecked="False"
+                                      VerticalAlignment="Center" Margin="0,0,6,0"
+                                      DockPanel.Dock="Left"
+                                      Checked="ChkBottomFilter_Changed"
+                                      Unchecked="ChkBottomFilter_Changed"/>
+                            <TextBlock Name="BottomFilterSummary" Text="No filter active"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       FontSize="12" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"/>
                         </DockPanel>
                     </Border>
 
                     <!-- Frozen summary row -->
-                    <Border Grid.Row="3"
-            Style="{DynamicResource SummaryBorderStyle}">
+                    <Border Grid.Row="3" Style="{DynamicResource SummaryBorderStyle}">
                         <DockPanel>
                             <TextBlock Name="SummaryText" Text=""
-                       Foreground="{DynamicResource PrimaryTextBrush}"
-                       FontSize="13" FontWeight="SemiBold"
-                       VerticalAlignment="Center"
-                       DockPanel.Dock="Left"/>
+                                       Foreground="{DynamicResource PrimaryTextBrush}"
+                                       FontSize="13" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" DockPanel.Dock="Left"/>
                             <TextBlock Name="SummaryValueText" Text=""
-                       Foreground="{DynamicResource AccentBrush}"
-                       FontSize="13" FontWeight="Bold"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Right"
-                       DockPanel.Dock="Right"
-                       Margin="0,0,8,0"/>
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       FontSize="13" FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Right"
+                                       DockPanel.Dock="Right" Margin="0,0,8,0"/>
                         </DockPanel>
                     </Border>
                 </Grid>

@@ -67,6 +67,155 @@ namespace BreakersOfE
             => BtnSaveAllDecks_Click(sender, e);
         private void MenuCloseDeck_Click(object sender, RoutedEventArgs e)
             => BtnCloseDeck_Click(sender, e);
+        private void MenuCloseAllDecks_Click(object sender, RoutedEventArgs e)
+        {
+            var decksToClose = _openDecks.ToList();
+            foreach (var deck in decksToClose)
+                CloseDeck(deck);
+        }
+
+        private void BtnCloseAllDecks_Click(object sender, RoutedEventArgs e)
+            => MenuCloseAllDecks_Click(sender, e);
+
+        private void BtnDeckLegality_Click(object sender, RoutedEventArgs e)
+            => MessageBox.Show("Deck Legality window coming soon!",
+                "Coming Soon", MessageBoxButton.OK, MessageBoxImage.Information);
+
+        private void BtnAddToDeck_Click(object sender, RoutedEventArgs e)
+            => AddFromTopSelectionToDeck(foil: false);
+
+        private void BtnAdd4ToDeck_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck?.DeckType != DeckType.Standard) return;
+            for (int i = 0; i < 4; i++)
+                AddFromTopSelectionToDeck(foil: false);
+        }
+
+        private void BtnAddFoilToDeck_Click(object sender, RoutedEventArgs e)
+            => AddFromTopSelectionToDeck(foil: true);
+
+        private void BtnRemoveFromDeck_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
+            {
+                DeckService.RemoveCard(_activeDeck, card, true);
+                RefreshActiveDeckGrid();
+                UpdateDeckTabTitle(_activeDeck);
+                UpdateDeckSummary(_activeDeck);
+                SetStatus($"Removed {card.Name} from deck.");
+            }
+        }
+
+        private void BtnDeckQtyIncrease_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
+            {
+                card.Quantity++;
+                _activeDeck.IsModified = true;
+                RefreshActiveDeckGrid();
+                UpdateDeckSummary(_activeDeck);
+                SetStatus($"{card.Name} qty increased to {card.Quantity}.");
+            }
+        }
+
+        private void BtnDeckQtyDecrease_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
+            {
+                if (card.Quantity <= 1)
+                    DeckService.RemoveCard(_activeDeck, card, true);
+                else
+                    card.Quantity--;
+                _activeDeck.IsModified = true;
+                RefreshActiveDeckGrid();
+                UpdateDeckSummary(_activeDeck);
+            }
+        }
+
+        private void BtnAdvancedFilter_Click(object sender, RoutedEventArgs e)
+            => OpenFilterWindow(top: !_bottomTableHasFocus);
+
+        private void BtnColumnChooser_Click(object sender, RoutedEventArgs e)
+        {
+            var grid = _bottomTableHasFocus
+                ? (DataGrid)BottomDataGrid
+                : TopDataGrid;
+            var popup = new BreakersOfE.Windows.ColumnChooserPopup(grid)
+            { Owner = this };
+            var btn = sender as Button;
+            var screenPos = btn!.PointToScreen(new Point(0, btn.ActualHeight));
+            popup.Left = screenPos.X;
+            popup.Top = screenPos.Y;
+            popup.Show();
+        }
+
+        private void AddFromTopSelectionToDeck(bool foil)
+        {
+            if (_activeDeck == null)
+            {
+                MessageBox.Show(
+                    "No deck is open. Create or open a deck first.",
+                    "No Deck Open", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            DeckCard? deckCard = null;
+
+            switch (TopDataGrid.SelectedItem)
+            {
+                case PoolCard pc:
+                    if (foil && !pc.IsFoil) return;
+                    if (!foil && !pc.IsNonFoil) return;
+                    deckCard = DeckService.FromPoolCard(pc);
+                    break;
+                case CollectionDisplayRow cr:
+                    deckCard = DeckService.FromCollectionRow(cr);
+                    if (_currentMode == "CollectionToDeck")
+                        UpdateUsedCount(cr.PoolId, 1);
+                    break;
+                default:
+                    return;
+            }
+
+            if (deckCard == null) return;
+            deckCard.IsFoil = foil;
+
+            bool added = DeckService.AddCard(
+                _activeDeck, deckCard,
+                DeckCardCategory.Mainboard,
+                out string error);
+
+            if (!added)
+            {
+                MessageBox.Show(error, "Cannot Add Card",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            RefreshActiveDeckGrid();
+            UpdateDeckTabTitle(_activeDeck);
+            UpdateDeckSummary(_activeDeck);
+            SetStatus($"Added {deckCard.Name} to {_activeDeck.Name}");
+        }
+
+        private void UpdateDeckSummary(Deck deck)
+        {
+            if (deck == null) { SummaryText.Text = string.Empty; return; }
+
+            string limit = deck.DeckType == DeckType.Commander ? "/100" : "+";
+
+            SummaryText.Text =
+                $"Cards: {deck.MainboardCount}{limit}   " +
+                $"Lands: {deck.LandCount}   " +
+                $"Creatures: {deck.CreatureCount}   " +
+                $"Spells: {deck.SpellCount}   " +
+                $"Sideboard: {deck.SideboardCount}   " +
+                $"Value: {deck.TotalValueDisplay}";
+        }
 
         // ════════════════════════════════════════════════════════════════════
         // DECK MANAGEMENT
@@ -471,46 +620,32 @@ namespace BreakersOfE
 
         // ── Tab selection changed ─────────────────────────────────────────────────
         private void DeckTabControl_SelectionChanged(object sender,
-            SelectionChangedEventArgs e)
+    SelectionChangedEventArgs e)
         {
             if (DeckTabControl.SelectedItem is TabItem tab)
             {
                 _activeDeck = tab.Tag as Deck;
-                bool isDeck = _activeDeck != null;
 
-                BtnSaveDeck.IsEnabled = isDeck;
-                BtnSaveAllDecks.IsEnabled = _openDecks.Any();
-                BtnCloseDeck.IsEnabled = isDeck;
-                BtnDeckProperties.IsEnabled = isDeck;
-                BtnDeckStats.IsEnabled = isDeck;
-
-                if (MenuSaveDeck != null)
-                    MenuSaveDeck.IsEnabled = isDeck;
-                if (MenuSaveAllDecks != null)
-                    MenuSaveAllDecks.IsEnabled = _openDecks.Any();
-                if (MenuCloseDeck != null)
-                    MenuCloseDeck.IsEnabled = isDeck;
-
-                // Update bottom label
-                if (isDeck && _activeDeck != null)
+                if (_activeDeck != null)
                     BottomTableLabel.Text = _activeDeck.DeckType ==
                         DeckType.Commander
                         ? "Commander Deck"
                         : "Standard Deck";
                 else
-                    BottomTableLabel.Text = "Collection";
+                    BottomTableLabel.Text = "Deck";
             }
+            else
+            {
+                _activeDeck = null;
+            }
+
+            UpdateToolbarState();
         }
 
         // ── Update deck toolbar state ─────────────────────────────────────────────
         private void UpdateDeckToolbarState()
         {
-            bool isDeck = _activeDeck != null;
-            BtnSaveDeck.IsEnabled = isDeck;
-            BtnSaveAllDecks.IsEnabled = _openDecks.Any();
-            BtnCloseDeck.IsEnabled = isDeck;
-            BtnDeckProperties.IsEnabled = isDeck;
-            BtnDeckStats.IsEnabled = isDeck;
+            UpdateToolbarState();
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -765,7 +900,7 @@ namespace BreakersOfE
                 _bottomColumnFilters.ClearAll();
 
                 LoadCurrentMode();
-                LoadLockState();
+                UpdateToolbarState();
                 UpdateToolbarState();
             }
         }
@@ -851,48 +986,11 @@ namespace BreakersOfE
         // ── Lock state ───────────────────────────────────────────────────────
         private void LoadLockState()
         {
-            string key = LockKeyPrefix + _currentMode;
-            using var db = new AppDbContext();
-            var setting = db.AppSettings
-                .FirstOrDefault(s => s.Key == key);
-
-            _bottomLocked = setting?.Value == "true";
-            UpdateLockUI();
-        }
-
-        private void SaveLockState()
-        {
-            string key = LockKeyPrefix + _currentMode;
-            using var db = new AppDbContext();
-            var setting = db.AppSettings
-                .FirstOrDefault(s => s.Key == key);
-
-            if (setting == null)
-            {
-                db.AppSettings.Add(new AppSetting
-                {
-                    Key = key,
-                    Value = _bottomLocked ? "true" : "false"
-                });
-            }
-            else
-            {
-                setting.Value = _bottomLocked ? "true" : "false";
-            }
-            db.SaveChanges();
+            UpdateToolbarState();
         }
 
         private void UpdateLockUI()
         {
-            // Bottom lock indicator
-            if (BottomLockIndicator != null)
-                BottomLockIndicator.Visibility = _bottomLocked
-                    ? Visibility.Visible : Visibility.Collapsed;
-
-            // Lock button icon
-            if (BtnLock != null)
-                BtnLock.Content = _bottomLocked ? "\uE1F7" : "\uE1F6";
-
             UpdateToolbarState();
         }
 
@@ -1268,56 +1366,63 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void UpdateToolbarState()
         {
+            bool isDeckMode = _currentMode == "PoolToDeck" ||
+                              _currentMode == "CollectionToDeck";
+            bool hasDeck = _activeDeck != null;
+            bool anyDecks = _openDecks.Any();
             bool hasTopSel = TopDataGrid?.SelectedItem != null;
             bool hasBottomSel = BottomDataGrid?.SelectedItem != null;
-            bool locked = _bottomLocked;
+            bool hasDeckSel = hasDeck && GetActiveDeckGrid()?.SelectedItem != null;
 
-            // Foil availability — strict check against IsFoil in database
             bool canFoil = false;
             bool canNonFoil = false;
 
             if (hasTopSel)
             {
-                canFoil = canNonFoil = false;
-
                 if (TopDataGrid.SelectedItem is PoolCard pc)
-                {
-                    canFoil = pc.IsFoil;
-                    canNonFoil = pc.IsNonFoil;
-                }
+                { canFoil = pc.IsFoil; canNonFoil = pc.IsNonFoil; }
                 else if (TopDataGrid.SelectedItem is PlanarCard pl)
-                {
-                    canFoil = pl.IsFoil;
-                    canNonFoil = pl.IsNonFoil;
-                }
+                { canFoil = pl.IsFoil; canNonFoil = pl.IsNonFoil; }
                 else if (TopDataGrid.SelectedItem is SchemeCard sc)
-                {
-                    canFoil = sc.IsFoil;
-                    canNonFoil = sc.IsNonFoil;
-                }
+                { canFoil = sc.IsFoil; canNonFoil = sc.IsNonFoil; }
                 else if (TopDataGrid.SelectedItem is VanguardCard vc)
-                {
-                    canFoil = vc.IsFoil;
-                    canNonFoil = vc.IsNonFoil;
-                }
+                { canFoil = vc.IsFoil; canNonFoil = vc.IsNonFoil; }
                 else if (TopDataGrid.SelectedItem is TokenCard tc)
-                {
-                    canFoil = tc.IsFoil;
-                    canNonFoil = tc.IsNonFoil;
-                }
+                { canFoil = tc.IsFoil; canNonFoil = tc.IsNonFoil; }
                 else if (TopDataGrid.SelectedItem is ArtSeriesCard ac)
-                {
-                    canFoil = ac.IsFoil;
-                    canNonFoil = ac.IsNonFoil;
-                }
+                { canFoil = ac.IsFoil; canNonFoil = ac.IsNonFoil; }
+                else if (TopDataGrid.SelectedItem is CollectionDisplayRow cr)
+                { canFoil = cr.IsFoil; canNonFoil = cr.IsNonFoil; }
             }
 
-            BtnAdd1.IsEnabled = hasTopSel && canNonFoil && !locked;
-            BtnAddFoil.IsEnabled = hasTopSel && canFoil && !locked;
-            TxtQty.IsEnabled = hasTopSel && !locked;
-            BtnAddQty.IsEnabled = hasTopSel && !locked;
-            BtnRemove1.IsEnabled = hasBottomSel && !locked;
-            BtnLock.IsEnabled = true;
+            // ── Group 1: Deck file buttons ────────────────────────────────────────
+            BtnNewDeck.IsEnabled = isDeckMode;
+            BtnOpenDeck.IsEnabled = isDeckMode;
+            BtnSaveDeck.IsEnabled = hasDeck;
+            BtnSaveAllDecks.IsEnabled = anyDecks;
+            BtnCloseAllDecks.IsEnabled = anyDecks;
+            BtnDeckProperties.IsEnabled = hasDeck;
+            BtnDeckLegality.IsEnabled = hasDeck;
+            BtnDeckStats.IsEnabled = hasDeck;
+
+            // ── Group 2: Deck card buttons ────────────────────────────────────────
+            BtnAddToDeck.IsEnabled = hasTopSel && hasDeck && canNonFoil;
+            BtnAdd4ToDeck.IsEnabled = hasTopSel && hasDeck && canNonFoil &&
+                                           _activeDeck?.DeckType == DeckType.Standard;
+            BtnAddFoilToDeck.IsEnabled = hasTopSel && hasDeck && canFoil;
+            BtnRemoveFromDeck.IsEnabled = hasDeckSel;
+            BtnDeckQtyIncrease.IsEnabled = hasDeckSel;
+            BtnDeckQtyDecrease.IsEnabled = hasDeckSel;
+
+            // ── Group 3: Collection buttons ───────────────────────────────────────
+            BtnAddToCollection.IsEnabled = hasTopSel && canNonFoil && !isDeckMode;
+            BtnAddFoilToCollection.IsEnabled = hasTopSel && canFoil && !isDeckMode;
+            BtnRemoveFromCollection.IsEnabled = hasBottomSel && !isDeckMode;
+
+            // ── Menu items ────────────────────────────────────────────────────────
+            if (MenuSaveDeck != null) MenuSaveDeck.IsEnabled = hasDeck;
+            if (MenuSaveAllDecks != null) MenuSaveAllDecks.IsEnabled = anyDecks;
+            if (MenuCloseAllDecks != null) MenuCloseAllDecks.IsEnabled = anyDecks;
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -1756,47 +1861,23 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         // TOOLBAR BUTTONS
         // ════════════════════════════════════════════════════════════════════
-        private void BtnAdd1_Click(object sender, RoutedEventArgs e)
+        private void BtnAddToCollection_Click(object sender, RoutedEventArgs e)
         {
             if (_bottomLocked) return;
             AddFromTopSelection(foil: false, qty: 1);
         }
 
-        private void BtnAddFoil_Click(object sender, RoutedEventArgs e)
+        private void BtnAddFoilToCollection_Click(object sender, RoutedEventArgs e)
         {
             if (_bottomLocked) return;
             AddFromTopSelection(foil: true, qty: 1);
         }
 
-        private void BtnAddQty_Click(object sender, RoutedEventArgs e)
-        {
-            if (_bottomLocked) return;
-            if (!int.TryParse(TxtQty.Text, out int qty) || qty < 1)
-            {
-                MessageBox.Show("Please enter a valid quantity.",
-                    "Invalid Quantity",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-            AddFromTopSelection(foil: false, qty: qty);
-        }
-
-        private void BtnRemove1_Click(object sender, RoutedEventArgs e)
+        private void BtnRemoveFromCollection_Click(object sender, RoutedEventArgs e)
         {
             if (_bottomLocked) return;
             if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
                 RemoveFromCollection(row, 1, false);
-        }
-
-        private void BtnLock_Click(object sender, RoutedEventArgs e)
-        {
-            _bottomLocked = !_bottomLocked;
-            SaveLockState();
-            UpdateLockUI();
-            SetStatus(_bottomLocked
-                ? "Collection locked — editing disabled."
-                : "Collection unlocked — editing enabled.");
         }
 
         // ── Route add from top selection ─────────────────────────────────────
