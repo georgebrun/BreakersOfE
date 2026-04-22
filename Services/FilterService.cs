@@ -27,14 +27,7 @@ namespace BreakersOfE.Services
                 {
                     string name = filter.CaseInsensitive
                         ? c.Name.ToLower() : c.Name;
-                    string set = filter.CaseInsensitive
-                        ? c.SetName.ToLower() : c.SetName;
-                    string type = filter.CaseInsensitive
-                        ? c.TypeLine.ToLower() : c.TypeLine;
-
-                    return name.Contains(s) ||
-                           set.Contains(s) ||
-                           type.Contains(s);
+                    return name.Contains(s);
                 });
             }
 
@@ -106,14 +99,7 @@ namespace BreakersOfE.Services
                 {
                     string name = filter.CaseInsensitive
                         ? c.Name.ToLower() : c.Name;
-                    string set = filter.CaseInsensitive
-                        ? c.SetName.ToLower() : c.SetName;
-                    string type = filter.CaseInsensitive
-                        ? c.TypeLine.ToLower() : c.TypeLine;
-
-                    return name.Contains(s) ||
-                           set.Contains(s) ||
-                           type.Contains(s);
+                    return name.Contains(s);
                 });
             }
 
@@ -204,9 +190,7 @@ namespace BreakersOfE.Services
                     ? quickSearch.ToLower() : quickSearch;
                 result = result.Where(c =>
                     (filter.CaseInsensitive
-                        ? c.Name.ToLower() : c.Name).Contains(s) ||
-                    (filter.CaseInsensitive
-                        ? c.SetName.ToLower() : c.SetName).Contains(s));
+                        ? c.Name.ToLower() : c.Name).Contains(s));
             }
 
             if (!filter.IsActive) return result.ToList();

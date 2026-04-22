@@ -107,6 +107,8 @@ namespace BreakersOfE
             }
         }
 
+
+
         private void BtnDeckQtyIncrease_Click(object sender, RoutedEventArgs e)
         {
             if (_activeDeck == null) return;
@@ -405,6 +407,7 @@ namespace BreakersOfE
                 RowHeaderWidth = 0,
                 RowHeight = 28,
                 CanUserResizeRows = true,
+                CanUserResizeColumns = true,
                 CanUserReorderColumns = true,
                 EnableRowVirtualization = true,
                 ColumnHeaderStyle = (Style)FindResource("DataGridColumnHeaderStyle"),
@@ -471,6 +474,31 @@ namespace BreakersOfE
                 Header = "Qty",
                 Binding = new System.Windows.Data.Binding("Quantity"),
                 Width = new DataGridLength(45)
+            });
+
+            // Foil checkbox column
+            var foilFactory = new FrameworkElementFactory(typeof(CheckBox));
+            foilFactory.SetValue(CheckBox.HorizontalAlignmentProperty,
+                HorizontalAlignment.Center);
+            foilFactory.SetValue(CheckBox.VerticalAlignmentProperty,
+                VerticalAlignment.Center);
+            var foilBinding = new System.Windows.Data.Binding("IsFoil")
+            {
+                Mode = System.Windows.Data.BindingMode.TwoWay,
+                UpdateSourceTrigger =
+                    System.Windows.Data.UpdateSourceTrigger.PropertyChanged
+            };
+            foilFactory.SetBinding(CheckBox.IsCheckedProperty, foilBinding);
+            foilFactory.AddHandler(CheckBox.CheckedEvent,
+                new RoutedEventHandler(DeckFoilCheckbox_Changed));
+            foilFactory.AddHandler(CheckBox.UncheckedEvent,
+                new RoutedEventHandler(DeckFoilCheckbox_Changed));
+
+            grid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = "Foil",
+                Width = new DataGridLength(45),
+                CellTemplate = new DataTemplate { VisualTree = foilFactory }
             });
 
             grid.Columns.Add(new DataGridTextColumn
@@ -753,11 +781,8 @@ namespace BreakersOfE
                 DeckService.RemoveCard(_activeDeck, card, false);
                 RefreshActiveDeckGrid();
                 UpdateDeckTabTitle(_activeDeck);
-
-                // Update used count if came from collection
                 if (_currentMode == "CollectionToDeck")
                     UpdateUsedCount(card.PoolId, -1);
-
                 SetStatus($"Removed 1x {card.Name} from deck.");
             }
         }
@@ -814,6 +839,13 @@ namespace BreakersOfE
                 RefreshActiveDeckGrid();
                 SetStatus($"{card.Name} moved to Mainboard.");
             }
+        }
+
+        private void DeckFoilCheckbox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            _activeDeck.IsModified = true;
+            UpdateDeckTabTitle(_activeDeck);
         }
 
         private DataGrid? GetActiveDeckGrid()
@@ -1013,6 +1045,9 @@ namespace BreakersOfE
                     .Where(c => _topSelectedSetCodes.Contains(c.SetCode))
                     .ToList();
 
+            if (_topColumnFilters.HasActiveFilters)
+                filtered = _topColumnFilters.Apply(filtered);
+            
             for (int i = 0; i < filtered.Count; i++)
                 filtered[i].RowIndex = i;
 
@@ -1105,12 +1140,15 @@ namespace BreakersOfE
 
             // Apply expression filter from Filter Window
             if (_bottomFilterNode != null &&
-                FilterExpressionService.HasConditions(_bottomFilterNode))
+    FilterExpressionService.HasConditions(_bottomFilterNode))
             {
                 rows = FilterExpressionService.Apply(
                     rows, _bottomFilterNode, true);
             }
 
+            if (_bottomColumnFilters.HasActiveFilters)
+                rows = _bottomColumnFilters.Apply(rows);
+            
             for (int i = 0; i < rows.Count; i++)
                 rows[i].RowIndex = i;
 
@@ -1644,6 +1682,9 @@ namespace BreakersOfE
             if (ChkTopFilter.IsChecked == false)
             {
                 _topFilter.Clear();
+                _topFilterNode = null;
+                _topSelectedSetCodes.Clear();
+                _topColumnFilters.ClearAll();
                 TopFilterSummary.Text = "No filter active";
                 LoadCurrentMode();
             }
@@ -1654,6 +1695,9 @@ namespace BreakersOfE
             if (ChkBottomFilter.IsChecked == false)
             {
                 _bottomFilter.Clear();
+                _bottomFilterNode = null;
+                _bottomSelectedSetCodes.Clear();
+                _bottomColumnFilters.ClearAll();
                 BottomFilterSummary.Text = "No filter active";
                 RefreshBottom();
             }
@@ -1662,15 +1706,20 @@ namespace BreakersOfE
         private void BtnTopFilterClear_Click(object sender, RoutedEventArgs e)
         {
             _topFilter.Clear();
+            _topFilterNode = null;
+            _topSelectedSetCodes.Clear();
+            _topColumnFilters.ClearAll();
             ChkTopFilter.IsChecked = false;
             TopFilterSummary.Text = "No filter active";
             LoadCurrentMode();
         }
 
-        private void BtnBottomFilterClear_Click(object sender,
-            RoutedEventArgs e)
+        private void BtnBottomFilterClear_Click(object sender, RoutedEventArgs e)
         {
             _bottomFilter.Clear();
+            _bottomFilterNode = null;
+            _bottomSelectedSetCodes.Clear();
+            _bottomColumnFilters.ClearAll();
             ChkBottomFilter.IsChecked = false;
             BottomFilterSummary.Text = "No filter active";
             RefreshBottom();
@@ -1875,8 +1924,30 @@ namespace BreakersOfE
 
         private void BtnRemoveFromCollection_Click(object sender, RoutedEventArgs e)
         {
+            if (BottomDataGrid.SelectedItem is not CollectionDisplayRow row) return;
+
+            var result = MessageBox.Show(
+                "Are you sure you wish to remove 1 card row from your collection?",
+                "Confirmation",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+                RemoveFromCollection(row, 0, true);
+        }
+
+        private void CtxRemove1_Click(object sender, RoutedEventArgs e)
+        {
             if (_bottomLocked) return;
-            if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
+            if (BottomDataGrid.SelectedItem is not CollectionDisplayRow row) return;
+
+            var result = MessageBox.Show(
+                "Are you sure you wish to remove 1 card row from your collection?",
+                "Confirmation",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
                 RemoveFromCollection(row, 1, false);
         }
 
@@ -1921,31 +1992,53 @@ namespace BreakersOfE
         // COLLECTION OPERATIONS (ALL AUTO-SAVE)
         // ════════════════════════════════════════════════════════════════════
         private void AddToPoolCollection(int poolId, string name,
-            int qty, bool foil)
+    int qty, bool foil)
         {
             using var db = new AppDbContext();
             var existing = db.CollectionEntries
                 .FirstOrDefault(c => c.PoolId == poolId);
 
-            if (existing == null)
+            if (existing != null)
             {
-                db.CollectionEntries.Add(new CollectionEntry
+                // Card already exists — show confirmation popup
+                var result = MessageBox.Show(
+                    $"The collection already has copies of '{name}' present.\n\n" +
+                    $"Press 'Yes' to add the selected quantity ({qty}) to the " +
+                    $"already existing collection card\n" +
+                    $"Press 'No' to add the card at a new row\n" +
+                    $"Press 'Cancel' to skip addition of the card to the collection.",
+                    "Confirmation",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Cancel) return;
+
+                if (result == MessageBoxResult.Yes)
                 {
-                    PoolId = poolId,
-                    Quantity = foil ? 0 : qty,
-                    FoilQuantity = foil ? qty : 0,
-                    Condition = "Near Mint",
-                    Language = "English",
-                    DateAdded = DateTime.Now,
-                    DateModified = DateTime.Now
-                });
+                    // Add to existing row
+                    if (foil) existing.FoilQuantity += qty;
+                    else existing.Quantity += qty;
+                    existing.DateModified = DateTime.Now;
+                    db.SaveChanges();
+                    SetStatus($"Added {qty}x {(foil ? "[Foil] " : "")}{name} to existing row.");
+                    RefreshBottom();
+                    return;
+                }
+
+                // No = fall through to add as new row
             }
-            else
+
+            // Add as new row
+            db.CollectionEntries.Add(new CollectionEntry
             {
-                if (foil) existing.FoilQuantity += qty;
-                else existing.Quantity += qty;
-                existing.DateModified = DateTime.Now;
-            }
+                PoolId = poolId,
+                Quantity = foil ? 0 : qty,
+                FoilQuantity = foil ? qty : 0,
+                Condition = "Near Mint",
+                Language = "English",
+                DateAdded = DateTime.Now,
+                DateModified = DateTime.Now
+            });
 
             db.SaveChanges();
             SetStatus($"Added {qty}x {(foil ? "[Foil] " : "")}{name}.");
@@ -2242,21 +2335,7 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         // CONTEXT MENU
         // ════════════════════════════════════════════════════════════════════
-        private void CtxRemove1_Click(object sender, RoutedEventArgs e)
-        {
-            if (_bottomLocked) return;
-            if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
-            {
-                var r = MessageBox.Show(
-                    $"Remove 1 copy of {row.Name}?",
-                    "Confirm Remove",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-                if (r == MessageBoxResult.Yes)
-                    RemoveFromCollection(row, 1, false);
-            }
-        }
-
+        
         private void CtxRemoveAll_Click(object sender, RoutedEventArgs e)
         {
             if (_bottomLocked) return;

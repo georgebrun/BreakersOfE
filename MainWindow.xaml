@@ -10,6 +10,11 @@
 
     <Window.Resources>
 
+        <!-- ── Gripper template for column resizing ── -->
+        <ControlTemplate x:Key="GripperTemplate" TargetType="Thumb">
+            <Border Background="Transparent"/>
+        </ControlTemplate>
+
         <!-- ── DataGrid column header with hover funnel + sort arrow ── -->
         <Style x:Key="DataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
             <Setter Property="Background"      Value="{DynamicResource GridHeaderBrush}"/>
@@ -23,7 +28,8 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="DataGridColumnHeader">
-                        <Grid Background="{TemplateBinding Background}">
+                        <Grid Background="{TemplateBinding Background}"
+                              SnapsToDevicePixels="True">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -64,6 +70,17 @@
                                            VerticalAlignment="Center"
                                            HorizontalAlignment="Center"/>
                             </Button>
+                            <!-- Resize grippers -->
+                            <Thumb x:Name="PART_LeftHeaderGripper"
+                                   Grid.ColumnSpan="3"
+                                   HorizontalAlignment="Left"
+                                   Width="8" Cursor="SizeWE"
+                                   Template="{StaticResource GripperTemplate}"/>
+                            <Thumb x:Name="PART_RightHeaderGripper"
+                                   Grid.ColumnSpan="3"
+                                   HorizontalAlignment="Right"
+                                   Width="8" Cursor="SizeWE"
+                                   Template="{StaticResource GripperTemplate}"/>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -168,8 +185,8 @@
             <MenuItem Header="_File">
                 <MenuItem Header="_New Deck..."      Click="MenuNewDeck_Click"/>
                 <MenuItem Header="_Open Deck..."     Click="MenuOpenDeck_Click"/>
-                <MenuItem Header="_Save Deck"        Name="MenuSaveDeck"    IsEnabled="False" Click="MenuSaveDeck_Click"/>
-                <MenuItem Header="Save _All Decks"   Name="MenuSaveAllDecks" IsEnabled="False" Click="MenuSaveAllDecks_Click"/>
+                <MenuItem Header="_Save Deck"        Name="MenuSaveDeck"      IsEnabled="False" Click="MenuSaveDeck_Click"/>
+                <MenuItem Header="Save _All Decks"   Name="MenuSaveAllDecks"  IsEnabled="False" Click="MenuSaveAllDecks_Click"/>
                 <MenuItem Header="Close _All Decks"  Name="MenuCloseAllDecks" IsEnabled="False" Click="MenuCloseAllDecks_Click"/>
                 <Separator/>
                 <MenuItem Header="_Preferences"      Click="MenuPreferences_Click"/>
@@ -193,92 +210,36 @@
             </MenuItem>
         </Menu>
 
-        <!-- ══ ROW 1 — TOOLBAR (Auto height, wraps if needed) ══ -->
+        <!-- ══ ROW 1 — TOOLBAR ══ -->
         <Border Grid.Row="1"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
             <WrapPanel Margin="4,2" Orientation="Horizontal">
 
-                <!-- ── GROUP 1: DECK FILE OPERATIONS ── -->
-                <Button Name="BtnNewDeck"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE132;" ToolTip="New Deck"
-                        IsEnabled="False"
-                        Click="BtnNewDeck_Click" Margin="2,2"/>
-                <Button Name="BtnOpenDeck"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1A5;" ToolTip="Open Deck"
-                        IsEnabled="False"
-                        Click="BtnOpenDeck_Click" Margin="2,2"/>
-                <Button Name="BtnSaveDeck"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE105;" ToolTip="Save Deck"
-                        IsEnabled="False"
-                        Click="BtnSaveDeck_Click" Margin="2,2"/>
-                <Button Name="BtnSaveAllDecks"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE116;" ToolTip="Save All Decks"
-                        IsEnabled="False"
-                        Click="BtnSaveAllDecks_Click" Margin="2,2"/>
-                <Button Name="BtnCloseAllDecks"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE10A;" ToolTip="Close All Decks"
-                        IsEnabled="False"
-                        Click="BtnCloseAllDecks_Click" Margin="2,2"/>
-                <Button Name="BtnDeckProperties"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE946;" ToolTip="Deck Properties"
-                        IsEnabled="False"
-                        Click="BtnDeckProperties_Click" Margin="2,2"/>
-                <Button Name="BtnDeckLegality"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1C6;" ToolTip="Deck Legality"
-                        IsEnabled="False"
-                        Click="BtnDeckLegality_Click" Margin="2,2"/>
-                <Button Name="BtnDeckStats"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE9F9;" ToolTip="Deck Statistics"
-                        IsEnabled="False"
-                        Click="BtnDeckStats_Click" Margin="2,2"/>
+                <!-- GROUP 1: DECK FILE -->
+                <Button Name="BtnNewDeck"          Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE132;" ToolTip="New Deck"              IsEnabled="False" Click="BtnNewDeck_Click"         Margin="2,2"/>
+                <Button Name="BtnOpenDeck"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1A5;" ToolTip="Open Deck"             IsEnabled="False" Click="BtnOpenDeck_Click"        Margin="2,2"/>
+                <Button Name="BtnSaveDeck"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE105;" ToolTip="Save Deck"             IsEnabled="False" Click="BtnSaveDeck_Click"        Margin="2,2"/>
+                <Button Name="BtnSaveAllDecks"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE116;" ToolTip="Save All Decks"        IsEnabled="False" Click="BtnSaveAllDecks_Click"    Margin="2,2"/>
+                <Button Name="BtnCloseAllDecks"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE10A;" ToolTip="Close All Decks"       IsEnabled="False" Click="BtnCloseAllDecks_Click"   Margin="2,2"/>
+                <Button Name="BtnDeckProperties"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE946;" ToolTip="Deck Properties"       IsEnabled="False" Click="BtnDeckProperties_Click"  Margin="2,2"/>
+                <Button Name="BtnDeckLegality"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1C6;" ToolTip="Deck Legality"         IsEnabled="False" Click="BtnDeckLegality_Click"    Margin="2,2"/>
+                <Button Name="BtnDeckStats"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE9F9;" ToolTip="Deck Statistics"       IsEnabled="False" Click="BtnDeckStats_Click"       Margin="2,2"/>
 
                 <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
 
-                <!-- ── GROUP 2: DECK CARD OPERATIONS ── -->
-                <Button Name="BtnAddToDeck"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE109;" ToolTip="Add 1 Card to Deck"
-                        IsEnabled="False"
-                        Click="BtnAddToDeck_Click" Margin="2,2"/>
-                <Button Name="BtnAdd4ToDeck"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1FE;" ToolTip="Add 4 Cards to Deck (Standard only)"
-                        IsEnabled="False"
-                        Click="BtnAdd4ToDeck_Click" Margin="2,2"/>
-                <Button Name="BtnAddFoilToDeck"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1D9;" ToolTip="Add 1 Foil Card to Deck"
-                        IsEnabled="False"
-                        Click="BtnAddFoilToDeck_Click" Margin="2,2"/>
-                <Button Name="BtnRemoveFromDeck"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE108;" ToolTip="Remove Card from Deck"
-                        IsEnabled="False"
-                        Click="BtnRemoveFromDeck_Click" Margin="2,2"/>
-                <Button Name="BtnDeckQtyIncrease"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        ToolTip="Increase Card Quantity in Deck"
-                        IsEnabled="False"
-                        Click="BtnDeckQtyIncrease_Click" Margin="2,2">
+                <!-- GROUP 2: DECK CARDS -->
+                <Button Name="BtnAddToDeck"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE109;" ToolTip="Add 1 Card to Deck"              IsEnabled="False" Click="BtnAddToDeck_Click"       Margin="2,2"/>
+                <Button Name="BtnAdd4ToDeck"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1FE;" ToolTip="Add 4 Cards to Deck (Standard)"  IsEnabled="False" Click="BtnAdd4ToDeck_Click"      Margin="2,2"/>
+                <Button Name="BtnAddFoilToDeck"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1D9;" ToolTip="Add 1 Foil Card to Deck"         IsEnabled="False" Click="BtnAddFoilToDeck_Click"   Margin="2,2"/>
+                <Button Name="BtnRemoveFromDeck"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE108;" ToolTip="Remove Card from Deck"           IsEnabled="False" Click="BtnRemoveFromDeck_Click"  Margin="2,2"/>
+                <Button Name="BtnDeckQtyIncrease"  Style="{DynamicResource ToolbarButtonStyle}" ToolTip="Increase Qty in Deck"  IsEnabled="False" Click="BtnDeckQtyIncrease_Click" Margin="2,2">
                     <Button.Content>
                         <TextBlock Text="+" FontSize="16" FontWeight="Bold"/>
                     </Button.Content>
                 </Button>
-                <Button Name="BtnDeckQtyDecrease"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        ToolTip="Decrease Card Quantity in Deck"
-                        IsEnabled="False"
-                        Click="BtnDeckQtyDecrease_Click" Margin="2,2">
+                <Button Name="BtnDeckQtyDecrease"  Style="{DynamicResource ToolbarButtonStyle}" ToolTip="Decrease Qty in Deck"  IsEnabled="False" Click="BtnDeckQtyDecrease_Click" Margin="2,2">
                     <Button.Content>
                         <TextBlock Text="−" FontSize="16" FontWeight="Bold"/>
                     </Button.Content>
@@ -286,80 +247,33 @@
 
                 <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
 
-                <!-- ── GROUP 3: COLLECTION OPERATIONS ── -->
-                <Button Name="BtnAddToCollection"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE109;" ToolTip="Add 1 Card to Collection"
-                        IsEnabled="False"
-                        Click="BtnAddToCollection_Click" Margin="2,2"/>
-                <Button Name="BtnAddFoilToCollection"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE1D9;" ToolTip="Add 1 Foil Card to Collection"
-                        IsEnabled="False"
-                        Click="BtnAddFoilToCollection_Click" Margin="2,2"/>
-                <Button Name="BtnRemoveFromCollection"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE108;" ToolTip="Remove Card from Collection"
-                        IsEnabled="False"
-                        Click="BtnRemoveFromCollection_Click" Margin="2,2"/>
+                <!-- GROUP 3: COLLECTION -->
+                <Button Name="BtnAddToCollection"      Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE109;" ToolTip="Add 1 Card to Collection"      IsEnabled="False" Click="BtnAddToCollection_Click"      Margin="2,2"/>
+                <Button Name="BtnAddFoilToCollection"  Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1D9;" ToolTip="Add 1 Foil Card to Collection"  IsEnabled="False" Click="BtnAddFoilToCollection_Click"  Margin="2,2"/>
+                <Button Name="BtnRemoveFromCollection" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE108;" ToolTip="Remove Card from Collection"    IsEnabled="False" Click="BtnRemoveFromCollection_Click" Margin="2,2"/>
 
                 <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
 
-                <!-- ── GROUP 4: FILTER & SEARCH ── -->
-                <Button Name="BtnFilter"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE16E;" ToolTip="Filter Cards (Filter Card Pool)"
-                        Click="BtnFilter_Click" Margin="2,2"/>
-                <Button Name="BtnAdvancedFilter"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE16F;" ToolTip="Advanced Filter (AND/OR/NAND/NOR)"
-                        Click="BtnAdvancedFilter_Click" Margin="2,2"/>
-                <Button Name="BtnSearch"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE11A;" ToolTip="Search for Card"
-                        Click="BtnSearch_Click" Margin="2,2"/>
-                <Button Name="BtnFindNext"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE111;" ToolTip="Find Next"
-                        Click="BtnFindNext_Click" Margin="2,2"/>
-                <Button Name="BtnFindPrev"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE112;" ToolTip="Find Previous"
-                        Click="BtnFindPrev_Click" Margin="2,2"/>
-                <Button Name="BtnClearSearch"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE10A;" ToolTip="Cancel Incremental Search"
-                        Click="BtnClearSearch_Click" Margin="2,2"/>
-                <Button Name="BtnToggleLegality"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE14C;" ToolTip="Toggle Legality Columns"
-                        Click="BtnLegality_Click" Margin="2,2"/>
-                <Button Name="BtnColumnChooser"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE179;" ToolTip="Show/Hide Columns"
-                        Click="BtnColumnChooser_Click" Margin="2,2"/>
+                <!-- GROUP 4: FILTER & SEARCH -->
+                <Button Name="BtnFilter"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE16E;" ToolTip="Filter Cards"                  Click="BtnFilter_Click"         Margin="2,2"/>
+                <Button Name="BtnAdvancedFilter" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE16F;" ToolTip="Advanced Filter"               Click="BtnAdvancedFilter_Click" Margin="2,2"/>
+                <Button Name="BtnSearch"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE11A;" ToolTip="Search for Card"               Click="BtnSearch_Click"         Margin="2,2"/>
+                <Button Name="BtnFindNext"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE111;" ToolTip="Find Next"                     Click="BtnFindNext_Click"       Margin="2,2"/>
+                <Button Name="BtnFindPrev"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE112;" ToolTip="Find Previous"                 Click="BtnFindPrev_Click"       Margin="2,2"/>
+                <Button Name="BtnClearSearch"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE10A;" ToolTip="Cancel Incremental Search"     Click="BtnClearSearch_Click"    Margin="2,2"/>
+                <Button Name="BtnToggleLegality" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE14C;" ToolTip="Toggle Legality Columns"       Click="BtnLegality_Click"       Margin="2,2"/>
+                <Button Name="BtnColumnChooser"  Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE179;" ToolTip="Show/Hide Columns"             Click="BtnColumnChooser_Click"  Margin="2,2"/>
 
                 <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
 
-                <!-- ── GROUP 5: VIEW ── -->
-                <Button Name="BtnUpdateDb"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE117;" ToolTip="Update Card Database"
-                        Click="BtnUpdateDb_Click" Margin="2,2"/>
-                <Button Name="BtnTheme"
-                        Style="{DynamicResource ToolbarButtonStyle}"
-                        Content="&#xE706;" ToolTip="Toggle Light/Dark Mode"
-                        Click="BtnTheme_Click" Margin="2,2"/>
+                <!-- GROUP 5: VIEW -->
+                <Button Name="BtnUpdateDb" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE117;" ToolTip="Update Card Database" Click="BtnUpdateDb_Click" Margin="2,2"/>
+                <Button Name="BtnTheme"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE706;" ToolTip="Toggle Light/Dark Mode" Click="BtnTheme_Click"  Margin="2,2"/>
 
                 <!-- Mode dropdown -->
-                <StackPanel Orientation="Horizontal"
-                            VerticalAlignment="Center"
-                            Margin="8,2,4,2">
-                    <TextBlock Text="Mode:"
-                               Foreground="{DynamicResource MutedTextBrush}"
-                               FontSize="12"
-                               VerticalAlignment="Center"
-                               Margin="0,0,6,0"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,2,4,2">
+                    <TextBlock Text="Mode:" Foreground="{DynamicResource MutedTextBrush}"
+                               FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <ComboBox Name="ViewModeComboBox"
                               Style="{DynamicResource BaseComboBoxStyle}"
                               Width="220" Height="28"
@@ -400,43 +314,34 @@
                                 Margin="0,6,0,10" HorizontalAlignment="Center">
                             <Image Name="CardImage" Stretch="Uniform"/>
                         </Border>
-                        <TextBlock Text="NAME" Style="{DynamicResource DetailLabelStyle}"/>
-                        <TextBlock Name="DetailName" Style="{DynamicResource DetailValueStyle}"
-                                   FontSize="15" FontWeight="Bold"/>
-                        <TextBlock Text="MANA COST" Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Text="NAME"             Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Name="DetailName"       Style="{DynamicResource DetailValueStyle}" FontSize="15" FontWeight="Bold"/>
+                        <TextBlock Text="MANA COST"        Style="{DynamicResource DetailLabelStyle}"/>
                         <WrapPanel Name="DetailManaCostPanel" Margin="0,2,0,0"/>
-                        <TextBlock Text="TYPE" Style="{DynamicResource DetailLabelStyle}"/>
-                        <TextBlock Name="DetailType" Style="{DynamicResource DetailValueStyle}"/>
-                        <TextBlock Text="SET" Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Text="TYPE"             Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Name="DetailType"       Style="{DynamicResource DetailValueStyle}"/>
+                        <TextBlock Text="SET"              Style="{DynamicResource DetailLabelStyle}"/>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                            <Image Name="DetailSetSymbol" Width="16" Height="16"
-                                   Margin="0,0,5,0" VerticalAlignment="Center"/>
-                            <TextBlock Name="DetailSet"
-                                       Style="{DynamicResource DetailValueStyle}"
-                                       VerticalAlignment="Center"/>
+                            <Image Name="DetailSetSymbol" Width="16" Height="16" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                            <TextBlock Name="DetailSet" Style="{DynamicResource DetailValueStyle}" VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Text="COLLECTOR NUMBER" Style="{DynamicResource DetailLabelStyle}"/>
                         <TextBlock Name="DetailCollectorNumber" Style="{DynamicResource DetailValueStyle}"/>
-                        <TextBlock Text="RARITY" Style="{DynamicResource DetailLabelStyle}"/>
-                        <TextBlock Name="DetailRarity" Style="{DynamicResource DetailValueStyle}"/>
-                        <TextBlock Name="DetailPTLabel" Text="POWER / TOUGHNESS"
-                                   Style="{DynamicResource DetailLabelStyle}"/>
-                        <TextBlock Name="DetailPT" Style="{DynamicResource DetailValueStyle}"/>
-                        <TextBlock Text="ORACLE TEXT" Style="{DynamicResource DetailLabelStyle}"/>
-                        <TextBlock Name="DetailOracle" Style="{DynamicResource DetailValueStyle}"
-                                   FontSize="12"/>
-                        <TextBlock Text="FLAVOR TEXT" Style="{DynamicResource DetailLabelStyle}"/>
-                        <TextBlock Name="DetailFlavor" Style="{DynamicResource DetailValueStyle}"
-                                   FontSize="12" FontStyle="Italic"
-                                   Foreground="{DynamicResource MutedTextBrush}"/>
-                        <TextBlock Text="ARTIST" Style="{DynamicResource DetailLabelStyle}"/>
-                        <TextBlock Name="DetailArtist" Style="{DynamicResource DetailValueStyle}"/>
-                        <TextBlock Text="AVAILABLE AS" Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Text="RARITY"           Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Name="DetailRarity"     Style="{DynamicResource DetailValueStyle}"/>
+                        <TextBlock Name="DetailPTLabel"    Text="POWER / TOUGHNESS" Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Name="DetailPT"         Style="{DynamicResource DetailValueStyle}"/>
+                        <TextBlock Text="ORACLE TEXT"      Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Name="DetailOracle"     Style="{DynamicResource DetailValueStyle}" FontSize="12"/>
+                        <TextBlock Text="FLAVOR TEXT"      Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Name="DetailFlavor"     Style="{DynamicResource DetailValueStyle}" FontSize="12" FontStyle="Italic" Foreground="{DynamicResource MutedTextBrush}"/>
+                        <TextBlock Text="ARTIST"           Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Name="DetailArtist"     Style="{DynamicResource DetailValueStyle}"/>
+                        <TextBlock Text="AVAILABLE AS"     Style="{DynamicResource DetailLabelStyle}"/>
                         <TextBlock Name="DetailFoilNonFoil" Style="{DynamicResource DetailValueStyle}"/>
-                        <TextBlock Text="PRICES (USD)" Style="{DynamicResource DetailLabelStyle}"/>
-                        <TextBlock Name="DetailPrices" Style="{DynamicResource DetailValueStyle}"
-                                   FontSize="12"/>
-                        <TextBlock Text="FORMAT LEGALITY" Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Text="PRICES (USD)"     Style="{DynamicResource DetailLabelStyle}"/>
+                        <TextBlock Name="DetailPrices"     Style="{DynamicResource DetailValueStyle}" FontSize="12"/>
+                        <TextBlock Text="FORMAT LEGALITY"  Style="{DynamicResource DetailLabelStyle}"/>
                         <StackPanel Name="DetailLegalityPanel" Margin="0,2,0,0"/>
                     </StackPanel>
                 </ScrollViewer>
@@ -465,12 +370,9 @@
 
                     <!-- Top bar -->
                     <Border Grid.Row="0" Style="{DynamicResource GroupByBarStyle}">
-                        <DockPanel>
-                            <TextBlock Text="Hover a column header to filter"
-                                       Foreground="{DynamicResource MutedTextBrush}"
-                                       FontSize="12" VerticalAlignment="Center"
-                                       Margin="6,0"/>
-                        </DockPanel>
+                        <TextBlock Text="Hover a column header to filter"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   FontSize="12" VerticalAlignment="Center" Margin="6,0"/>
                     </Border>
 
                     <!-- Search bar -->
@@ -480,15 +382,12 @@
                             BorderThickness="0,0,0,1" Padding="8,4">
                         <DockPanel>
                             <TextBlock Text="&#xE11A;" FontFamily="Segoe MDL2 Assets"
-                                       FontSize="14"
-                                       Foreground="{DynamicResource MutedTextBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0" DockPanel.Dock="Left"/>
+                                       FontSize="14" Foreground="{DynamicResource MutedTextBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0" DockPanel.Dock="Left"/>
                             <TextBlock Name="TopSearchLabel" Text="Pool"
                                        Foreground="{DynamicResource PrimaryTextBrush}"
                                        FontWeight="SemiBold" FontSize="14"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,8,0" DockPanel.Dock="Left"/>
+                                       VerticalAlignment="Center" Margin="0,0,8,0" DockPanel.Dock="Left"/>
                             <TextBox Name="SearchBox"
                                      Style="{DynamicResource BaseTextBoxStyle}"
                                      Height="28" Width="300"
@@ -518,34 +417,31 @@
                               RowStyle="{DynamicResource DataGridRowStyle}"
                               CellStyle="{DynamicResource DataGridCellStyle}">
                         <DataGrid.Resources>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"                  Color="Transparent"/>
                             <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
                         </DataGrid.Resources>
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="★" Width="28" CanUserResize="False">
+                            <DataGridTemplateColumn Header="★"  Width="28"  CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding FavoriteGlyph}"
-                                                   HorizontalAlignment="Center"
-                                                   Foreground="Gold" FontSize="13"/>
+                                        <TextBlock Text="{Binding FavoriteGlyph}" HorizontalAlignment="Center" Foreground="Gold" FontSize="13"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="ES" Width="32" CanUserResize="False">
+                            <DataGridTemplateColumn Header="ES" Width="32"  CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Image Source="{Binding SetSymbolPath, Converter={StaticResource ImageSourceConverter}}"
-                                               Width="16" Height="16"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                               Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Name"         Binding="{Binding Name}"            Width="200"/>
-                            <DataGridTextColumn Header="Edition"      Binding="{Binding SetCode}"         Width="60"/>
-                            <DataGridTextColumn Header="Edition Name" Binding="{Binding SetName}"         Width="160"/>
-                            <DataGridTextColumn Header="Color"        Binding="{Binding ColorIdentity}"   Width="60"/>
-                            <DataGridTextColumn Header="Type"         Binding="{Binding TypeLine}"        Width="180"/>
-                            <DataGridTextColumn Header="Rarity"       Binding="{Binding RarityCode}"      Width="50"/>
+                            <DataGridTextColumn Header="Name"         Binding="{Binding Name}"                Width="200"/>
+                            <DataGridTextColumn Header="Edition"      Binding="{Binding SetCode}"            Width="60"/>
+                            <DataGridTextColumn Header="Edition Name" Binding="{Binding SetName}"            Width="160"/>
+                            <DataGridTextColumn Header="Color"        Binding="{Binding ColorIdentity}"      Width="60"/>
+                            <DataGridTextColumn Header="Type"         Binding="{Binding TypeLine}"           Width="180"/>
+                            <DataGridTextColumn Header="Rarity"       Binding="{Binding RarityCode}"         Width="50"/>
                             <DataGridTemplateColumn Header="Cost" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -553,23 +449,23 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="P/T"          Binding="{Binding PowerToughness}"      Width="55"/>
-                            <DataGridTextColumn Header="USD"          Binding="{Binding PriceUsdDisplay}"     Width="70"/>
+                            <DataGridTextColumn Header="P/T"          Binding="{Binding PowerToughness}"     Width="55"/>
+                            <DataGridTextColumn Header="USD"          Binding="{Binding PriceUsdDisplay}"    Width="70"/>
                             <DataGridTextColumn Header="USD Foil"     Binding="{Binding PriceUsdFoilDisplay}" Width="75"/>
-                            <DataGridTextColumn Header="Text"         Binding="{Binding OracleText}"          Width="220"/>
-                            <DataGridTextColumn Header="Flavor"       Binding="{Binding FlavorText}"          Width="160"/>
-                            <DataGridTextColumn Header="Artist"       Binding="{Binding Artist}"              Width="130"/>
-                            <DataGridTextColumn Header="No"           Binding="{Binding CollectorNumber}"     Width="55"/>
-                            <DataGridTextColumn Header="Power"        Binding="{Binding Power}"               Width="50"/>
-                            <DataGridTextColumn Header="Toughness"    Binding="{Binding Toughness}"           Width="70"/>
-                            <DataGridTextColumn Header="CMC"          Binding="{Binding ManaValue}"           Width="45"/>
-                            <DataGridTextColumn Header="Standard"  Binding="{Binding LegalityStandard}"  Width="70" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Pioneer"   Binding="{Binding LegalityPioneer}"   Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Modern"    Binding="{Binding LegalityModern}"    Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Legacy"    Binding="{Binding LegalityLegacy}"    Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Vintage"   Binding="{Binding LegalityVintage}"   Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Commander" Binding="{Binding LegalityCommander}" Width="80" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Pauper"    Binding="{Binding LegalityPauper}"    Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Text"         Binding="{Binding OracleText}"         Width="220"/>
+                            <DataGridTextColumn Header="Flavor"       Binding="{Binding FlavorText}"         Width="160"/>
+                            <DataGridTextColumn Header="Artist"       Binding="{Binding Artist}"             Width="130"/>
+                            <DataGridTextColumn Header="No"           Binding="{Binding CollectorNumber}"    Width="55"/>
+                            <DataGridTextColumn Header="Power"        Binding="{Binding Power}"              Width="50"/>
+                            <DataGridTextColumn Header="Toughness"    Binding="{Binding Toughness}"          Width="70"/>
+                            <DataGridTextColumn Header="CMC"          Binding="{Binding ManaValue}"          Width="45"/>
+                            <DataGridTextColumn Header="Standard"     Binding="{Binding LegalityStandard}"   Width="70" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Pioneer"      Binding="{Binding LegalityPioneer}"    Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Modern"       Binding="{Binding LegalityModern}"     Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Legacy"       Binding="{Binding LegalityLegacy}"     Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Vintage"      Binding="{Binding LegalityVintage}"    Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Commander"    Binding="{Binding LegalityCommander}"  Width="80" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="Pauper"       Binding="{Binding LegalityPauper}"     Width="65" Visibility="Collapsed"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -634,7 +530,7 @@
                         </DockPanel>
                     </Border>
 
-                    <!-- COLLECTION DataGrid — shown in collection modes -->
+                    <!-- COLLECTION DataGrid -->
                     <DataGrid Name="BottomDataGrid" Grid.Row="1"
                               AutoGenerateColumns="False" IsReadOnly="False"
                               SelectionMode="Single" GotFocus="BottomDataGrid_GotFocus"
@@ -653,7 +549,7 @@
                               RowStyle="{DynamicResource DataGridRowStyle}"
                               CellStyle="{DynamicResource DataGridCellStyle}">
                         <DataGrid.Resources>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"                  Color="Transparent"/>
                             <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
                         </DataGrid.Resources>
                         <DataGrid.ContextMenu>
@@ -667,21 +563,18 @@
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="★" Width="28" CanUserResize="False">
+                            <DataGridTemplateColumn Header="★"  Width="28"  CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding FavoriteGlyph}"
-                                                   HorizontalAlignment="Center"
-                                                   Foreground="Gold" FontSize="13"/>
+                                        <TextBlock Text="{Binding FavoriteGlyph}" HorizontalAlignment="Center" Foreground="Gold" FontSize="13"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="ES" Width="32" CanUserResize="False">
+                            <DataGridTemplateColumn Header="ES" Width="32"  CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Image Source="{Binding SetSymbolPath, Converter={StaticResource ImageSourceConverter}}"
-                                               Width="16" Height="16"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                               Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -760,16 +653,16 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Used"        Binding="{Binding UsedCount}"          Width="50"/>
-                            <DataGridTextColumn Header="Available"   Binding="{Binding AvailableCount}"     Width="75"/>
-                            <DataGridTextColumn Header="USD"         Binding="{Binding PriceUsdDisplay}"    Width="70"/>
+                            <DataGridTextColumn Header="Used"        Binding="{Binding UsedCount}"           Width="50"/>
+                            <DataGridTextColumn Header="Available"   Binding="{Binding AvailableCount}"      Width="75"/>
+                            <DataGridTextColumn Header="USD"         Binding="{Binding PriceUsdDisplay}"     Width="70"/>
                             <DataGridTextColumn Header="USD Foil"    Binding="{Binding PriceUsdFoilDisplay}" Width="80"/>
-                            <DataGridTextColumn Header="Value"       Binding="{Binding ValueDisplay}"       Width="75"/>
-                            <DataGridTextColumn Header="Foil Value"  Binding="{Binding FoilValueDisplay}"   Width="80"/>
-                            <DataGridTextColumn Header="Total Value" Binding="{Binding TotalValueDisplay}"  Width="85"/>
-                            <DataGridTextColumn Header="Color"       Binding="{Binding ColorIdentity}"      Width="55"/>
-                            <DataGridTextColumn Header="Type"        Binding="{Binding TypeLine}"           Width="160"/>
-                            <DataGridTextColumn Header="Rarity"      Binding="{Binding RarityCode}"         Width="50"/>
+                            <DataGridTextColumn Header="Value"       Binding="{Binding ValueDisplay}"        Width="75"/>
+                            <DataGridTextColumn Header="Foil Value"  Binding="{Binding FoilValueDisplay}"    Width="80"/>
+                            <DataGridTextColumn Header="Total Value" Binding="{Binding TotalValueDisplay}"   Width="85"/>
+                            <DataGridTextColumn Header="Color"       Binding="{Binding ColorIdentity}"       Width="55"/>
+                            <DataGridTextColumn Header="Type"        Binding="{Binding TypeLine}"            Width="160"/>
+                            <DataGridTextColumn Header="Rarity"      Binding="{Binding RarityCode}"          Width="50"/>
                             <DataGridTemplateColumn Header="Cost" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -777,12 +670,12 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="P/T"         Binding="{Binding PowerToughness}"     Width="55"/>
-                            <DataGridTextColumn Header="Condition"   Binding="{Binding Condition}"          Width="85"/>
-                            <DataGridTextColumn Header="Language"    Binding="{Binding Language}"           Width="75"/>
-                            <DataGridTextColumn Header="Storage"     Binding="{Binding StorageLocation}"    Width="100"/>
-                            <DataGridTextColumn Header="Artist"      Binding="{Binding Artist}"             Width="130"/>
-                            <DataGridTextColumn Header="No"          Binding="{Binding CollectorNumber}"    Width="55"/>
+                            <DataGridTextColumn Header="P/T"         Binding="{Binding PowerToughness}"      Width="55"/>
+                            <DataGridTextColumn Header="Condition"   Binding="{Binding Condition}"           Width="85"/>
+                            <DataGridTextColumn Header="Language"    Binding="{Binding Language}"            Width="75"/>
+                            <DataGridTextColumn Header="Storage"     Binding="{Binding StorageLocation}"     Width="100"/>
+                            <DataGridTextColumn Header="Artist"      Binding="{Binding Artist}"              Width="130"/>
+                            <DataGridTextColumn Header="No"          Binding="{Binding CollectorNumber}"     Width="55"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -832,8 +725,7 @@
                             <TextBlock Name="SummaryValueText" Text=""
                                        Foreground="{DynamicResource AccentBrush}"
                                        FontSize="13" FontWeight="Bold"
-                                       VerticalAlignment="Center"
-                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center" HorizontalAlignment="Right"
                                        DockPanel.Dock="Right" Margin="0,0,8,0"/>
                         </DockPanel>
                     </Border>
@@ -844,11 +736,8 @@
         <!-- ══ ROW 3 — STATUS BAR ══ -->
         <Border Grid.Row="3" Background="{DynamicResource AccentBrush}">
             <DockPanel Margin="8,0">
-                <TextBlock Name="StatusText" Foreground="White" FontSize="12"
-                           VerticalAlignment="Center" DockPanel.Dock="Left"/>
-                <TextBlock Name="RowCountText" Foreground="White" FontSize="12"
-                           VerticalAlignment="Center" HorizontalAlignment="Right"
-                           DockPanel.Dock="Right"/>
+                <TextBlock Name="StatusText"   Foreground="White" FontSize="12" VerticalAlignment="Center" DockPanel.Dock="Left"/>
+                <TextBlock Name="RowCountText" Foreground="White" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right" DockPanel.Dock="Right"/>
             </DockPanel>
         </Border>
 
