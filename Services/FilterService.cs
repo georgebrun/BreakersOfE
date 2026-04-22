@@ -47,7 +47,7 @@ namespace BreakersOfE.Services
             // Color
             if (filter.AnyColorSelected)
                 result = result.Where(c =>
-                    MatchesColor(c.ColorIdentity, filter));
+                    MatchesColor(c.Colors, filter));
 
             // Rarity
             if (filter.AnyRaritySelected)
@@ -119,7 +119,7 @@ namespace BreakersOfE.Services
             // Color
             if (filter.AnyColorSelected)
                 result = result.Where(c =>
-                    MatchesColor(c.ColorIdentity, filter));
+                    MatchesColor(c.Colors, filter));
 
             // Rarity
             if (filter.AnyRaritySelected)

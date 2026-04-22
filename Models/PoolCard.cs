@@ -92,6 +92,26 @@ namespace BreakersOfE.Models
             }
         }
 
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string ColorDisplay
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(Colors))
+                    return "N";
+
+                // Count distinct WUBRG colors
+                var distinct = Colors
+                    .Where(c => "WUBRG".Contains(c))
+                    .Distinct()
+                    .ToList();
+
+                if (distinct.Count == 0) return "N";
+                if (distinct.Count > 1) return "M";
+                return distinct[0].ToString();
+            }
+        }
+
         // ── Price display ────────────────────────────────────────────────────
         [NotMapped]
         public string PriceUsdDisplay =>

@@ -40,6 +40,7 @@ namespace BreakersOfE.Models
         public string SetName { get; set; } = string.Empty;
         public string CollectorNumber { get; set; } = string.Empty;
         public string ColorIdentity { get; set; } = string.Empty;
+        public string Colors { get; set; } = string.Empty;
         public string TypeLine { get; set; } = string.Empty;
         public string ManaCost { get; set; } = string.Empty;
         public double ManaValue { get; set; }
@@ -127,6 +128,22 @@ namespace BreakersOfE.Models
             "bonus" => "B",
             _ => "?"
         };
+
+        public string ColorDisplay
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(Colors))
+                    return "N";
+                var distinct = Colors
+                    .Where(c => "WUBRG".Contains(c))
+                    .Distinct()
+                    .ToList();
+                if (distinct.Count == 0) return "N";
+                if (distinct.Count > 1) return "M";
+                return distinct[0].ToString();
+            }
+        }
 
         public string FavoriteGlyph => IsFavorite ? "★" : string.Empty;
 
