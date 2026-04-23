@@ -856,11 +856,96 @@ namespace BreakersOfE
             return null;
         }
 
-        
+
         // ── Context menu deck usage ───────────────────────────────────────────────
         private void CtxShowDeckUsage_Click(object sender, RoutedEventArgs e)
-            => MessageBox.Show("Deck Usage coming soon!", "Deck Usage",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+        {
+            var grid = _bottomTableHasFocus ? BottomDataGrid : TopDataGrid;
+            if (grid.SelectedItem is not CollectionDisplayRow row) return;
+
+            // Load if not already loaded
+            if (row.DeckUsageRows.Count == 0)
+                LoadDeckUsageForRow(row);
+
+            // Expand the row
+            row.IsExpanded = true;
+            var dgRow = grid.ItemContainerGenerator
+                .ContainerFromItem(row) as DataGridRow;
+            if (dgRow != null)
+                dgRow.DetailsVisibility = Visibility.Visible;
+        }
+
+        private void BtnExpandDeckUsage_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button btn) return;
+            if (btn.Tag is not CollectionDisplayRow row) return;
+
+            // Toggle expanded state
+            row.IsExpanded = !row.IsExpanded;
+
+            // Load deck usage if expanding and not yet loaded
+            if (row.IsExpanded && row.DeckUsageRows.Count == 0)
+                LoadDeckUsageForRow(row);
+
+            // Show/hide row details
+            var grid = _bottomTableHasFocus ? BottomDataGrid : TopDataGrid;
+            var dgRow = grid.ItemContainerGenerator
+                .ContainerFromItem(row) as DataGridRow;
+            if (dgRow != null)
+                dgRow.DetailsVisibility = row.IsExpanded
+                    ? Visibility.Visible : Visibility.Collapsed;
+
+            // Update button glyph
+            btn.Content = row.ExpandGlyph;
+
+            e.Handled = true;
+        }
+
+        private void LoadDeckUsageForRow(CollectionDisplayRow row)
+        {
+            row.DeckUsageRows.Clear();
+
+            string folder = Services.AppFolderService.DecksFolder;
+            if (!Directory.Exists(folder)) return;
+
+            var files = Directory.GetFiles(folder, "*.deck",
+                SearchOption.TopDirectoryOnly);
+
+            var options = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+
+            foreach (var file in files)
+            {
+                try
+                {
+                    string json = File.ReadAllText(file);
+                    var deck = System.Text.Json.JsonSerializer
+                        .Deserialize<Models.Deck>(json, options);
+                    if (deck == null) continue;
+
+                    var matches = deck.Cards.Where(c =>
+                        c.Name.Equals(row.Name,
+                            StringComparison.OrdinalIgnoreCase) ||
+                        (row.PoolId > 0 && c.PoolId == row.PoolId))
+                        .ToList();
+
+                    foreach (var card in matches)
+                    {
+                        row.DeckUsageRows.Add(new Models.DeckUsageRow
+                        {
+                            DeckName = deck.Name,
+                            DeckType = deck.DeckType.ToString(),
+                            Quantity = card.Quantity,
+                            Category = card.CategoryDisplay,
+                            IsFoil = card.IsFoil ? "Yes" : "No"
+                        });
+                    }
+                }
+                catch { }
+            }
+        }
 
         // ── Deck state ────────────────────────────────────────────────────────────
         private List<Deck> _openDecks = new();
@@ -3014,6 +3099,7 @@ namespace BreakersOfE
                 "Condition" => "Condition",
                 "Language" => "Language",
                 "Storage" => "StorageLocation",
+                "Color ID" => "ColorIdentity",
                 _ => string.Empty
             };
         }

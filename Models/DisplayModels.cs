@@ -1,6 +1,7 @@
 ﻿using BreakersOfE.Services;
 using System;
 using System.IO;
+using System.Windows;
 using System.Windows.Media;
 
 namespace BreakersOfE.Models
@@ -33,6 +34,7 @@ namespace BreakersOfE.Models
     // ── Collection display row ────────────────────────────────────────────────
     public class CollectionDisplayRow
     {
+        public List<DeckUsageRow> DeckUsageRows { get; set; } = new(); 
         public int CollectionEntryId { get; set; }
         public int PoolId { get; set; }
         public string Name { get; set; } = string.Empty;
@@ -62,6 +64,16 @@ namespace BreakersOfE.Models
         public string StorageLocation { get; set; } = string.Empty;
         public string Notes { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
+
+        public bool IsExpanded { get; set; } = false;
+
+        public string ExpandGlyph => IsExpanded ? "−" : "+";
+
+        public Visibility ExpandButtonVisibility =>
+            UsedCount > 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
         public DateTime DateAdded { get; set; }
         public DateTime DateModified { get; set; }
 
@@ -197,5 +209,14 @@ namespace BreakersOfE.Models
         public int CollectionCount { get; set; }
         public int TradeBinderCount { get; set; }
         public int DeckCount { get; set; }
+    }
+
+    public class DeckUsageRow
+    {
+        public string DeckName { get; set; } = string.Empty;
+        public string DeckType { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public string IsFoil { get; set; } = string.Empty;
     }
 }
