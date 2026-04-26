@@ -1,31 +1,44 @@
 ﻿using BreakersOfE.Models;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
 namespace BreakersOfE.Windows
 {
-    // ── View model for each value row ─────────────────────────────────────────
-    public class ValueItem
+    // ── One row in the values list ────────────────────────────────────────────
+    public class ValueItem : INotifyPropertyChanged
     {
+        private bool _isChecked;
+
         public string DisplayValue { get; set; } = string.Empty;
         public string ActualValue { get; set; } = string.Empty;
-        public bool IsChecked { get; set; } = true;
         public bool IsAll { get; set; } = false;
+
+        public bool IsChecked
+        {
+            get => _isChecked;
+            set
+            {
+                _isChecked = value;
+                PropertyChanged?.Invoke(this,
+                    new PropertyChangedEventArgs(nameof(IsChecked)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
     }
 
     public partial class ColumnFilterPopup : Window
     {
-        // ── State ─────────────────────────────────────────────────────────────
-        private ColumnFilterState _filterState;
-        private List<string> _allValues;
-        private ObservableCollection<ValueItem> _displayItems = new();
-        private bool _suppressEvents = false;
+        private readonly ColumnFilterState _state;
+        private readonly List<string> _allValues;
+        private readonly List<ValueItem> _items = new();
+        private bool _busy = false;
 
-        // ── Event fired when filter changes ──────────────────────────────────
+        // Fired whenever the filter changes so MainWindow can reload the grid
         public event EventHandler? FilterChanged;
 
         // ════════════════════════════════════════════════════════════════════
@@ -40,91 +53,153 @@ namespace BreakersOfE.Windows
             InitializeComponent();
 
             Title = $"Filter: {columnName}";
-            _filterState = existingState;
-            _allValues = allValues
-                .OrderBy(v => v)
-                .ToList();
+            _state = existingState;
+            _allValues = allValues.OrderBy(v => v).ToList();
 
+            BuildItemList();
             PopulateOperatorCombo();
-            PopulateValuesList(string.Empty);
-            RestoreState();
-
-            Deactivated += (s, e) =>
-            {
-                // Auto-close when user clicks away
-                // Don't close — let user close manually
-            };
+            RestoreTextState();
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // POPULATE
+        // BUILD ITEM LIST
+        // Built once on open. Never rebuilt. Search only scrolls.
         // ════════════════════════════════════════════════════════════════════
-        private void PopulateValuesList(string searchText)
+        private void BuildItemList()
         {
-            _suppressEvents = true;
-            _displayItems.Clear();
+            _items.Clear();
 
-            // (All) item always first
-            var allItem = new ValueItem
+            // (Select All) is always the first row
+            _items.Add(new ValueItem
             {
-                DisplayValue = "(All)",
+                DisplayValue = "(Select All)",
                 ActualValue = "__ALL__",
-                IsChecked = _filterState.AllSelected,
-                IsAll = true
-            };
-            _displayItems.Add(allItem);
+                IsAll = true,
+                IsChecked = _state.AllSelected
+            });
 
-            // Filter by search text
-            var filtered = string.IsNullOrWhiteSpace(searchText)
-                ? _allValues
-                : _allValues.Where(v =>
-                    v.Contains(searchText,
-                        StringComparison.OrdinalIgnoreCase)).ToList();
-
-            foreach (var val in filtered)
+            // Add every unique value — all shown at all times
+            foreach (var v in _allValues)
             {
-                _displayItems.Add(new ValueItem
+                _items.Add(new ValueItem
                 {
-                    DisplayValue = string.IsNullOrEmpty(val) ? "(blank)" : val,
-                    ActualValue = val,
-                    IsChecked = _filterState.AllSelected ||
-                                   _filterState.SelectedValues.Contains(val)
+                    DisplayValue = string.IsNullOrEmpty(v) ? "(blank)" : v,
+                    ActualValue = v,
+                    IsAll = false,
+                    IsChecked = _state.AllSelected ||
+                                   _state.SelectedValues.Contains(v)
                 });
             }
 
-            ValuesListBox.ItemsSource = _displayItems;
-            _suppressEvents = false;
+            ValuesListBox.ItemsSource = _items;
         }
 
+        // ════════════════════════════════════════════════════════════════════
+        // SEARCH BOX
+        // Scrolls to the first item that starts with the typed text.
+        // Does NOT remove any items from the list.
+        // ════════════════════════════════════════════════════════════════════
+        private void ValueSearchBox_TextChanged(object sender,
+            TextChangedEventArgs e)
+        {
+            string txt = ValueSearchBox.Text;
+            if (string.IsNullOrEmpty(txt)) return;
+
+            var match = _items.FirstOrDefault(x =>
+                !x.IsAll &&
+                x.DisplayValue.StartsWith(txt,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (match == null) return;
+
+            // Scroll matched item to top of visible area
+            ValuesListBox.ScrollIntoView(_items.Last());
+            ValuesListBox.UpdateLayout();
+            ValuesListBox.ScrollIntoView(match);
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // CHECKBOX CHANGED
+        // ════════════════════════════════════════════════════════════════════
+        private void ValueCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_busy) return;
+            if (sender is not CheckBox cb) return;
+            if (cb.DataContext is not ValueItem item) return;
+
+            _busy = true;
+
+            if (item.IsAll)
+            {
+                // (Select All) checked   → check all rows
+                // (Select All) unchecked → uncheck all rows
+                bool check = item.IsChecked;
+                foreach (var vi in _items)
+                    vi.IsChecked = check;
+
+                _state.AllSelected = check;
+                _state.SelectedValues.Clear();
+            }
+            else
+            {
+                if (item.IsChecked)
+                {
+                    // Row checked — add to selected values
+                    if (!_state.SelectedValues.Contains(item.ActualValue))
+                        _state.SelectedValues.Add(item.ActualValue);
+                }
+                else
+                {
+                    // Row unchecked — remove from selected values
+                    _state.SelectedValues.Remove(item.ActualValue);
+                    _state.AllSelected = false;
+
+                    // Uncheck (Select All) row
+                    var allRow = _items.First(x => x.IsAll);
+                    allRow.IsChecked = false;
+                }
+
+                // If every value row is now checked → treat as AllSelected
+                bool allNowChecked = _items
+                    .Where(x => !x.IsAll)
+                    .All(x => x.IsChecked);
+
+                if (allNowChecked)
+                {
+                    _state.AllSelected = true;
+                    _state.SelectedValues.Clear();
+                    _items.First(x => x.IsAll).IsChecked = true;
+                }
+            }
+
+            _state.UseTextFilter = false;
+            _busy = false;
+
+            FilterChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // TEXT FILTER TAB
+        // ════════════════════════════════════════════════════════════════════
         private void PopulateOperatorCombo()
         {
             OperatorCombo.Items.Clear();
             foreach (ColumnFilterOperator op in
                 Enum.GetValues<ColumnFilterOperator>())
-            {
                 OperatorCombo.Items.Add(
                     ColumnFilterState.GetOperatorLabel(op));
-            }
-            OperatorCombo.SelectedIndex =
-                (int)_filterState.TextOperator;
+            OperatorCombo.SelectedIndex = (int)_state.TextOperator;
         }
 
-        private void RestoreState()
+        private void RestoreTextState()
         {
-            _suppressEvents = true;
-
-            // Restore text filter
-            OperatorCombo.SelectedIndex = (int)_filterState.TextOperator;
-            TextFilterBox.Text = _filterState.TextValue;
-
-            // Show/hide text box based on operator
+            _busy = true;
+            OperatorCombo.SelectedIndex = (int)_state.TextOperator;
+            TextFilterBox.Text = _state.TextValue;
             UpdateTextBoxVisibility();
-
-            // Switch to correct tab
-            if (_filterState.UseTextFilter)
+            if (_state.UseTextFilter)
                 MainTabControl.SelectedIndex = 1;
-
-            _suppressEvents = false;
+            _busy = false;
         }
 
         private void UpdateTextBoxVisibility()
@@ -133,156 +208,75 @@ namespace BreakersOfE.Windows
             TextFilterBox.Visibility =
                 op == ColumnFilterOperator.IsBlank ||
                 op == ColumnFilterOperator.IsNotBlank
-                    ? Visibility.Collapsed
-                    : Visibility.Visible;
+                    ? Visibility.Collapsed : Visibility.Visible;
         }
 
-        // ════════════════════════════════════════════════════════════════════
-        // VALUES TAB HANDLERS
-        // ════════════════════════════════════════════════════════════════════
-        private void ValueSearchBox_TextChanged(object sender,
-            TextChangedEventArgs e)
-        {
-            PopulateValuesList(ValueSearchBox.Text);
-        }
-
-        private void ValueCheckBox_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_suppressEvents) return;
-            if (sender is not CheckBox cb) return;
-            if (cb.DataContext is not ValueItem item) return;
-
-            _suppressEvents = true;
-
-            if (item.IsAll)
-            {
-                // (All) toggled — set all items to match
-                bool check = cb.IsChecked == true;
-                foreach (var vi in _displayItems)
-                    vi.IsChecked = check;
-
-                _filterState.AllSelected = check;
-                if (check)
-                    _filterState.SelectedValues.Clear();
-                else
-                    _filterState.SelectedValues.Clear();
-
-                // Refresh list
-                ValuesListBox.Items.Refresh();
-            }
-            else
-            {
-                // Individual item toggled
-                bool check = cb.IsChecked == true;
-
-                if (check)
-                {
-                    if (!_filterState.SelectedValues
-                            .Contains(item.ActualValue))
-                        _filterState.SelectedValues
-                            .Add(item.ActualValue);
-                }
-                else
-                {
-                    _filterState.SelectedValues
-                        .Remove(item.ActualValue);
-                    _filterState.AllSelected = false;
-
-                    // Uncheck (All)
-                    var allItem = _displayItems
-                        .FirstOrDefault(x => x.IsAll);
-                    if (allItem != null)
-                        allItem.IsChecked = false;
-                    ValuesListBox.Items.Refresh();
-                }
-
-                // Check if all individual items are checked
-                var nonAllItems = _displayItems
-                    .Where(x => !x.IsAll).ToList();
-                bool allChecked = nonAllItems.All(x => x.IsChecked);
-                _filterState.AllSelected = allChecked;
-
-                var allItemRef = _displayItems
-                    .FirstOrDefault(x => x.IsAll);
-                if (allItemRef != null)
-                {
-                    allItemRef.IsChecked = allChecked;
-                    ValuesListBox.Items.Refresh();
-                }
-            }
-
-            _filterState.UseTextFilter = false;
-            _suppressEvents = false;
-
-            FilterChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        // TEXT FILTER TAB HANDLERS
-        // ════════════════════════════════════════════════════════════════════
         private void OperatorCombo_SelectionChanged(object sender,
             SelectionChangedEventArgs e)
         {
-            if (_suppressEvents) return;
-
-            _filterState.TextOperator =
+            if (_busy) return;
+            _state.TextOperator =
                 (ColumnFilterOperator)OperatorCombo.SelectedIndex;
             UpdateTextBoxVisibility();
-
-            _filterState.UseTextFilter =
-                !string.IsNullOrEmpty(_filterState.TextValue) ||
-                _filterState.TextOperator ==
-                    ColumnFilterOperator.IsBlank ||
-                _filterState.TextOperator ==
-                    ColumnFilterOperator.IsNotBlank;
-
+            _state.UseTextFilter =
+                !string.IsNullOrEmpty(_state.TextValue) ||
+                _state.TextOperator == ColumnFilterOperator.IsBlank ||
+                _state.TextOperator == ColumnFilterOperator.IsNotBlank;
             FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private void TextFilterBox_TextChanged(object sender,
             TextChangedEventArgs e)
         {
-            if (_suppressEvents) return;
-
-            _filterState.TextValue = TextFilterBox.Text;
-            _filterState.UseTextFilter =
-                !string.IsNullOrEmpty(_filterState.TextValue);
-
+            if (_busy) return;
+            _state.TextValue = TextFilterBox.Text;
+            _state.UseTextFilter = !string.IsNullOrEmpty(_state.TextValue);
             FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        private void BtnClearTextFilter_Click(object sender,
-            RoutedEventArgs e)
+        private void BtnClearTextFilter_Click(object sender, RoutedEventArgs e)
         {
-            _suppressEvents = true;
+            _busy = true;
             TextFilterBox.Text = string.Empty;
             OperatorCombo.SelectedIndex = 0;
-            _suppressEvents = false;
-
-            _filterState.TextValue = string.Empty;
-            _filterState.UseTextFilter = false;
-            _filterState.TextOperator = ColumnFilterOperator.Contains;
-
+            _busy = false;
+            _state.TextValue = string.Empty;
+            _state.UseTextFilter = false;
+            _state.TextOperator = ColumnFilterOperator.Contains;
             FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // BOTTOM BUTTONS
+        // CLEAR FILTER BUTTON
+        // Clears THIS column's filter only.
+        // Other column filters are untouched.
+        // Funnel for this column goes gray.
+        // Funnels for other active columns stay blue.
+        // Popup closes.
         // ════════════════════════════════════════════════════════════════════
         private void BtnClearFilter_Click(object sender, RoutedEventArgs e)
         {
-            _filterState.Clear();
-            _suppressEvents = true;
+            // Clear this column's filter state
+            _state.Clear();
+
+            // Recheck all rows in the UI
+            _busy = true;
+            foreach (var item in _items)
+                item.IsChecked = true;
             TextFilterBox.Text = string.Empty;
             OperatorCombo.SelectedIndex = 0;
-            _suppressEvents = false;
-            PopulateValuesList(ValueSearchBox.Text);
+            _busy = false;
+
+            // Fire event — MainWindow reloads data and refreshes funnels
+            // Do NOT close yet — popup must stay open while Dispatcher runs
             FilterChanged?.Invoke(this, EventArgs.Empty);
+
+            // Close AFTER Dispatcher finishes updating the header visuals
+            Dispatcher.BeginInvoke(new Action(() => Close()),
+                System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
 
         private void BtnClose_Click(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
+            => Close();
     }
 }

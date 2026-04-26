@@ -421,62 +421,7 @@
                             <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"                  Color="Transparent"/>
                             <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
                         </DataGrid.Resources>
-                        <DataGrid.RowDetailsTemplate>
-                            <DataTemplate>
-                                <Border Background="#F5F8FF"
-                BorderBrush="#CCDDEE"
-                BorderThickness="0,1,0,1"
-                Padding="32,6,8,6">
-                                    <StackPanel>
-                                        <TextBlock Text="USED IN DECKS"
-                           FontSize="11"
-                           FontWeight="Bold"
-                           Foreground="#666666"
-                           Margin="0,0,0,4"/>
-                                        <DataGrid Name="DeckUsageGrid"
-                          ItemsSource="{Binding DeckUsageRows}"
-                          AutoGenerateColumns="False"
-                          IsReadOnly="True"
-                          HeadersVisibility="Column"
-                          BorderThickness="1"
-                          BorderBrush="#CCDDEE"
-                          GridLinesVisibility="Horizontal"
-                          RowHeaderWidth="0"
-                          RowHeight="24"
-                          MaxHeight="160"
-                          CanUserResizeColumns="True"
-                          CanUserReorderColumns="False"
-                          Background="White">
-                                            <DataGrid.Columns>
-                                                <DataGridTextColumn Header="Deck Name" Binding="{Binding DeckName}" Width="200"/>
-                                                <DataGridTextColumn Header="Type"      Binding="{Binding DeckType}" Width="90"/>
-                                                <DataGridTextColumn Header="Qty"       Binding="{Binding Quantity}" Width="45"/>
-                                                <DataGridTextColumn Header="Category"  Binding="{Binding Category}" Width="90"/>
-                                                <DataGridTextColumn Header="Foil"      Binding="{Binding IsFoil}"   Width="50"/>
-                                            </DataGrid.Columns>
-                                        </DataGrid>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </DataGrid.RowDetailsTemplate>
                         <DataGrid.Columns>
-                            <!-- Expand/collapse deck usage -->
-                            <DataGridTemplateColumn Header="" Width="28" CanUserResize="False">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Button Content="{Binding ExpandGlyph}"
-                    Visibility="{Binding ExpandButtonVisibility}"
-                    Width="20" Height="20"
-                    FontSize="14" FontWeight="Bold"
-                    Padding="0"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    Cursor="Hand"
-                    Tag="{Binding}"
-                    Click="BtnExpandDeckUsage_Click"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="★"  Width="28"  CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
