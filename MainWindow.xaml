@@ -1,4 +1,4 @@
-﻿<Window x:Class="BreakersOfE.MainWindow"
+<Window x:Class="BreakersOfE.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -307,12 +307,13 @@
                     BorderThickness="0,0,1,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
-                        <Border Name="CardImageBorder" Width="223" Height="310"
+                        <Border Name="CardImageBorder" Width="250" Height="348"
                                 Background="{DynamicResource SurfaceAltBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1" CornerRadius="4"
                                 Margin="0,6,0,10" HorizontalAlignment="Center">
-                            <Image Name="CardImage" Stretch="Uniform"/>
+                            <Image Name="CardImage" Stretch="Uniform"
+                   MouseLeftButtonDown="CardImage_MouseDoubleClick"/>
                         </Border>
                         <TextBlock Text="NAME"             Style="{DynamicResource DetailLabelStyle}"/>
                         <TextBlock Name="DetailName"       Style="{DynamicResource DetailValueStyle}" FontSize="15" FontWeight="Bold"/>
@@ -399,7 +400,6 @@
 
                     <!-- Top DataGrid -->
                     <DataGrid Name="TopDataGrid" Grid.Row="2"
-                              RowDetailsVisibilityMode="Collapsed"
                               AutoGenerateColumns="False" IsReadOnly="True"
                               SelectionMode="Single" GotFocus="TopDataGrid_GotFocus"
                               SelectionUnit="FullRow" HeadersVisibility="Column"
@@ -414,6 +414,7 @@
                               EnableRowVirtualization="True"
                               VirtualizingPanel.IsVirtualizing="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
+                              RowDetailsVisibilityMode="Collapsed"
                               ColumnHeaderStyle="{DynamicResource DataGridColumnHeaderStyle}"
                               RowStyle="{DynamicResource DataGridRowStyle}"
                               CellStyle="{DynamicResource DataGridCellStyle}">
@@ -421,11 +422,59 @@
                             <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"                  Color="Transparent"/>
                             <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
                         </DataGrid.Resources>
+                        <DataGrid.RowDetailsTemplate>
+                            <DataTemplate>
+                                <Border Background="#F5F8FF"
+                BorderBrush="#CCDDEE"
+                BorderThickness="0,1,0,1"
+                Padding="32,6,8,6">
+                                    <StackPanel>
+                                        <TextBlock Text="USED IN DECKS"
+                           FontSize="11"
+                           FontWeight="Bold"
+                           Foreground="#666666"
+                           Margin="0,0,0,4"/>
+                                        <DataGrid Name="DeckUsageGrid"
+                          ItemsSource="{Binding DeckUsageRows}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          HeadersVisibility="Column"
+                          BorderThickness="1"
+                          BorderBrush="#CCDDEE"
+                          GridLinesVisibility="Horizontal"
+                          RowHeaderWidth="0"
+                          RowHeight="24"
+                          MaxHeight="160"
+                          CanUserResizeColumns="True"
+                          CanUserReorderColumns="False"
+                          Background="White">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Deck Name" Binding="{Binding DeckName}" Width="200"/>
+                                                <DataGridTextColumn Header="Type"      Binding="{Binding DeckType}" Width="90"/>
+                                                <DataGridTextColumn Header="Qty"       Binding="{Binding Quantity}" Width="45"/>
+                                                <DataGridTextColumn Header="Category"  Binding="{Binding Category}" Width="90"/>
+                                                <DataGridTextColumn Header="Foil"      Binding="{Binding IsFoil}"   Width="50"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </DataGrid.RowDetailsTemplate>
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="★"  Width="28"  CanUserResize="False">
+                            <!-- Expand/collapse deck usage -->
+                            <DataGridTemplateColumn Header="↕" Width="28">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding FavoriteGlyph}" HorizontalAlignment="Center" Foreground="Gold" FontSize="13"/>
+                                        <Button Content="{Binding ExpandGlyph}"
+                    Visibility="{Binding ExpandButtonVisibility}"
+                    Width="20" Height="20"
+                    FontSize="14" FontWeight="Bold"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Tag="{Binding}"
+                    Click="BtnExpandDeckUsage_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -534,7 +583,6 @@
 
                     <!-- COLLECTION DataGrid -->
                     <DataGrid Name="BottomDataGrid" Grid.Row="1"
-                              RowDetailsVisibilityMode="Collapsed"
                               AutoGenerateColumns="False" IsReadOnly="False"
                               SelectionMode="Single" GotFocus="BottomDataGrid_GotFocus"
                               SelectionUnit="FullRow" HeadersVisibility="Column"
@@ -548,6 +596,7 @@
                               EnableRowVirtualization="True"
                               VirtualizingPanel.IsVirtualizing="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
+                              RowDetailsVisibilityMode="Collapsed"
                               ColumnHeaderStyle="{DynamicResource DataGridColumnHeaderStyle}"
                               RowStyle="{DynamicResource DataGridRowStyle}"
                               CellStyle="{DynamicResource DataGridCellStyle}">
@@ -605,7 +654,7 @@
                         </DataGrid.RowDetailsTemplate>
                         <DataGrid.Columns>
                             <!-- Expand/collapse deck usage -->
-                            <DataGridTemplateColumn Header="" Width="28" CanUserResize="False">
+                            <DataGridTemplateColumn Header="↕" Width="28">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Button Content="{Binding ExpandGlyph}"
@@ -618,13 +667,6 @@
                     Cursor="Hand"
                     Tag="{Binding}"
                     Click="BtnExpandDeckUsage_Click"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="★"  Width="28"  CanUserResize="False">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding FavoriteGlyph}" HorizontalAlignment="Center" Foreground="Gold" FontSize="13"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
