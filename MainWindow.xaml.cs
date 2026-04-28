@@ -397,7 +397,7 @@ namespace BreakersOfE
             var grid = new DataGrid
             {
                 AutoGenerateColumns = false,
-                IsReadOnly = false,
+                IsReadOnly = true,
                 SelectionMode = DataGridSelectionMode.Single,
                 SelectionUnit = DataGridSelectionUnit.FullRow,
                 HeadersVisibility = DataGridHeadersVisibility.Column,
@@ -449,6 +449,7 @@ namespace BreakersOfE
 
             grid.SelectionChanged    += DeckGrid_SelectionChanged;
             grid.CellEditEnding      += DeckGrid_CellEditEnding;
+            grid.PreviewKeyDown      += DeckGrid_PreviewKeyDown;
 
             // Columns
             grid.Columns.Add(new DataGridTemplateColumn
@@ -475,14 +476,15 @@ namespace BreakersOfE
 
             grid.Columns.Add(new DataGridTextColumn
             {
-                Header  = "Qty",
-                Binding = new System.Windows.Data.Binding("Quantity")
+                Header     = "Qty",
+                Binding    = new System.Windows.Data.Binding("Quantity")
                 {
                     Mode = System.Windows.Data.BindingMode.TwoWay,
                     UpdateSourceTrigger =
                         System.Windows.Data.UpdateSourceTrigger.LostFocus
                 },
-                Width = new DataGridLength(45)
+                Width      = new DataGridLength(45),
+                IsReadOnly = false
             });
 
             // Foil checkbox column
@@ -878,6 +880,23 @@ namespace BreakersOfE
             UpdateDeckTabTitle(_activeDeck);
         }
 
+        private void DeckGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (_activeDeck == null) return;
+            if (e.Key != Key.Delete) return;
+            if (sender is not DataGrid grid) return;
+            if (grid.SelectedItem is not DeckCard card) return;
+
+            int qty = card.Quantity;
+            DeckService.RemoveCard(_activeDeck, card, true);
+            RefreshActiveDeckGrid();
+            UpdateDeckTabTitle(_activeDeck);
+            UpdateDeckSummary(_activeDeck);
+            UpdateUsedCount(card.PoolId, -qty);
+            SetStatus($"Removed {card.Name} from deck.");
+            e.Handled = true;
+        }
+
         private void DeckGrid_CellEditEnding(object sender,
             DataGridCellEditEndingEventArgs e)
         {
@@ -1102,6 +1121,7 @@ namespace BreakersOfE
         {
             using var db = new AppDbContext();
             db.Database.EnsureCreated();
+            db.MigrateSchema();
         }
 
         private void LoadCaches()
@@ -1469,6 +1489,7 @@ namespace BreakersOfE
                         LocalImagePath = pc.LocalImagePath,
                         Quantity = ce.Quantity,
                         FoilQuantity = ce.FoilQuantity,
+                        UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
                         StorageLocation = ce.StorageLocation
@@ -1502,6 +1523,7 @@ namespace BreakersOfE
                         LocalImagePath = sc.LocalImagePath,
                         Quantity = ce.Quantity,
                         FoilQuantity = ce.FoilQuantity,
+                        UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
                         StorageLocation = ce.StorageLocation
@@ -1535,6 +1557,7 @@ namespace BreakersOfE
                         LocalImagePath = vc.LocalImagePath,
                         Quantity = ce.Quantity,
                         FoilQuantity = ce.FoilQuantity,
+                        UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
                         StorageLocation = ce.StorageLocation
@@ -1568,6 +1591,7 @@ namespace BreakersOfE
                         LocalImagePath = tc.LocalImagePath,
                         Quantity = ce.Quantity,
                         FoilQuantity = ce.FoilQuantity,
+                        UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
                         StorageLocation = ce.StorageLocation
@@ -1600,6 +1624,7 @@ namespace BreakersOfE
                         LocalImagePath = ac.LocalImagePath,
                         Quantity = ce.Quantity,
                         FoilQuantity = ce.FoilQuantity,
+                        UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
                         StorageLocation = ce.StorageLocation
@@ -1641,6 +1666,7 @@ namespace BreakersOfE
                         LocalImagePath = pc.LocalImagePath,
                         Quantity = ce.Quantity,
                         FoilQuantity = ce.FoilQuantity,
+                        UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
                         StorageLocation = ce.StorageLocation,

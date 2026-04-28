@@ -35,6 +35,29 @@ namespace BreakersOfE.Data
             optionsBuilder.UseSqlite($"Data Source={dbPath}");
         }
 
+        // ── Schema migration for new columns ─────────────────────────────────────
+        public void MigrateSchema()
+        {
+            var tables = new[]
+            {
+                ("TokenCollectionEntries",     "UsedCount"),
+                ("PlanarCollectionEntries",    "UsedCount"),
+                ("SchemeCollectionEntries",    "UsedCount"),
+                ("VanguardCollectionEntries",  "UsedCount"),
+                ("ArtSeriesCollectionEntries", "UsedCount"),
+            };
+
+            foreach (var (table, column) in tables)
+            {
+                try
+                {
+                    Database.ExecuteSqlRaw(
+                        $"ALTER TABLE {table} ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0");
+                }
+                catch { /* Column already exists — ignore */ }
+            }
+        }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
