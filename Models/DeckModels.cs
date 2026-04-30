@@ -62,7 +62,8 @@ namespace BreakersOfE.Models
         public decimal? PriceUsdFoil { get; set; }
 
         // ── Deck-specific ─────────────────────────────────────────────────────
-        public int Quantity { get; set; } = 1;
+        public int Quantity { get; set; } = 0;
+        public int FoilQuantity { get; set; } = 0;
         public DeckCardCategory Category { get; set; } =
             DeckCardCategory.Mainboard;
         public bool IsCommander { get; set; } = false;
@@ -99,9 +100,18 @@ namespace BreakersOfE.Models
             PriceUsd.HasValue ? $"${PriceUsd.Value:F2}" : "—";
 
         [JsonIgnore]
+        public int TotalQuantity => Quantity + FoilQuantity;
+
+        [JsonIgnore]
         public string ValueDisplay =>
             PriceUsd.HasValue
                 ? $"${PriceUsd.Value * Quantity:F2}"
+                : "—";
+
+        [JsonIgnore]
+        public string FoilValueDisplay =>
+            PriceUsdFoil.HasValue
+                ? $"${PriceUsdFoil.Value * FoilQuantity:F2}"
                 : "—";
 
         [JsonIgnore]
@@ -116,7 +126,22 @@ namespace BreakersOfE.Models
             }
         }
 
-        // ── Card type helpers ─────────────────────────────────────────────────
+        // ── Color display ─────────────────────────────────────────────────────
+        [JsonIgnore]
+        public string ColorDisplay
+        {
+            get
+            {
+                var distinct = ColorIdentity
+                    .Where(c => "WUBRG".Contains(c))
+                    .Distinct()
+                    .ToList();
+                if (distinct.Count == 0) return "N";
+                if (distinct.Count > 1) return "M";
+                return distinct[0].ToString();
+            }
+        }
+
         [JsonIgnore]
         public bool IsLand =>
             TypeLine.Contains("Land",
@@ -210,12 +235,12 @@ namespace BreakersOfE.Models
         // ── Counts ────────────────────────────────────────────────────────────
         [JsonIgnore]
         public int MainboardCount =>
-            MainboardCards.Sum(c => c.Quantity) +
-            CommanderCards.Sum(c => c.Quantity);
+            MainboardCards.Sum(c => c.TotalQuantity) +
+            CommanderCards.Sum(c => c.TotalQuantity);
 
         [JsonIgnore]
         public int SideboardCount =>
-            SideboardCards.Sum(c => c.Quantity);
+            SideboardCards.Sum(c => c.TotalQuantity);
 
         [JsonIgnore]
         public int TotalCount => MainboardCount + SideboardCount;
@@ -224,17 +249,27 @@ namespace BreakersOfE.Models
         public int LandCount =>
             Cards.Where(c => c.IsLand &&
                 c.Category != DeckCardCategory.Sideboard)
-                .Sum(c => c.Quantity);
+                .Sum(c => c.TotalQuantity);
 
         [JsonIgnore]
         public int CreatureCount =>
             Cards.Where(c => c.IsCreature &&
                 c.Category != DeckCardCategory.Sideboard)
-                .Sum(c => c.Quantity);
+                .Sum(c => c.TotalQuantity);
 
         [JsonIgnore]
         public int SpellCount =>
             MainboardCount - LandCount - CreatureCount;
+
+        [JsonIgnore]
+        public int FoilCount =>
+            Cards.Where(c => c.Category != DeckCardCategory.Sideboard)
+                .Sum(c => c.FoilQuantity);
+
+        [JsonIgnore]
+        public int NonFoilCount =>
+            Cards.Where(c => c.Category != DeckCardCategory.Sideboard)
+                .Sum(c => c.Quantity);
 
         // ── Color identity ────────────────────────────────────────────────────
         [JsonIgnore]
@@ -270,8 +305,8 @@ namespace BreakersOfE.Models
                     .ToList();
                 if (nonLands.Count == 0) return 0;
 
-                double total = nonLands.Sum(c => c.ManaValue * c.Quantity);
-                int count = nonLands.Sum(c => c.Quantity);
+                double total = nonLands.Sum(c => c.ManaValue * c.TotalQuantity);
+                int count = nonLands.Sum(c => c.TotalQuantity);
                 return count > 0
                     ? Math.Round(total / count, 2) : 0;
             }
@@ -325,8 +360,9 @@ namespace BreakersOfE.Models
         // ── Collection value ──────────────────────────────────────────────────
         [JsonIgnore]
         public decimal TotalValue =>
-            Cards.Where(c => c.PriceUsd.HasValue)
-                .Sum(c => c.PriceUsd!.Value * c.Quantity);
+            Cards.Sum(c =>
+                (c.PriceUsd.HasValue ? c.PriceUsd.Value * c.Quantity : 0m) +
+                (c.PriceUsdFoil.HasValue ? c.PriceUsdFoil.Value * c.FoilQuantity : 0m));
 
         [JsonIgnore]
         public string TotalValueDisplay =>

@@ -85,38 +85,48 @@ namespace BreakersOfE.Services
             Deck deck,
             DeckCard card,
             DeckCardCategory category,
+            bool foil,
             out string errorMessage)
         {
             errorMessage = string.Empty;
 
-            // Find existing entry
+            // Find existing row for this card (one row per card regardless of foil)
             var existing = deck.Cards.FirstOrDefault(c =>
                 c.PoolId == card.PoolId &&
                 c.Category == category);
 
+            // Total copies across foil AND non-foil for copy-limit rules
+            int totalQty = existing?.TotalQuantity ?? 0;
+
             // Check deck rules
-            if (!CanAddCard(deck, card, category,
-                    existing?.Quantity ?? 0,
-                    out errorMessage))
+            if (!CanAddCard(deck, card, category, totalQty, out errorMessage))
                 return false;
 
             if (existing != null)
             {
-                existing.Quantity++;
+                if (foil) existing.FoilQuantity++;
+                else existing.Quantity++;
             }
             else
             {
                 var newCard = CloneCard(card);
                 newCard.Category = category;
-                newCard.IsCommander = category ==
-                    DeckCardCategory.Commander;
-                newCard.Quantity = 1;
+                newCard.IsCommander = category == DeckCardCategory.Commander;
+                newCard.Quantity = foil ? 0 : 1;
+                newCard.FoilQuantity = foil ? 1 : 0;
                 deck.Cards.Add(newCard);
             }
 
             deck.IsModified = true;
             return true;
         }
+
+        // Overload for callers that don't specify foil
+        public static bool AddCard(
+            Deck deck, DeckCard card,
+            DeckCardCategory category,
+            out string errorMessage)
+            => AddCard(deck, card, category, foil: false, out errorMessage);
 
         // ── Check if a card can be added ──────────────────────────────────────
         private static bool CanAddCard(
@@ -152,12 +162,12 @@ namespace BreakersOfE.Services
                     return false;
                 }
 
-                // Color identity check
+                // Color identity check — uses combined identity for Partner commanders
                 if (category != DeckCardCategory.Sideboard &&
                     deck.CommanderCards.Count > 0)
                 {
-                    string cmdIdentity = deck.CommanderCards
-                        .First().ColorIdentity;
+                    string cmdIdentity = GetCombinedColorIdentity(
+                        deck.CommanderCards);
                     foreach (char c in card.ColorIdentity)
                     {
                         if ("WUBRG".Contains(c) &&
@@ -197,10 +207,48 @@ namespace BreakersOfE.Services
 
             if (existing == null) return;
 
-            if (removeAll || existing.Quantity <= 1)
+            if (removeAll)
+            {
                 deck.Cards.Remove(existing);
+            }
             else
-                existing.Quantity--;
+            {
+                // Decrement non-foil first, then foil
+                if (existing.Quantity > 0)
+                    existing.Quantity--;
+                else if (existing.FoilQuantity > 0)
+                    existing.FoilQuantity--;
+
+                if (existing.TotalQuantity <= 0)
+                    deck.Cards.Remove(existing);
+            }
+
+            deck.IsModified = true;
+        }
+
+        public static void RemoveCard(
+            Deck deck, DeckCard card, bool foil, bool removeAll)
+        {
+            var existing = deck.Cards.FirstOrDefault(c =>
+                c.PoolId == card.PoolId &&
+                c.Category == card.Category);
+
+            if (existing == null) return;
+
+            if (removeAll)
+            {
+                deck.Cards.Remove(existing);
+            }
+            else
+            {
+                if (foil && existing.FoilQuantity > 0)
+                    existing.FoilQuantity--;
+                else if (!foil && existing.Quantity > 0)
+                    existing.Quantity--;
+
+                if (existing.TotalQuantity <= 0)
+                    deck.Cards.Remove(existing);
+            }
 
             deck.IsModified = true;
         }
@@ -238,11 +286,11 @@ namespace BreakersOfE.Services
             var dupes = deck.Cards
                 .Where(c => !c.IsBasicLand && !c.IsAnyNumber &&
                     c.Category != DeckCardCategory.Sideboard &&
-                    c.Quantity > 1)
+                    c.TotalQuantity > 1)
                 .ToList();
             foreach (var dupe in dupes)
                 result.AddError(
-                    $"{dupe.Name} appears {dupe.Quantity} times " +
+                    $"{dupe.Name} appears {dupe.TotalQuantity} times " +
                     $"(Commander allows only 1).");
 
             // Color identity
@@ -264,21 +312,15 @@ namespace BreakersOfE.Services
         private static void ValidateStandard(
             Deck deck, DeckValidationResult result)
         {
-            // Minimum 60 cards
-            if (deck.MainboardCount < 60)
-                result.AddError(
-                    $"Standard deck must have at least 60 cards " +
-                    $"(currently {deck.MainboardCount}).");
-
             // Max 4 of each non-basic, non-any-number card
             var overLimit = deck.Cards
                 .Where(c => !c.IsBasicLand && !c.IsAnyNumber &&
                     c.Category != DeckCardCategory.Sideboard &&
-                    c.Quantity > 4)
+                    c.TotalQuantity > 4)
                 .ToList();
             foreach (var card in overLimit)
                 result.AddError(
-                    $"{card.Name} appears {card.Quantity} times " +
+                    $"{card.Name} appears {card.TotalQuantity} times " +
                     $"(Standard allows only 4).");
 
             // Sideboard max 15
@@ -305,10 +347,10 @@ namespace BreakersOfE.Services
             foreach (var card in nonLands)
             {
                 int cmc = Math.Min(10, (int)card.ManaValue);
-                curve[cmc] += card.Quantity;
+                curve[cmc] += card.TotalQuantity;
             }
 
-            int total = nonLands.Sum(c => c.Quantity);
+            int total = nonLands.Sum(c => c.TotalQuantity);
             double avg = deck.AverageCmc;
 
             // Check average CMC

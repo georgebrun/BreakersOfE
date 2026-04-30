@@ -34,6 +34,7 @@ namespace BreakersOfE.Models
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
+        public int UsedCount { get; set; } = 0;
     }
 
     // ── Planar Collection ───────────────────────────────────────────────────
@@ -50,6 +51,7 @@ namespace BreakersOfE.Models
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
+        public int UsedCount { get; set; } = 0;
     }
 
     // ── Scheme Collection ───────────────────────────────────────────────────
@@ -66,6 +68,7 @@ namespace BreakersOfE.Models
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
+        public int UsedCount { get; set; } = 0;
     }
 
     // ── Vanguard Collection ─────────────────────────────────────────────────
@@ -82,6 +85,7 @@ namespace BreakersOfE.Models
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
+        public int UsedCount { get; set; } = 0;
     }
 
     // ── Conspiracy Collection ───────────────────────────────────────────────
@@ -114,6 +118,7 @@ namespace BreakersOfE.Models
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
+        public int UsedCount { get; set; } = 0;
     }
 
     // ── Trade Binder ────────────────────────────────────────────────────────
@@ -127,6 +132,7 @@ namespace BreakersOfE.Models
         public string Condition { get; set; } = string.Empty;
         public string Language { get; set; } = "English";
         public string Notes { get; set; } = string.Empty;
+        public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
     }
@@ -139,5 +145,5 @@ namespace BreakersOfE.Models
         public string Value { get; set; } = string.Empty;
     }
 
-    
+
 }

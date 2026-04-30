@@ -27,7 +27,7 @@ namespace BreakersOfE
         private List<string> _topSelectedSetCodes = new();
         private List<string> _bottomSelectedSetCodes = new();
         private bool _bottomTableHasFocus = false;
-        
+
         // ── In-memory card cache ──────────────────────────────────────────────────
         private List<PoolCard>? _poolCache = null;
         private List<TokenCard>? _tokenCache = null;
@@ -87,8 +87,30 @@ namespace BreakersOfE
         private void BtnAdd4ToDeck_Click(object sender, RoutedEventArgs e)
         {
             if (_activeDeck?.DeckType != DeckType.Standard) return;
+
+            int added = 0;
+            string lastError = string.Empty;
             for (int i = 0; i < 4; i++)
-                AddFromTopSelectionToDeck(foil: false);
+            {
+                // Always suppress internal errors — we show one at the end
+                bool success = AddFromTopSelectionToDeck(foil: false,
+                    suppressError: true, out string error);
+                if (success)
+                    added++;
+                else
+                {
+                    lastError = error;
+                    break;
+                }
+            }
+
+            if (added > 0)
+                SetStatus($"Added {added} cop{(added == 1 ? "y" : "ies")} to {_activeDeck?.Name}");
+
+            // Show one error if we stopped short
+            if (!string.IsNullOrEmpty(lastError))
+                MessageBox.Show(lastError, "Cannot Add Card",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void BtnAddFoilToDeck_Click(object sender, RoutedEventArgs e)
@@ -99,7 +121,7 @@ namespace BreakersOfE
             if (_activeDeck == null) return;
             if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
             {
-                int qty = card.Quantity;
+                int qty = card.TotalQuantity;
                 DeckService.RemoveCard(_activeDeck, card, true);
                 RefreshActiveDeckGrid();
                 UpdateDeckTabTitle(_activeDeck);
@@ -108,8 +130,6 @@ namespace BreakersOfE
                 SetStatus($"Removed {card.Name} from deck.");
             }
         }
-
-
 
         private void BtnDeckQtyIncrease_Click(object sender, RoutedEventArgs e)
         {
@@ -120,7 +140,7 @@ namespace BreakersOfE
                 _activeDeck.IsModified = true;
                 RefreshActiveDeckGrid();
                 UpdateDeckSummary(_activeDeck);
-                SetStatus($"{card.Name} qty increased to {card.Quantity}.");
+                SetStatus($"{card.Name} qty increased to {card.TotalQuantity}.");
             }
         }
 
@@ -129,10 +149,12 @@ namespace BreakersOfE
             if (_activeDeck == null) return;
             if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
             {
-                if (card.Quantity <= 1)
+                if (card.TotalQuantity <= 1)
                     DeckService.RemoveCard(_activeDeck, card, true);
-                else
+                else if (card.Quantity > 0)
                     card.Quantity--;
+                else if (card.FoilQuantity > 0)
+                    card.FoilQuantity--;
                 _activeDeck.IsModified = true;
                 RefreshActiveDeckGrid();
                 UpdateDeckSummary(_activeDeck);
@@ -157,14 +179,21 @@ namespace BreakersOfE
         }
 
         private void AddFromTopSelectionToDeck(bool foil)
+            => AddFromTopSelectionToDeck(foil, suppressError: false, out _);
+
+        private bool AddFromTopSelectionToDeck(bool foil,
+            bool suppressError, out string errorMessage)
         {
+            errorMessage = string.Empty;
+
             if (_activeDeck == null)
             {
-                MessageBox.Show(
-                    "No deck is open. Create or open a deck first.",
-                    "No Deck Open", MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                return;
+                if (!suppressError)
+                    MessageBox.Show(
+                        "No deck is open. Create or open a deck first.",
+                        "No Deck Open", MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                return false;
             }
 
             DeckCard? deckCard = null;
@@ -172,8 +201,8 @@ namespace BreakersOfE
             switch (TopDataGrid.SelectedItem)
             {
                 case PoolCard pc:
-                    if (foil && !pc.IsFoil) return;
-                    if (!foil && !pc.IsNonFoil) return;
+                    if (foil && !pc.IsFoil) return false;
+                    if (!foil && !pc.IsNonFoil) return false;
                     deckCard = DeckService.FromPoolCard(pc);
                     break;
                 case CollectionDisplayRow cr:
@@ -182,38 +211,43 @@ namespace BreakersOfE
                         UpdateUsedCount(cr.PoolId, 1);
                     break;
                 default:
-                    return;
+                    return false;
             }
 
-            if (deckCard == null) return;
-            deckCard.IsFoil = foil;
+            if (deckCard == null) return false;
 
             bool added = DeckService.AddCard(
                 _activeDeck, deckCard,
                 DeckCardCategory.Mainboard,
+                foil,
                 out string error);
 
             if (!added)
             {
-                MessageBox.Show(error, "Cannot Add Card",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                errorMessage = error;
+                if (!suppressError)
+                    MessageBox.Show(error, "Cannot Add Card",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
             }
 
             RefreshActiveDeckGrid();
             UpdateDeckTabTitle(_activeDeck);
             UpdateDeckSummary(_activeDeck);
             SetStatus($"Added {deckCard.Name} to {_activeDeck.Name}");
+            return true;
         }
 
         private void UpdateDeckSummary(Deck deck)
         {
             if (deck == null) { SummaryText.Text = string.Empty; return; }
 
-            string limit = deck.DeckType == DeckType.Commander ? "/100" : "+";
+            string limit = deck.DeckType == DeckType.Commander ? "/100" : "";
 
             SummaryText.Text =
                 $"Cards: {deck.MainboardCount}{limit}   " +
+                $"Non-Foil: {deck.NonFoilCount}   " +
+                $"Foil: {deck.FoilCount}   " +
                 $"Lands: {deck.LandCount}   " +
                 $"Creatures: {deck.CreatureCount}   " +
                 $"Spells: {deck.SpellCount}   " +
@@ -435,6 +469,8 @@ namespace BreakersOfE
             removeAll.Click += DeckCtxRemoveAll_Click;
             var setCommander = new MenuItem { Header = "Set as Commander" };
             setCommander.Click += DeckCtxSetCommander_Click;
+            setCommander.Visibility = deck.DeckType == DeckType.Commander
+                ? Visibility.Visible : Visibility.Collapsed;
             var setSideboard = new MenuItem { Header = "Move to Sideboard" };
             setSideboard.Click += DeckCtxMoveSideboard_Click;
             var setMainboard = new MenuItem { Header = "Move to Mainboard" };
@@ -447,9 +483,9 @@ namespace BreakersOfE
             ctx.Items.Add(setMainboard);
             grid.ContextMenu = ctx;
 
-            grid.SelectionChanged    += DeckGrid_SelectionChanged;
-            grid.CellEditEnding      += DeckGrid_CellEditEnding;
-            grid.PreviewKeyDown      += DeckGrid_PreviewKeyDown;
+            grid.SelectionChanged += DeckGrid_SelectionChanged;
+            grid.CellEditEnding += DeckGrid_CellEditEnding;
+            grid.PreviewKeyDown += DeckGrid_PreviewKeyDown;
 
             // Columns
             grid.Columns.Add(new DataGridTemplateColumn
@@ -476,40 +512,36 @@ namespace BreakersOfE
 
             grid.Columns.Add(new DataGridTextColumn
             {
-                Header     = "Qty",
-                Binding    = new System.Windows.Data.Binding("Quantity")
+                Header = "Qty",
+                Binding = new System.Windows.Data.Binding("TotalQuantity"),
+                Width = new DataGridLength(45),
+                IsReadOnly = true
+            });
+
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Non-Foil",
+                Binding = new System.Windows.Data.Binding("Quantity")
                 {
                     Mode = System.Windows.Data.BindingMode.TwoWay,
                     UpdateSourceTrigger =
                         System.Windows.Data.UpdateSourceTrigger.LostFocus
                 },
-                Width      = new DataGridLength(45),
+                Width = new DataGridLength(58),
                 IsReadOnly = false
             });
 
-            // Foil checkbox column
-            var foilFactory = new FrameworkElementFactory(typeof(CheckBox));
-            foilFactory.SetValue(CheckBox.HorizontalAlignmentProperty,
-                HorizontalAlignment.Center);
-            foilFactory.SetValue(CheckBox.VerticalAlignmentProperty,
-                VerticalAlignment.Center);
-            var foilBinding = new System.Windows.Data.Binding("IsFoil")
-            {
-                Mode = System.Windows.Data.BindingMode.TwoWay,
-                UpdateSourceTrigger =
-                    System.Windows.Data.UpdateSourceTrigger.PropertyChanged
-            };
-            foilFactory.SetBinding(CheckBox.IsCheckedProperty, foilBinding);
-            foilFactory.AddHandler(CheckBox.CheckedEvent,
-                new RoutedEventHandler(DeckFoilCheckbox_Changed));
-            foilFactory.AddHandler(CheckBox.UncheckedEvent,
-                new RoutedEventHandler(DeckFoilCheckbox_Changed));
-
-            grid.Columns.Add(new DataGridTemplateColumn
+            grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "Foil",
+                Binding = new System.Windows.Data.Binding("FoilQuantity")
+                {
+                    Mode = System.Windows.Data.BindingMode.TwoWay,
+                    UpdateSourceTrigger =
+                        System.Windows.Data.UpdateSourceTrigger.LostFocus
+                },
                 Width = new DataGridLength(45),
-                CellTemplate = new DataTemplate { VisualTree = foilFactory }
+                IsReadOnly = false
             });
 
             grid.Columns.Add(new DataGridTextColumn
@@ -522,7 +554,7 @@ namespace BreakersOfE
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "Color",
-                Binding = new System.Windows.Data.Binding("ColorIdentity"),
+                Binding = new System.Windows.Data.Binding("ColorDisplay"),
                 Width = new DataGridLength(55)
             });
 
@@ -826,7 +858,7 @@ namespace BreakersOfE
             if (_activeDeck == null) return;
             if (GetActiveDeckGrid()?.SelectedItem is DeckCard card)
             {
-                int qty = card.Quantity;
+                int qty = card.TotalQuantity;
                 DeckService.RemoveCard(_activeDeck, card, true);
                 RefreshActiveDeckGrid();
                 UpdateDeckTabTitle(_activeDeck);
@@ -873,13 +905,6 @@ namespace BreakersOfE
             }
         }
 
-        private void DeckFoilCheckbox_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_activeDeck == null) return;
-            _activeDeck.IsModified = true;
-            UpdateDeckTabTitle(_activeDeck);
-        }
-
         private void DeckGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (_activeDeck == null) return;
@@ -887,7 +912,7 @@ namespace BreakersOfE
             if (sender is not DataGrid grid) return;
             if (grid.SelectedItem is not DeckCard card) return;
 
-            int qty = card.Quantity;
+            int qty = card.TotalQuantity;
             DeckService.RemoveCard(_activeDeck, card, true);
             RefreshActiveDeckGrid();
             UpdateDeckTabTitle(_activeDeck);
@@ -897,18 +922,27 @@ namespace BreakersOfE
             e.Handled = true;
         }
 
-        private void DeckGrid_CellEditEnding(object sender,
+        private void DeckGrid_CellEditEnding(object? sender,
             DataGridCellEditEndingEventArgs e)
         {
             if (_activeDeck == null) return;
             if (e.EditAction != DataGridEditAction.Commit) return;
             if (e.Row.Item is not DeckCard card) return;
-            if (e.Column.Header?.ToString() != "Qty") return;
+
+            string? colHeader = e.Column.Header?.ToString();
+            if (colHeader != "Non-Foil" && colHeader != "Foil") return;
 
             if (e.EditingElement is TextBox tb &&
-                int.TryParse(tb.Text, out int qty))
+                int.TryParse(tb.Text, out int qty) && qty >= 0)
             {
-                if (qty <= 0)
+                bool isFoilCol = colHeader == "Foil";
+
+                // Calculate what total would be after this edit
+                int newTotal = isFoilCol
+                    ? card.Quantity + qty
+                    : qty + card.FoilQuantity;
+
+                if (newTotal <= 0)
                 {
                     DeckService.RemoveCard(_activeDeck, card, true);
                     Dispatcher.BeginInvoke(new Action(() =>
@@ -917,26 +951,22 @@ namespace BreakersOfE
                 }
                 else
                 {
-                    // Rule check
-                    string? ruleError = null;
-                    if (!card.IsBasicLand)
-                    {
-                        if (_activeDeck.DeckType == DeckType.Commander && qty > 1)
-                            ruleError = "Commander decks allow only 1 copy of each non-basic card.";
-                        else if (_activeDeck.DeckType == DeckType.Standard && qty > 4)
-                            ruleError = "Standard decks allow max 4 copies of each non-basic card.";
-                    }
+                    string? ruleError = ValidateDeckCardQty(
+                        _activeDeck, card, newTotal);
 
                     if (ruleError != null)
                     {
                         MessageBox.Show(ruleError, "Deck Rule Warning",
                             MessageBoxButton.OK, MessageBoxImage.Warning);
-                        tb.Text = card.Quantity.ToString();
+                        tb.Text = (isFoilCol
+                            ? card.FoilQuantity
+                            : card.Quantity).ToString();
                         e.Cancel = true;
                         return;
                     }
 
-                    card.Quantity = qty;
+                    if (isFoilCol) card.FoilQuantity = qty;
+                    else card.Quantity = qty;
                 }
 
                 _activeDeck.IsModified = true;
@@ -973,16 +1003,8 @@ namespace BreakersOfE
             }
             else
             {
-                // Check format rules
-                string error = string.Empty;
-                if (_activeDeck.DeckType == DeckType.Commander && qty > 1
-                    && !card.IsBasicLand)
-                    error = "Commander decks may only have 1 copy of each non-basic card.";
-                else if (_activeDeck.DeckType == DeckType.Standard && qty > 4
-                    && !card.IsBasicLand)
-                    error = "Standard decks may only have 4 copies of each non-basic card.";
-
-                if (!string.IsNullOrEmpty(error))
+                string? error = ValidateDeckCardQty(_activeDeck, card, qty);
+                if (error != null)
                 {
                     MessageBox.Show(error, "Deck Rule Violation",
                         MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -997,6 +1019,21 @@ namespace BreakersOfE
             RefreshActiveDeckGrid();
             UpdateDeckTabTitle(_activeDeck);
             UpdateDeckSummary(_activeDeck);
+        }
+
+        // ── Shared qty validation ─────────────────────────────────────────────
+        private static string? ValidateDeckCardQty(Deck deck, DeckCard card, int qty)
+        {
+            // Basic lands and "any number" cards are always unrestricted
+            if (card.IsBasicLand || card.IsAnyNumber) return null;
+
+            if (deck.DeckType == DeckType.Commander && qty > 1)
+                return "Commander decks allow only 1 copy of each non-basic card.";
+
+            if (deck.DeckType == DeckType.Standard && qty > 4)
+                return "Standard decks allow max 4 copies of each non-basic card.";
+
+            return null;
         }
 
         private DataGrid? GetActiveDeckGrid()
@@ -1090,9 +1127,11 @@ namespace BreakersOfE
                         {
                             DeckName = deck.Name,
                             DeckType = deck.DeckType.ToString(),
-                            Quantity = card.Quantity,
+                            Quantity = card.TotalQuantity,
                             Category = card.CategoryDisplay,
-                            IsFoil = card.IsFoil ? "Yes" : "No"
+                            IsFoil = card.FoilQuantity > 0
+                                ? (card.Quantity > 0 ? "Mixed" : "Yes")
+                                : "No"
                         });
                     }
                 }
@@ -1167,11 +1206,25 @@ namespace BreakersOfE
                 _searchText = string.Empty;
                 _bottomSearch = string.Empty;
                 if (SearchBox != null) SearchBox.Text = string.Empty;
+
+                // Clear ALL filter state — expression, set codes, column filters
+                _topFilter.Clear();
+                _topFilterNode = null;
+                _topSelectedSetCodes.Clear();
                 _topColumnFilters.ClearAll();
+                TopFilterSummary.Text = "No filter active";
+
+                _bottomFilter.Clear();
+                _bottomFilterNode = null;
+                _bottomSelectedSetCodes.Clear();
                 _bottomColumnFilters.ClearAll();
+                BottomFilterSummary.Text = "No filter active";
+
+                // Reset funnel icons on both grids
+                ResetAllFunnelIcons(TopDataGrid);
+                ResetAllFunnelIcons(BottomDataGrid);
 
                 LoadCurrentMode();
-                UpdateToolbarState();
                 UpdateToolbarState();
             }
         }
@@ -1182,7 +1235,7 @@ namespace BreakersOfE
             bool isDeckMode = _currentMode == "PoolToDeck" ||
                               _currentMode == "CollectionToDeck";
 
-            TopDataGrid.Visibility    = Visibility.Visible;
+            TopDataGrid.Visibility = Visibility.Visible;
             BottomDataGrid.Visibility = isDeckMode
                 ? Visibility.Collapsed : Visibility.Visible;
             DeckTabControl.Visibility = isDeckMode
@@ -1248,9 +1301,9 @@ namespace BreakersOfE
 
                 case "CollectionToDeck":
                     LoadTopTable_CollectionForDeck();
-                    TopSearchLabel.Text   = "Collection";
+                    TopSearchLabel.Text = "Collection";
                     BottomTableLabel.Text = "Deck";
-                    ActionBarLabel.Text   = "Select a card → Enter to add to deck";
+                    ActionBarLabel.Text = "Select a card → Enter to add to deck";
                     break;
             }
         }
@@ -1272,6 +1325,7 @@ namespace BreakersOfE
         private void LoadTopTable_Pool()
         {
             SetTopExpandColumnVisibility(Visibility.Collapsed);
+            RemoveCollectionColumns(TopDataGrid);
             var all = _poolCache ?? new List<PoolCard>();
 
             var filtered = FilterService.Apply(all, _topFilter, _searchText);
@@ -1288,7 +1342,7 @@ namespace BreakersOfE
 
             if (_topColumnFilters.HasActiveFilters)
                 filtered = _topColumnFilters.Apply(filtered);
-            
+
             for (int i = 0; i < filtered.Count; i++)
                 filtered[i].RowIndex = i;
 
@@ -1299,6 +1353,7 @@ namespace BreakersOfE
 
         private void LoadTopTable_Tokens()
         {
+            RemoveCollectionColumns(TopDataGrid);
             var all = _tokenCache ?? new List<TokenCard>();
             var filtered = FilterService.Apply(all, _topFilter, _searchText);
             for (int i = 0; i < filtered.Count; i++)
@@ -1310,6 +1365,7 @@ namespace BreakersOfE
 
         private void LoadTopTable_Planechase()
         {
+            RemoveCollectionColumns(TopDataGrid);
             var all = _planarCache ?? new List<PlanarCard>();
             var filtered = string.IsNullOrWhiteSpace(_searchText)
                 ? all
@@ -1323,6 +1379,7 @@ namespace BreakersOfE
 
         private void LoadTopTable_Archenemy()
         {
+            RemoveCollectionColumns(TopDataGrid);
             var all = _schemeCache ?? new List<SchemeCard>();
             var filtered = string.IsNullOrWhiteSpace(_searchText)
                 ? all
@@ -1336,6 +1393,7 @@ namespace BreakersOfE
 
         private void LoadTopTable_Vanguard()
         {
+            RemoveCollectionColumns(TopDataGrid);
             var all = _vanguardCache ?? new List<VanguardCard>();
             var filtered = string.IsNullOrWhiteSpace(_searchText)
                 ? all
@@ -1349,6 +1407,7 @@ namespace BreakersOfE
 
         private void LoadTopTable_ArtSeries()
         {
+            RemoveCollectionColumns(TopDataGrid);
             var all = _artSeriesCache ?? new List<ArtSeriesCard>();
             var filtered = string.IsNullOrWhiteSpace(_searchText)
                 ? all
@@ -1410,10 +1469,10 @@ namespace BreakersOfE
                 var def = colDefs[i];
                 var col = new System.Windows.Controls.DataGridTextColumn
                 {
-                    Header         = def.Display,
+                    Header = def.Display,
                     SortMemberPath = CollectionColumnMarker + def.Binding,
-                    Binding        = new System.Windows.Data.Binding(def.Binding),
-                    Width          = new System.Windows.Controls.DataGridLength(def.Width)
+                    Binding = new System.Windows.Data.Binding(def.Binding),
+                    Width = new System.Windows.Controls.DataGridLength(def.Width)
                 };
                 grid.Columns.Insert(insertAt + i, col);
             }
@@ -1457,7 +1516,7 @@ namespace BreakersOfE
 
             if (_bottomColumnFilters.HasActiveFilters)
                 rows = _bottomColumnFilters.Apply(rows);
-            
+
             for (int i = 0; i < rows.Count; i++)
                 rows[i].RowIndex = i;
 
@@ -1752,21 +1811,22 @@ namespace BreakersOfE
             // ── Group 1: Deck file buttons ────────────────────────────────────────
             BtnNewDeck.IsEnabled = isDeckMode;
             BtnOpenDeck.IsEnabled = isDeckMode;
-            BtnSaveDeck.IsEnabled = hasDeck;
-            BtnSaveAllDecks.IsEnabled = anyDecks;
-            BtnCloseAllDecks.IsEnabled = anyDecks;
-            BtnDeckProperties.IsEnabled = hasDeck;
+            BtnSaveDeck.IsEnabled = isDeckMode && hasDeck;
+            BtnSaveAllDecks.IsEnabled = isDeckMode && anyDecks;
+            BtnCloseAllDecks.IsEnabled = isDeckMode && anyDecks;
+            BtnDeckProperties.IsEnabled = isDeckMode && hasDeck;
             BtnDeckLegality.IsEnabled = hasDeck;
-            BtnDeckStats.IsEnabled = hasDeck;
+            BtnDeckStats.IsEnabled = isDeckMode && hasDeck;
 
             // ── Group 2: Deck card buttons ────────────────────────────────────────
-            BtnAddToDeck.IsEnabled = hasTopSel && hasDeck && canNonFoil;
-            BtnAdd4ToDeck.IsEnabled = hasTopSel && hasDeck && canNonFoil &&
-                                           _activeDeck?.DeckType == DeckType.Standard;
-            BtnAddFoilToDeck.IsEnabled = hasTopSel && hasDeck && canFoil;
-            BtnRemoveFromDeck.IsEnabled = hasDeckSel;
-            BtnDeckQtyIncrease.IsEnabled = hasDeckSel;
-            BtnDeckQtyDecrease.IsEnabled = hasDeckSel;
+            BtnAddToDeck.IsEnabled = isDeckMode && hasTopSel && hasDeck && canNonFoil;
+            BtnAdd4ToDeck.IsEnabled = isDeckMode && hasTopSel && hasDeck && canNonFoil &&
+                                           _activeDeck != null &&
+                                           _activeDeck.DeckType == DeckType.Standard;
+            BtnAddFoilToDeck.IsEnabled = isDeckMode && hasTopSel && hasDeck && canFoil;
+            BtnRemoveFromDeck.IsEnabled = isDeckMode && hasDeckSel;
+            BtnDeckQtyIncrease.IsEnabled = isDeckMode && hasDeckSel;
+            BtnDeckQtyDecrease.IsEnabled = isDeckMode && hasDeckSel;
 
             // ── Group 3: Collection buttons ───────────────────────────────────────
             BtnAddToCollection.IsEnabled = hasTopSel && canNonFoil && !isDeckMode;
@@ -1774,9 +1834,11 @@ namespace BreakersOfE
             BtnRemoveFromCollection.IsEnabled = hasBottomSel && !isDeckMode;
 
             // ── Menu items ────────────────────────────────────────────────────────
-            if (MenuSaveDeck != null) MenuSaveDeck.IsEnabled = hasDeck;
-            if (MenuSaveAllDecks != null) MenuSaveAllDecks.IsEnabled = anyDecks;
-            if (MenuCloseAllDecks != null) MenuCloseAllDecks.IsEnabled = anyDecks;
+            if (MenuNewDeck != null) MenuNewDeck.IsEnabled = isDeckMode;
+            if (MenuOpenDeck != null) MenuOpenDeck.IsEnabled = isDeckMode;
+            if (MenuSaveDeck != null) MenuSaveDeck.IsEnabled = isDeckMode && hasDeck;
+            if (MenuSaveAllDecks != null) MenuSaveAllDecks.IsEnabled = isDeckMode && anyDecks;
+            if (MenuCloseAllDecks != null) MenuCloseAllDecks.IsEnabled = isDeckMode && anyDecks;
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -2055,6 +2117,7 @@ namespace BreakersOfE
             _topColumnFilters.ClearAll();
             ChkTopFilter.IsChecked = false;
             TopFilterSummary.Text = "No filter active";
+            ResetAllFunnelIcons(TopDataGrid);
             LoadCurrentMode();
         }
 
@@ -2066,6 +2129,7 @@ namespace BreakersOfE
             _bottomColumnFilters.ClearAll();
             ChkBottomFilter.IsChecked = false;
             BottomFilterSummary.Text = "No filter active";
+            ResetAllFunnelIcons(BottomDataGrid);
             RefreshBottom();
         }
 
@@ -2679,7 +2743,7 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         // CONTEXT MENU
         // ════════════════════════════════════════════════════════════════════
-        
+
         private void CtxRemoveAll_Click(object sender, RoutedEventArgs e)
         {
             if (_bottomLocked) return;
@@ -3098,7 +3162,8 @@ namespace BreakersOfE
 
             string name = DetailName.Text;
             _cardImageWindow = new BreakersOfE.Windows.CardImageWindow(
-                CardImage.Source, name) { Owner = this };
+                CardImage.Source, name)
+            { Owner = this };
             _cardImageWindow.Closed += (s, ev) => _cardImageWindow = null;
             _cardImageWindow.Show();
         }
@@ -3302,8 +3367,16 @@ namespace BreakersOfE
             popup.FilterChanged += (s, ev) =>
             {
                 UpdateFunnelIcon(header, state.IsActive);
-                if (isTop) ApplyTopColumnFilters();
-                else ApplyBottomColumnFilters();
+                if (isTop)
+                {
+                    ApplyTopColumnFilters();
+                    UpdateColumnFilterSummary(isTop: true);
+                }
+                else
+                {
+                    ApplyBottomColumnFilters();
+                    UpdateColumnFilterSummary(isTop: false);
+                }
             };
 
             _activeFilterPopup = popup;
@@ -3323,8 +3396,62 @@ namespace BreakersOfE
 
             if (header.Template.FindName(
                     "FunnelButton", header) is Button btn)
-                btn.Visibility = isActive
-                    ? Visibility.Visible : Visibility.Hidden;
+            {
+                if (isActive)
+                {
+                    // Filter active — pin the button visible permanently
+                    btn.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    // Filter cleared — remove local value so the
+                    // IsMouseOver trigger can take control again
+                    btn.ClearValue(Button.VisibilityProperty);
+                }
+            }
+        }
+
+        private void ResetAllFunnelIcons(DataGrid grid)
+        {
+            // Walk the visual tree to find all DataGridColumnHeaders
+            // and reset their funnel icon state
+            foreach (var col in grid.Columns)
+            {
+                var header = GetColumnHeader(grid, col);
+                if (header != null)
+                    UpdateFunnelIcon(header, false);
+            }
+        }
+
+        private static DataGridColumnHeader? GetColumnHeader(
+            DataGrid grid, DataGridColumn column)
+        {
+            if (grid.ItemContainerGenerator.Status !=
+                System.Windows.Controls.Primitives.GeneratorStatus.ContainersGenerated)
+                return null;
+
+            return GetVisualChild<DataGridColumnHeader>(grid, h =>
+                h.Column == column);
+        }
+
+        private static T? GetVisualChild<T>(
+            DependencyObject parent, Func<T, bool>? predicate = null)
+            where T : DependencyObject
+        {
+            int count = System.Windows.Media.VisualTreeHelper
+                .GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper
+                    .GetChild(parent, i);
+                if (child is T typed &&
+                    (predicate == null || predicate(typed)))
+                    return typed;
+
+                var result = GetVisualChild(child, predicate);
+                if (result != null) return result;
+            }
+            return null;
         }
 
         private static List<string> GetUniqueValues(
@@ -3392,6 +3519,46 @@ namespace BreakersOfE
         private void ApplyBottomColumnFilters()
         {
             RefreshBottom();
+        }
+
+        private void UpdateColumnFilterSummary(bool isTop)
+        {
+            var filters = isTop ? _topColumnFilters : _bottomColumnFilters;
+            var summaryLabel = isTop ? TopFilterSummary : BottomFilterSummary;
+            var exprNode = isTop ? _topFilterNode : _bottomFilterNode;
+
+            var activeFilters = filters.GetActiveFilters();
+            var exprSummary = FilterExpressionService.Summarize(exprNode);
+
+            if (activeFilters.Count == 0 && string.IsNullOrEmpty(exprSummary))
+            {
+                summaryLabel.Text = "No filter active";
+                return;
+            }
+
+            var parts = new List<string>();
+
+            if (!string.IsNullOrEmpty(exprSummary))
+                parts.Add(exprSummary);
+
+            foreach (var f in activeFilters)
+            {
+                if (f.UseTextFilter)
+                    parts.Add($"{f.ColumnName}: " +
+                              $"{ColumnFilterState.GetOperatorLabel(f.TextOperator)}" +
+                              $" \"{f.TextValue}\"");
+                else if (!f.AllSelected)
+                {
+                    string vals = string.Join(", ", f.SelectedValues.Take(3));
+                    if (f.SelectedValues.Count > 3)
+                        vals += $" (+{f.SelectedValues.Count - 3})";
+                    parts.Add($"{f.ColumnName}: {vals}");
+                }
+            }
+
+            summaryLabel.Text = parts.Count > 0
+                ? string.Join("  •  ", parts)
+                : "No filter active";
         }
 
         private static T? FindParent<T>(DependencyObject child)

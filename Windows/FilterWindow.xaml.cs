@@ -18,9 +18,6 @@ namespace BreakersOfE.Windows
         private FilterContext _context;
         private FilterNode _rootNode;
         private List<FilterField> _fields;
-        private bool _caseInsensitive = true;
-        private bool _includeUnpriced = true;
-        private bool _useNonFoilPrice = true;
 
         // ── Filter folder ─────────────────────────────────────────────────────
         private static string FilterFolder =>

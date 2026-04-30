@@ -183,8 +183,8 @@
                 </Style>
             </Menu.Resources>
             <MenuItem Header="_File">
-                <MenuItem Header="_New Deck..."      Click="MenuNewDeck_Click"/>
-                <MenuItem Header="_Open Deck..."     Click="MenuOpenDeck_Click"/>
+                <MenuItem Header="_New Deck..."      Name="MenuNewDeck"      IsEnabled="False" Click="MenuNewDeck_Click"/>
+                <MenuItem Header="_Open Deck..."     Name="MenuOpenDeck"     IsEnabled="False" Click="MenuOpenDeck_Click"/>
                 <MenuItem Header="_Save Deck"        Name="MenuSaveDeck"      IsEnabled="False" Click="MenuSaveDeck_Click"/>
                 <MenuItem Header="Save _All Decks"   Name="MenuSaveAllDecks"  IsEnabled="False" Click="MenuSaveAllDecks_Click"/>
                 <MenuItem Header="Close _All Decks"  Name="MenuCloseAllDecks" IsEnabled="False" Click="MenuCloseAllDecks_Click"/>

@@ -385,7 +385,7 @@ namespace BreakersOfE.Windows
             {
                 string key = GetColorCategory(card.ColorIdentity);
                 data.TryGetValue(key, out int ex);
-                data[key] = ex + card.Quantity;
+                data[key] = ex + card.TotalQuantity;
             }
 
             var order = new[] { "White", "Blue", "Black", "Red", "Green", "Multicolor", "Colorless" };
@@ -434,7 +434,7 @@ namespace BreakersOfE.Windows
                     _ => "Other"
                 };
                 data.TryGetValue(key, out int ex);
-                data[key] = ex + card.Quantity;
+                data[key] = ex + card.TotalQuantity;
             }
 
             var order = new[] { "Common", "Uncommon", "Rare", "Mythic", "Special", "Other" };
@@ -462,9 +462,9 @@ namespace BreakersOfE.Windows
                 case 0: // General
                     data = new Dictionary<string, int>
                     {
-                        ["Land"] = cards.Where(c => c.IsLand).Sum(c => c.Quantity),
-                        ["Creature"] = cards.Where(c => c.IsCreature && !c.IsLand).Sum(c => c.Quantity),
-                        ["Spell"] = cards.Where(c => !c.IsCreature && !c.IsLand).Sum(c => c.Quantity),
+                        ["Land"] = cards.Where(c => c.IsLand).Sum(c => c.TotalQuantity),
+                        ["Creature"] = cards.Where(c => c.IsCreature && !c.IsLand).Sum(c => c.TotalQuantity),
+                        ["Spell"] = cards.Where(c => !c.IsCreature && !c.IsLand).Sum(c => c.TotalQuantity),
                     };
                     data = data.Where(kv => kv.Value > 0)
                                .ToDictionary(kv => kv.Key, kv => kv.Value);
@@ -498,7 +498,7 @@ namespace BreakersOfE.Windows
             {
                 string key = GetMainType(card.TypeLine);
                 data.TryGetValue(key, out int ex);
-                data[key] = ex + card.Quantity;
+                data[key] = ex + card.TotalQuantity;
             }
             return data.OrderByDescending(kv => kv.Value)
                        .ToDictionary(kv => kv.Key, kv => kv.Value);
@@ -532,7 +532,7 @@ namespace BreakersOfE.Windows
                     ? "Other" : card.TypeLine;
                 if (key.Length > 38) key = key[..35] + "...";
                 data.TryGetValue(key, out int ex);
-                data[key] = ex + card.Quantity;
+                data[key] = ex + card.TotalQuantity;
             }
             return data.OrderByDescending(kv => kv.Value)
                        .ToDictionary(kv => kv.Key, kv => kv.Value);
@@ -550,7 +550,7 @@ namespace BreakersOfE.Windows
                     SetCode = g.Key.SetCode,
                     SetName = string.IsNullOrEmpty(g.Key.SetName)
                                    ? g.Key.SetCode : g.Key.SetName,
-                    Quantity = g.Sum(c => c.Quantity)
+                    Quantity = g.Sum(c => c.TotalQuantity)
                 })
                 .OrderBy(r => r.Quantity)
                 .ToList();
@@ -572,7 +572,7 @@ namespace BreakersOfE.Windows
             foreach (var card in nonLands)
             {
                 int cmc = Math.Min(10, (int)card.ManaValue);
-                buckets[cmc] += card.Quantity;
+                buckets[cmc] += card.TotalQuantity;
             }
 
             double w = canvas.ActualWidth;
@@ -710,8 +710,8 @@ namespace BreakersOfE.Windows
             });
 
             // Stats
-            int total = nonLands.Sum(c => c.Quantity);
-            double totalMv = nonLands.Sum(c => c.ManaValue * c.Quantity);
+            int total = nonLands.Sum(c => c.TotalQuantity);
+            double totalMv = nonLands.Sum(c => c.ManaValue * c.TotalQuantity);
             double avgCmc = total > 0 ? totalMv / total : 0;
 
             ManaStatsPanel.Children.Add(new TextBlock
@@ -750,7 +750,7 @@ namespace BreakersOfE.Windows
                         int ci = Array.FindIndex(ManaColorDefs,
                             x => x.Symbol == sym);
                         if (ci >= 0)
-                            buckets[cmc, ci] += count * card.Quantity;
+                            buckets[cmc, ci] += count * card.TotalQuantity;
                     }
                 }
             }
@@ -951,8 +951,8 @@ namespace BreakersOfE.Windows
             foreach (var card in creatures)
             {
                 int cmc = Math.Min(10, (int)card.ManaValue);
-                if (double.TryParse(card.Power, out double p)) powerBuckets[cmc] += p * card.Quantity;
-                if (double.TryParse(card.Toughness, out double t)) toughnessBuckets[cmc] += t * card.Quantity;
+                if (double.TryParse(card.Power, out double p)) powerBuckets[cmc] += p * card.TotalQuantity;
+                if (double.TryParse(card.Toughness, out double t)) toughnessBuckets[cmc] += t * card.TotalQuantity;
             }
 
             double w = canvas.ActualWidth;
@@ -1152,24 +1152,19 @@ namespace BreakersOfE.Windows
                         issues.Add($"{card.Name} not legal");
                     else if (status == "banned")
                         issues.Add($"{card.Name} banned");
-                    else if (status == "restricted" && card.Quantity > 1)
+                    else if (status == "restricted" && card.TotalQuantity > 1)
                         issues.Add($"{card.Name} restricted (max 1)");
                 }
 
                 // Format-specific deck size checks
                 if (key == "commander")
                 {
-                    int total = allCards.Sum(c => c.Quantity) +
-                                _deck.CommanderCards.Sum(c => c.Quantity);
+                    int total = allCards.Sum(c => c.TotalQuantity) +
+                                _deck.CommanderCards.Sum(c => c.TotalQuantity);
                     if (total != 100)
                         issues.Add($"Commander deck must be exactly 100 cards ({total} found)");
                 }
-                else if (key != "vintage")
-                {
-                    int total = allCards.Sum(c => c.Quantity);
-                    if (total < 60)
-                        issues.Add($"Deck must be at least 60 cards ({total} found)");
-                }
+                // No minimum card count enforced for non-Commander formats
 
                 bool isLegal = issues.Count == 0;
                 rows.Add(new LegalityRow

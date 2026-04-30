@@ -42,7 +42,7 @@
                     Orientation="Horizontal"
                     Margin="0,0,0,16">
             <RadioButton Name="RadioStandard"
-                         Content="Standard  (60+ cards, 4 of each)"
+                         Content="Standard  (4 of each, no minimum)"
                          IsChecked="True"
                          FontSize="13"
                          Margin="0,0,24,0"

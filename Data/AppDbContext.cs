@@ -51,8 +51,10 @@ namespace BreakersOfE.Data
             {
                 try
                 {
+#pragma warning disable EF1002 // table and column names are compile-time constants, not user input
                     Database.ExecuteSqlRaw(
                         $"ALTER TABLE {table} ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0");
+#pragma warning restore EF1002
                 }
                 catch { /* Column already exists — ignore */ }
             }

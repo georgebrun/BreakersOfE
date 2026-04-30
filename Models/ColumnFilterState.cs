@@ -174,11 +174,8 @@ namespace BreakersOfE.Models
                 f.Clear();
         }
 
-        public void ClearColumn(string columnName)
-        {
-            if (_filters.TryGetValue(columnName, out var state))
-                state.Clear();
-        }
+        public List<ColumnFilterState> GetActiveFilters() =>
+            _filters.Values.Where(f => f.IsActive).ToList();
 
         // ── Apply all active column filters to a list ─────────────────────────
         public List<T> Apply<T>(List<T> items)
