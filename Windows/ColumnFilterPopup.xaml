@@ -22,6 +22,7 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="36"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
@@ -52,9 +53,22 @@
                         </Grid>
                     </Border>
 
-                    <!-- Values list -->
+                    <!-- Pinned Select All row -->
+                    <Border Grid.Row="1"
+                            BorderBrush="#CCCCCC"
+                            BorderThickness="0,0,0,1"
+                            Padding="8,4">
+                        <CheckBox Name="ChkSelectAll"
+                                  Content="(Select All)"
+                                  FontSize="12"
+                                  Padding="4,2"
+                                  Checked="SelectAll_Changed"
+                                  Unchecked="SelectAll_Changed"/>
+                    </Border>
+
+                    <!-- Values list (no Select All row inside) -->
                     <ListBox Name="ValuesListBox"
-                             Grid.Row="1"
+                             Grid.Row="2"
                              BorderThickness="0"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              VirtualizingPanel.IsVirtualizing="True"

@@ -127,6 +127,8 @@ namespace BreakersOfE
                 UpdateDeckTabTitle(_activeDeck);
                 UpdateDeckSummary(_activeDeck);
                 UpdateUsedCount(card.PoolId, -qty);
+                AutoSaveDeck(_activeDeck);
+                if (_currentMode == "CollectionToDeck") LoadTopTable_CollectionForDeck();
                 SetStatus($"Removed {card.Name} from deck.");
             }
         }
@@ -140,6 +142,8 @@ namespace BreakersOfE
                 _activeDeck.IsModified = true;
                 RefreshActiveDeckGrid();
                 UpdateDeckSummary(_activeDeck);
+                AutoSaveDeck(_activeDeck);
+                if (_currentMode == "CollectionToDeck") LoadTopTable_CollectionForDeck();
                 SetStatus($"{card.Name} qty increased to {card.TotalQuantity}.");
             }
         }
@@ -158,6 +162,8 @@ namespace BreakersOfE
                 _activeDeck.IsModified = true;
                 RefreshActiveDeckGrid();
                 UpdateDeckSummary(_activeDeck);
+                AutoSaveDeck(_activeDeck);
+                if (_currentMode == "CollectionToDeck") LoadTopTable_CollectionForDeck();
             }
         }
 
@@ -201,12 +207,57 @@ namespace BreakersOfE
             switch (TopDataGrid.SelectedItem)
             {
                 case PoolCard pc:
+                    // Auto-switch to foil if non-foil requested but unavailable
+                    if (!foil && !pc.IsNonFoil && pc.IsFoil) foil = true;
                     if (foil && !pc.IsFoil) return false;
                     if (!foil && !pc.IsNonFoil) return false;
                     deckCard = DeckService.FromPoolCard(pc);
                     break;
                 case CollectionDisplayRow cr:
+                    // Auto-switch to foil if non-foil requested but unavailable
+                    if (!foil && cr.Quantity == 0 && cr.FoilQuantity > 0) foil = true;
+
+                    // Block if no copies available
+                    if (_currentMode == "CollectionToDeck" && cr.AvailableCount <= 0)
+                    {
+                        errorMessage =
+                            $"No available copies of '{cr.Name}' left in your collection.\n" +
+                            $"All {cr.Quantity + cr.FoilQuantity} cop{(cr.Quantity + cr.FoilQuantity == 1 ? "y is" : "ies are")} already used in decks.";
+                        if (!suppressError)
+                            MessageBox.Show(errorMessage, "No Copies Available",
+                                MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return false;
+                    }
+
                     deckCard = DeckService.FromCollectionRow(cr);
+
+                    // Prompt if card already in deck
+                    if (_currentMode == "CollectionToDeck" && _activeDeck != null)
+                    {
+                        var existing = _activeDeck.Cards.FirstOrDefault(c =>
+                            c.PoolId == deckCard.PoolId &&
+                            c.Category == DeckCardCategory.Mainboard);
+
+                        if (existing != null)
+                        {
+                            var result = MessageBox.Show(
+                                $"'{cr.Name}' is already in your deck " +
+                                $"({existing.TotalQuantity} cop{(existing.TotalQuantity == 1 ? "y" : "ies")}).\n\n" +
+                                $"Press 'Yes' to add another copy.\n" +
+                                $"Press 'No' to cancel.",
+                                "Card Already in Deck",
+                                MessageBoxButton.YesNo,
+                                MessageBoxImage.Question);
+
+                            if (result != MessageBoxResult.Yes)
+                            {
+                                errorMessage = string.Empty;
+                                RestoreFocus();
+                                return false;
+                            }
+                        }
+                    }
+
                     if (_currentMode == "CollectionToDeck")
                         UpdateUsedCount(cr.PoolId, 1);
                     break;
@@ -217,7 +268,7 @@ namespace BreakersOfE
             if (deckCard == null) return false;
 
             bool added = DeckService.AddCard(
-                _activeDeck, deckCard,
+                _activeDeck!, deckCard,
                 DeckCardCategory.Mainboard,
                 foil,
                 out string error);
@@ -235,6 +286,26 @@ namespace BreakersOfE
             UpdateDeckTabTitle(_activeDeck);
             UpdateDeckSummary(_activeDeck);
             SetStatus($"Added {deckCard.Name} to {_activeDeck.Name}");
+
+            // In CollectionToDeck mode refresh top grid so Used/Available update immediately
+            if (_currentMode == "CollectionToDeck")
+            {
+                AutoSaveDeck(_activeDeck);
+                LoadTopTable_CollectionForDeck();
+                if (TopDataGrid.ItemsSource is List<CollectionDisplayRow> topRows &&
+                    deckCard != null)
+                {
+                    var updated = topRows.FirstOrDefault(r => r.PoolId == deckCard.PoolId);
+                    if (updated != null)
+                    {
+                        TopDataGrid.SelectedItem = updated;
+                        TopDataGrid.ScrollIntoView(updated);
+                        _ = HandleSelectionAsync(updated);
+                    }
+                }
+                RestoreFocus();
+            }
+
             return true;
         }
 
@@ -308,6 +379,35 @@ namespace BreakersOfE
                 MessageBox.Show($"Could not open deck:\n{ex.Message}",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        // Silent auto-save — only saves if file path already exists
+        // Used after card add/remove so nested deck usage table stays current
+        private void AutoSaveDeck(Deck deck)
+        {
+            if (deck == null) return;
+            if (string.IsNullOrEmpty(deck.FilePath) ||
+                !System.IO.File.Exists(deck.FilePath))
+            {
+                // No file yet — prompt once to establish path, then save
+                var dlg = new Microsoft.Win32.SaveFileDialog
+                {
+                    Title = "Save Deck Before Continuing",
+                    Filter = "Deck Files (*.deck)|*.deck",
+                    InitialDirectory = Services.AppFolderService.DecksFolder,
+                    FileName = Services.AppFolderService.SafeFileName(deck.Name)
+                };
+                if (dlg.ShowDialog() != true) return;
+                deck.FilePath = dlg.FileName;
+            }
+
+            try
+            {
+                DeckService.Save(deck);
+                deck.IsModified = false;
+                UpdateDeckTabTitle(deck);
+            }
+            catch { /* Silent — don't interrupt workflow */ }
         }
 
         private void BtnSaveDeck_Click(object sender, RoutedEventArgs e)
@@ -409,24 +509,59 @@ namespace BreakersOfE
         // ── Add deck tab ──────────────────────────────────────────────────────────
         private void AddDeckTab(Deck deck)
         {
-            var grid = BuildDeckDataGrid(deck);
+            var container = BuildDeckTabContent(deck);
 
             var tab = new TabItem
             {
                 Header = deck.TabTitle,
                 Tag = deck,
-                Content = grid,
+                Content = container,
                 Style = (Style)FindResource("DeckTabStyle")
             };
 
             DeckTabControl.Items.Add(tab);
             DeckTabControl.SelectedItem = tab;
             _activeDeck = deck;
+            Dispatcher.BeginInvoke(new Action(() =>
+                RefreshActiveDeckGrid()),
+                System.Windows.Threading.DispatcherPriority.ContextIdle);
             UpdateDeckToolbarState();
         }
 
+        // ── Build deck tab content (frozen commander + scrollable main grid) ───────
+        private Grid BuildDeckTabContent(Deck deck)
+        {
+            var commanderGrid = BuildDeckDataGrid(deck, commander: true);
+            var mainGrid = BuildDeckDataGrid(deck, commander: false);
+
+            commanderGrid.Name = "CommanderGrid";
+            mainGrid.Name = "MainDeckGrid";
+
+            // Commander grid auto-sizes to rows, hidden when no commander
+            commanderGrid.Visibility = deck.CommanderCards.Any()
+                ? Visibility.Visible : Visibility.Collapsed;
+
+            var container = new Grid
+            {
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            container.RowDefinitions.Add(new RowDefinition
+            { Height = GridLength.Auto });
+            container.RowDefinitions.Add(new RowDefinition
+            { Height = new GridLength(1, GridUnitType.Star) });
+
+            Grid.SetRow(commanderGrid, 0);
+            Grid.SetRow(mainGrid, 1);
+
+            container.Children.Add(commanderGrid);
+            container.Children.Add(mainGrid);
+
+            return container;
+        }
+
         // ── Build deck DataGrid ───────────────────────────────────────────────────
-        private DataGrid BuildDeckDataGrid(Deck deck)
+        private DataGrid BuildDeckDataGrid(Deck deck, bool commander = false)
         {
             var grid = new DataGrid
             {
@@ -434,24 +569,38 @@ namespace BreakersOfE
                 IsReadOnly = true,
                 SelectionMode = DataGridSelectionMode.Single,
                 SelectionUnit = DataGridSelectionUnit.FullRow,
-                HeadersVisibility = DataGridHeadersVisibility.Column,
+                // Commander grid hides headers (they show on the main grid below)
+                HeadersVisibility = commander
+                    ? DataGridHeadersVisibility.None
+                    : DataGridHeadersVisibility.Column,
                 Background = (System.Windows.Media.Brush)
                     FindResource("GridRowBrush"),
                 Foreground = (System.Windows.Media.Brush)
                     FindResource("PrimaryTextBrush"),
-                BorderThickness = new Thickness(0),
+                BorderThickness = commander
+                    ? new Thickness(0, 0, 0, 1)
+                    : new Thickness(0),
                 GridLinesVisibility = DataGridGridLinesVisibility.None,
                 RowHeaderWidth = 0,
                 RowHeight = 28,
-                CanUserResizeRows = true,
+                CanUserResizeRows = false,
                 CanUserResizeColumns = true,
-                CanUserReorderColumns = true,
-                EnableRowVirtualization = true,
+                CanUserReorderColumns = !commander,
+                EnableRowVirtualization = !commander,
                 ColumnHeaderStyle = (Style)FindResource("DataGridColumnHeaderStyle"),
                 RowStyle = (Style)FindResource("DataGridRowStyle"),
                 CellStyle = (Style)FindResource("DataGridCellStyle"),
                 Tag = deck
             };
+
+            // ScrollViewer attached properties must be set after construction
+            if (commander)
+            {
+                ScrollViewer.SetVerticalScrollBarVisibility(
+                    grid, ScrollBarVisibility.Disabled);
+                ScrollViewer.SetHorizontalScrollBarVisibility(
+                    grid, ScrollBarVisibility.Disabled);
+            }
 
             // Suppress selection highlight
             grid.Resources.Add(
@@ -471,6 +620,10 @@ namespace BreakersOfE
             setCommander.Click += DeckCtxSetCommander_Click;
             setCommander.Visibility = deck.DeckType == DeckType.Commander
                 ? Visibility.Visible : Visibility.Collapsed;
+            var removeCommander = new MenuItem { Header = "Remove as Commander" };
+            removeCommander.Click += DeckCtxRemoveCommander_Click;
+            removeCommander.Visibility = deck.DeckType == DeckType.Commander
+                ? Visibility.Visible : Visibility.Collapsed;
             var setSideboard = new MenuItem { Header = "Move to Sideboard" };
             setSideboard.Click += DeckCtxMoveSideboard_Click;
             var setMainboard = new MenuItem { Header = "Move to Mainboard" };
@@ -479,13 +632,15 @@ namespace BreakersOfE
             ctx.Items.Add(removeAll);
             ctx.Items.Add(new Separator());
             ctx.Items.Add(setCommander);
+            ctx.Items.Add(removeCommander);
             ctx.Items.Add(setSideboard);
             ctx.Items.Add(setMainboard);
             grid.ContextMenu = ctx;
 
             grid.SelectionChanged += DeckGrid_SelectionChanged;
-            grid.CellEditEnding += DeckGrid_CellEditEnding;
             grid.PreviewKeyDown += DeckGrid_PreviewKeyDown;
+            if (!commander)
+                grid.CellEditEnding += DeckGrid_CellEditEnding;
 
             // Columns
             grid.Columns.Add(new DataGridTemplateColumn
@@ -642,9 +797,21 @@ namespace BreakersOfE
         private static void RefreshDeckGrid(DataGrid grid, Deck deck)
         {
             grid.ItemsSource = deck.Cards
+                .Where(c => !c.IsCommander)
                 .OrderBy(c => c.Category)
                 .ThenBy(c => c.Name)
                 .ToList();
+        }
+
+        private static void RefreshCommanderGrid(DataGrid grid, Deck deck)
+        {
+            var commanders = deck.Cards
+                .Where(c => c.IsCommander)
+                .OrderBy(c => c.Name)
+                .ToList();
+            grid.ItemsSource = commanders;
+            grid.Visibility = commanders.Any()
+                ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // ── Update deck tab title ─────────────────────────────────────────────────
@@ -781,10 +948,52 @@ namespace BreakersOfE
                 return;
             }
 
+            // Auto-foil if only foil available
+            bool foil = row.Quantity == 0 && row.FoilQuantity > 0;
+
+            // Block if no copies available
+            if (_currentMode == "CollectionToDeck" && row.AvailableCount <= 0)
+            {
+                MessageBox.Show(
+                    $"You have no available copies of '{row.Name}' left in your collection.\n" +
+                    $"All {row.Quantity + row.FoilQuantity} cop{(row.Quantity + row.FoilQuantity == 1 ? "y is" : "ies are")} already used in decks.",
+                    "No Copies Available",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                RestoreFocus();
+                return;
+            }
+
             var deckCard = DeckService.FromCollectionRow(row);
 
+            // In CollectionToDeck mode — prompt if card already in deck
+            if (_currentMode == "CollectionToDeck" && _activeDeck != null)
+            {
+                var existing = _activeDeck.Cards.FirstOrDefault(c =>
+                    c.PoolId == deckCard.PoolId &&
+                    c.Category == category);
+
+                if (existing != null)
+                {
+                    var result = MessageBox.Show(
+                        $"'{row.Name}' is already in your deck " +
+                        $"({existing.TotalQuantity} cop{(existing.TotalQuantity == 1 ? "y" : "ies")}).\n\n" +
+                        $"Press 'Yes' to add another copy.\n" +
+                        $"Press 'No' to cancel.",
+                        "Card Already in Deck",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (result != MessageBoxResult.Yes)
+                    {
+                        RestoreFocus();
+                        return;
+                    }
+                }
+            }
+
             bool added = DeckService.AddCard(
-                _activeDeck, deckCard, category, out string error);
+                _activeDeck!, deckCard, category, foil, out string error);
 
             if (!added)
             {
@@ -793,15 +1002,29 @@ namespace BreakersOfE
                 return;
             }
 
-            // Update used count in collection
             UpdateUsedCount(row.PoolId, 1);
-
             RefreshActiveDeckGrid();
             UpdateDeckTabTitle(_activeDeck);
             UpdateDeckSummary(_activeDeck);
-            // Refresh top table to update Used/Available columns
+            AutoSaveDeck(_activeDeck);
+
+            // Refresh both grids and restore bottom selection/image
             if (_currentMode == "CollectionToDeck")
+            {
                 LoadTopTable_CollectionForDeck();
+                if (TopDataGrid.ItemsSource is List<CollectionDisplayRow> topRows)
+                {
+                    var updated = topRows.FirstOrDefault(r => r.PoolId == row.PoolId);
+                    if (updated != null)
+                    {
+                        TopDataGrid.SelectedItem = updated;
+                        TopDataGrid.ScrollIntoView(updated);
+                        _ = HandleSelectionAsync(updated);
+                    }
+                }
+                RestoreFocus();
+            }
+
             SetStatus($"Added {row.Name} to {_activeDeck.Name}");
         }
 
@@ -810,15 +1033,21 @@ namespace BreakersOfE
             if (_activeDeck == null) return;
 
             if (DeckTabControl.SelectedItem is TabItem tab &&
-                tab.Content is DataGrid grid)
+                tab.Content is Grid container)
             {
-                RefreshDeckGrid(grid, _activeDeck);
+                var grids = container.Children.OfType<DataGrid>().ToList();
+                var cmdGrid = grids.FirstOrDefault(g => g.Name == "CommanderGrid");
+                var mainGrid = grids.FirstOrDefault(g => g.Name == "MainDeckGrid");
+
+                if (cmdGrid != null) RefreshCommanderGrid(cmdGrid, _activeDeck);
+                if (mainGrid != null) RefreshDeckGrid(mainGrid, _activeDeck);
             }
         }
 
         // ── Update used count ─────────────────────────────────────────────────────
         private void UpdateUsedCount(int poolId, int delta)
         {
+            if (poolId <= 0) return;
             using var db = new Data.AppDbContext();
             var entry = db.CollectionEntries
                 .FirstOrDefault(c => c.PoolId == poolId);
@@ -849,6 +1078,8 @@ namespace BreakersOfE
                 UpdateDeckTabTitle(_activeDeck);
                 UpdateDeckSummary(_activeDeck);
                 UpdateUsedCount(card.PoolId, -1);
+                AutoSaveDeck(_activeDeck);
+                if (_currentMode == "CollectionToDeck") LoadTopTable_CollectionForDeck();
                 SetStatus($"Removed 1x {card.Name} from deck.");
             }
         }
@@ -864,6 +1095,8 @@ namespace BreakersOfE
                 UpdateDeckTabTitle(_activeDeck);
                 UpdateDeckSummary(_activeDeck);
                 UpdateUsedCount(card.PoolId, -qty);
+                AutoSaveDeck(_activeDeck);
+                if (_currentMode == "CollectionToDeck") LoadTopTable_CollectionForDeck();
                 SetStatus($"Removed all {card.Name} from deck.");
             }
         }
@@ -878,6 +1111,20 @@ namespace BreakersOfE
                 _activeDeck.IsModified = true;
                 RefreshActiveDeckGrid();
                 SetStatus($"{card.Name} set as Commander.");
+            }
+        }
+
+        private void DeckCtxRemoveCommander_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck?.DeckType != DeckType.Commander) return;
+            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card &&
+                card.IsCommander)
+            {
+                card.Category = DeckCardCategory.Mainboard;
+                card.IsCommander = false;
+                _activeDeck.IsModified = true;
+                RefreshActiveDeckGrid();
+                SetStatus($"{card.Name} removed as Commander.");
             }
         }
 
@@ -912,13 +1159,26 @@ namespace BreakersOfE
             if (sender is not DataGrid grid) return;
             if (grid.SelectedItem is not DeckCard card) return;
 
-            int qty = card.TotalQuantity;
-            DeckService.RemoveCard(_activeDeck, card, true);
-            RefreshActiveDeckGrid();
-            UpdateDeckTabTitle(_activeDeck);
-            UpdateDeckSummary(_activeDeck);
-            UpdateUsedCount(card.PoolId, -qty);
-            SetStatus($"Removed {card.Name} from deck.");
+            var result = MessageBox.Show(
+                $"Remove all copies of '{card.Name}' from the deck?",
+                "Confirm Delete",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                int qty = card.TotalQuantity;
+                DeckService.RemoveCard(_activeDeck, card, true);
+                RefreshActiveDeckGrid();
+                UpdateDeckTabTitle(_activeDeck);
+                UpdateDeckSummary(_activeDeck);
+                UpdateUsedCount(card.PoolId, -qty);
+                AutoSaveDeck(_activeDeck);
+                if (_currentMode == "CollectionToDeck")
+                    LoadTopTable_CollectionForDeck();
+                SetStatus($"Removed {card.Name} from deck.");
+            }
+
             e.Handled = true;
         }
 
@@ -1038,9 +1298,21 @@ namespace BreakersOfE
 
         private DataGrid? GetActiveDeckGrid()
         {
-            if (DeckTabControl.SelectedItem is TabItem tab &&
-                tab.Content is DataGrid grid)
-                return grid;
+            if (DeckTabControl.SelectedItem is not TabItem tab) return null;
+
+            // New structure: tab.Content is a Grid container
+            if (tab.Content is Grid container)
+            {
+                var grids = container.Children.OfType<DataGrid>().ToList();
+                // Return whichever grid has a selected item, preferring main grid
+                var cmdGrid = grids.FirstOrDefault(g => g.Name == "CommanderGrid");
+                var mainGrid = grids.FirstOrDefault(g => g.Name == "MainDeckGrid");
+                if (cmdGrid?.SelectedItem != null) return cmdGrid;
+                return mainGrid;
+            }
+
+            // Legacy: tab.Content is directly a DataGrid
+            if (tab.Content is DataGrid grid) return grid;
             return null;
         }
 
@@ -1095,47 +1367,90 @@ namespace BreakersOfE
         {
             row.DeckUsageRows.Clear();
 
-            string folder = Services.AppFolderService.DecksFolder;
-            if (!Directory.Exists(folder)) return;
+            // Check all open (possibly unsaved) decks first
+            var checkedNames = new HashSet<string>();
 
-            var files = Directory.GetFiles(folder, "*.deck",
-                SearchOption.TopDirectoryOnly);
-
-            var options = new System.Text.Json.JsonSerializerOptions
+            foreach (var deck in _openDecks)
             {
-                PropertyNameCaseInsensitive = true
-            };
+                checkedNames.Add(deck.Name);
 
-            foreach (var file in files)
-            {
-                try
+                var matches = deck.Cards.Where(c =>
+                    c.Name.Equals(row.Name,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    (row.PoolId > 0 && c.PoolId == row.PoolId))
+                    .ToList();
+
+                foreach (var card in matches)
                 {
-                    string json = File.ReadAllText(file);
-                    var deck = System.Text.Json.JsonSerializer
-                        .Deserialize<Models.Deck>(json, options);
-                    if (deck == null) continue;
-
-                    var matches = deck.Cards.Where(c =>
-                        c.Name.Equals(row.Name,
-                            StringComparison.OrdinalIgnoreCase) ||
-                        (row.PoolId > 0 && c.PoolId == row.PoolId))
-                        .ToList();
-
-                    foreach (var card in matches)
+                    row.DeckUsageRows.Add(new Models.DeckUsageRow
                     {
-                        row.DeckUsageRows.Add(new Models.DeckUsageRow
-                        {
-                            DeckName = deck.Name,
-                            DeckType = deck.DeckType.ToString(),
-                            Quantity = card.TotalQuantity,
-                            Category = card.CategoryDisplay,
-                            IsFoil = card.FoilQuantity > 0
-                                ? (card.Quantity > 0 ? "Mixed" : "Yes")
-                                : "No"
-                        });
-                    }
+                        DeckName = deck.Name,
+                        DeckType = deck.DeckType.ToString(),
+                        Quantity = card.TotalQuantity,
+                        Category = card.CategoryDisplay,
+                        IsFoil = card.FoilQuantity > 0
+                            ? (card.Quantity > 0 ? "Mixed" : "Yes")
+                            : "No"
+                    });
                 }
-                catch { }
+            }
+
+            // Then check saved deck files that aren't already open
+            string folder = Services.AppFolderService.DecksFolder;
+            if (Directory.Exists(folder))
+            {
+                var options = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+
+                foreach (var file in Directory.GetFiles(folder, "*.deck",
+                    SearchOption.TopDirectoryOnly))
+                {
+                    try
+                    {
+                        string json = File.ReadAllText(file);
+                        var deck = System.Text.Json.JsonSerializer
+                            .Deserialize<Models.Deck>(json, options);
+                        if (deck == null) continue;
+
+                        // Skip if already covered by open deck
+                        if (checkedNames.Contains(deck.Name)) continue;
+
+                        var matches = deck.Cards.Where(c =>
+                            c.Name.Equals(row.Name,
+                                StringComparison.OrdinalIgnoreCase) ||
+                            (row.PoolId > 0 && c.PoolId == row.PoolId))
+                            .ToList();
+
+                        foreach (var card in matches)
+                        {
+                            row.DeckUsageRows.Add(new Models.DeckUsageRow
+                            {
+                                DeckName = deck.Name,
+                                DeckType = deck.DeckType.ToString(),
+                                Quantity = card.TotalQuantity,
+                                Category = card.CategoryDisplay,
+                                IsFoil = card.FoilQuantity > 0
+                                    ? (card.Quantity > 0 ? "Mixed" : "Yes")
+                                    : "No"
+                            });
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            // If nothing found, collapse the row and reset expand state
+            if (row.DeckUsageRows.Count == 0)
+            {
+                row.IsExpanded = false;
+                foreach (var grid in new[] { TopDataGrid, BottomDataGrid })
+                {
+                    if (grid.ItemContainerGenerator
+                        .ContainerFromItem(row) is DataGridRow dgRow)
+                        dgRow.DetailsVisibility = Visibility.Collapsed;
+                }
             }
         }
 
@@ -1556,6 +1871,7 @@ namespace BreakersOfE
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
+            UpdateSummaryRow(rows);
         }
 
         private void LoadBottomTable_ArchenemyCollection()
@@ -1590,6 +1906,7 @@ namespace BreakersOfE
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
+            UpdateSummaryRow(rows);
         }
 
         private void LoadBottomTable_VanguardCollection()
@@ -1624,6 +1941,7 @@ namespace BreakersOfE
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
+            UpdateSummaryRow(rows);
         }
 
         private void LoadBottomTable_TokenCollection()
@@ -1658,6 +1976,7 @@ namespace BreakersOfE
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
+            UpdateSummaryRow(rows);
         }
 
         private void LoadBottomTable_ArtSeriesCollection()
@@ -1691,6 +2010,7 @@ namespace BreakersOfE
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
+            UpdateSummaryRow(rows);
         }
 
         // ── Shared collection row builder ────────────────────────────────────
@@ -1745,10 +2065,18 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void RefreshBottom()
         {
-            // Remember selected entry ID before refresh
+            // Remember selected entry ID and expanded pool IDs before refresh
             int? selectedId = null;
             if (BottomDataGrid.SelectedItem is CollectionDisplayRow sel)
                 selectedId = sel.CollectionEntryId;
+
+            var expandedPoolIds = new HashSet<int>();
+            if (BottomDataGrid.ItemsSource is List<CollectionDisplayRow> prev)
+                foreach (var r in prev.Where(r => r.IsExpanded))
+                    expandedPoolIds.Add(r.PoolId);
+
+            // Remember top grid selection so we can restore image after refresh
+            var topSelection = TopDataGrid?.SelectedItem;
 
             switch (_currentMode)
             {
@@ -1760,18 +2088,50 @@ namespace BreakersOfE
                 case "PoolToArtSeries": LoadBottomTable_ArtSeriesCollection(); break;
             }
 
-            // Restore selection
-            if (selectedId.HasValue &&
-                BottomDataGrid.ItemsSource is List<CollectionDisplayRow> rows)
+            // Restore bottom selection
+            if (BottomDataGrid.ItemsSource is List<CollectionDisplayRow> rows)
             {
-                var match = rows.FirstOrDefault(
-                    r => r.CollectionEntryId == selectedId.Value);
-                if (match != null)
+                // Restore selection
+                if (selectedId.HasValue)
                 {
-                    BottomDataGrid.SelectedItem = match;
-                    BottomDataGrid.ScrollIntoView(match);
+                    var match = rows.FirstOrDefault(
+                        r => r.CollectionEntryId == selectedId.Value);
+                    if (match != null)
+                    {
+                        BottomDataGrid.SelectedItem = match;
+                        BottomDataGrid.ScrollIntoView(match);
+                    }
+                }
+
+                // Restore expanded rows — reload deck usage from current state
+                foreach (var r in rows.Where(r => expandedPoolIds.Contains(r.PoolId)))
+                {
+                    LoadDeckUsageForRow(r);
+
+                    if (r.DeckUsageRows.Count > 0)
+                        r.IsExpanded = true;
+                }
+
+                // Defer DetailsVisibility until after grid has rendered new rows
+                if (expandedPoolIds.Count > 0)
+                {
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        foreach (var r in rows.Where(r => r.IsExpanded))
+                        {
+                            if (BottomDataGrid.ItemContainerGenerator
+                                .ContainerFromItem(r) is DataGridRow dgRow)
+                                dgRow.DetailsVisibility = Visibility.Visible;
+                        }
+                    }), System.Windows.Threading.DispatcherPriority.ContextIdle);
                 }
             }
+
+            // Restore top grid card image/detail if top was in focus
+            if (topSelection != null && !_bottomTableHasFocus)
+                _ = HandleSelectionAsync(topSelection);
+
+            RestoreFocus();
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -1850,13 +2210,65 @@ namespace BreakersOfE
         private void BottomDataGrid_GotFocus(object sender, RoutedEventArgs e)
             => _bottomTableHasFocus = true;
 
+        // Returns keyboard focus to whichever grid the user was last in
+        private void RestoreFocus()
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                var grid = _bottomTableHasFocus ? BottomDataGrid : TopDataGrid;
+                grid.Focus();
+
+                // Focus the selected cell so arrow keys navigate rows
+                if (grid.SelectedItem != null)
+                {
+                    grid.ScrollIntoView(grid.SelectedItem);
+                    var row = grid.ItemContainerGenerator
+                        .ContainerFromItem(grid.SelectedItem) as DataGridRow;
+                    if (row != null)
+                    {
+                        var cell = GetFirstCell(row);
+                        cell?.Focus();
+                    }
+                }
+            }), System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }
+
+        private static DataGridCell? GetFirstCell(DataGridRow row)
+        {
+            var presenter = GetVisualChild<System.Windows.Controls.Primitives
+                .DataGridCellsPresenter>(row);
+            if (presenter == null) return null;
+            return presenter.ItemContainerGenerator
+                .ContainerFromIndex(0) as DataGridCell;
+        }
+
         private void BottomDataGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (_currentMode != "CollectionToDeck") return;
-            if (e.Key != Key.Enter) return;
-            if (BottomDataGrid.SelectedItem is CollectionDisplayRow row)
+            // Enter in CollectionToDeck mode — add to deck
+            if (e.Key == Key.Enter &&
+                _currentMode == "CollectionToDeck" &&
+                BottomDataGrid.SelectedItem is CollectionDisplayRow row)
+            {
                 AddCardToActiveDeck(row);
-            e.Handled = true;
+                e.Handled = true;
+                return;
+            }
+
+            // Delete key — confirm before removing from collection
+            if (e.Key == Key.Delete &&
+                BottomDataGrid.SelectedItem is CollectionDisplayRow delRow)
+            {
+                var result = MessageBox.Show(
+                    $"Remove all copies of '{delRow.Name}' from your collection?",
+                    "Confirm Delete",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                    RemoveFromCollection(delRow, delRow.Quantity + delRow.FoilQuantity, true);
+
+                e.Handled = true;
+            }
         }
 
         private async void TopDataGrid_SelectionChanged(object sender,
@@ -1931,6 +2343,7 @@ namespace BreakersOfE
                 else if (TopDataGrid.SelectedItem is CollectionDisplayRow cr)
                     AddCardToActiveDeck(cr);
                 e.Handled = true;
+                RestoreFocus();
                 return;
             }
 
@@ -1966,7 +2379,7 @@ namespace BreakersOfE
 
                 case VanguardCard vc:
                     AddToSpecialCollection("Vanguard", vc.VanguardId,
-                        vc.Name, 1, false); // vanguard has no foil
+                        vc.Name, 1, false);
                     handled = true;
                     break;
 
@@ -1983,7 +2396,11 @@ namespace BreakersOfE
                     break;
             }
 
-            if (handled) e.Handled = true;
+            if (handled)
+            {
+                e.Handled = true;
+                RestoreFocus();
+            }
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -2045,7 +2462,7 @@ namespace BreakersOfE
                         }
                     }
 
-                    // Scroll to first match — go to top first then jump to match
+                    // Scroll to first match — position at top of visible area
                     if (_searchMatches.Count > 0)
                     {
                         _searchMatchIndex = 0;
@@ -2053,15 +2470,15 @@ namespace BreakersOfE
                         TopDataGrid.SelectedItem = first;
                         Dispatcher.BeginInvoke(new Action(() =>
                         {
-                            // Scroll to very top first
+                            TopDataGrid.UpdateLayout();
+                            // Scroll to bottom first, then to match — forces it to top
                             if (TopDataGrid.Items.Count > 0)
-                            {
-                                TopDataGrid.UpdateLayout();
-                                TopDataGrid.ScrollIntoView(TopDataGrid.Items[0]);
-                                TopDataGrid.UpdateLayout();
-                            }
-                            // Then scroll to the match
+                                TopDataGrid.ScrollIntoView(
+                                    TopDataGrid.Items[TopDataGrid.Items.Count - 1]);
+                            TopDataGrid.UpdateLayout();
                             TopDataGrid.ScrollIntoView(first);
+                            // Keep focus on the search box so Enter still works
+                            SearchBox.Focus();
                         }), System.Windows.Threading.DispatcherPriority.ContextIdle);
                     }
                 }
@@ -2211,6 +2628,25 @@ namespace BreakersOfE
                 _ => FilterContext.Pool
             };
         }
+        private void SearchBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+            if (TopDataGrid.SelectedItem == null) return;
+
+            // Enter adds the selected card to collection or deck
+            bool isDeckMode = _currentMode == "PoolToDeck" ||
+                              _currentMode == "CollectionToDeck";
+
+            if (isDeckMode)
+                AddFromTopSelectionToDeck(foil: false);
+            else
+                AddFromTopSelection(foil: false, qty: 1);
+
+            e.Handled = true;
+
+            RestoreFocus();
+        }
+
         private void BtnSearch_Click(object sender, RoutedEventArgs e)
         {
             var win = new BreakersOfE.Windows.SearchForCardWindow
@@ -2344,6 +2780,57 @@ namespace BreakersOfE
                 RemoveFromCollection(row, 0, true);
         }
 
+        // ════════════════════════════════════════════════════════════════════
+        // POOL CONTEXT MENU (RIGHT-CLICK)
+        // ════════════════════════════════════════════════════════════════════
+        private void TopCtx_Opened(object sender, RoutedEventArgs e)
+        {
+            bool hasCard = TopDataGrid.SelectedItem != null;
+            bool isDeckMode = _currentMode == "PoolToDeck" ||
+                              _currentMode == "CollectionToDeck";
+            bool isCollMode = !isDeckMode;
+
+            bool canFoil = false, canNonFoil = false;
+            switch (TopDataGrid.SelectedItem)
+            {
+                case PoolCard pc:
+                    canFoil = pc.IsFoil; canNonFoil = pc.IsNonFoil; break;
+                case TokenCard tc:
+                    canFoil = tc.IsFoil; canNonFoil = tc.IsNonFoil; break;
+                case PlanarCard pl:
+                    canFoil = pl.IsFoil; canNonFoil = pl.IsNonFoil; break;
+                case SchemeCard sc:
+                    canFoil = sc.IsFoil; canNonFoil = sc.IsNonFoil; break;
+                case ArtSeriesCard ac:
+                    canFoil = ac.IsFoil; canNonFoil = ac.IsNonFoil; break;
+            }
+
+            TopCtxAddToCollNonFoil.IsEnabled = hasCard && isCollMode && canNonFoil;
+            TopCtxAddToCollFoil.IsEnabled = hasCard && isCollMode && canFoil;
+            TopCtxAddToDeckNonFoil.IsEnabled = hasCard && isDeckMode &&
+                                               _activeDeck != null && canNonFoil;
+            TopCtxAddToDeckFoil.IsEnabled = hasCard && isDeckMode &&
+                                               _activeDeck != null && canFoil;
+            TopCtxDeckSeparator.Visibility = isDeckMode
+                ? Visibility.Visible : Visibility.Collapsed;
+            TopCtxAddToDeckNonFoil.Visibility = isDeckMode
+                ? Visibility.Visible : Visibility.Collapsed;
+            TopCtxAddToDeckFoil.Visibility = isDeckMode
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void TopCtxAddToCollNonFoil_Click(object sender, RoutedEventArgs e)
+            => AddFromTopSelection(foil: false, qty: 1);
+
+        private void TopCtxAddToCollFoil_Click(object sender, RoutedEventArgs e)
+            => AddFromTopSelection(foil: true, qty: 1);
+
+        private void TopCtxAddToDeckNonFoil_Click(object sender, RoutedEventArgs e)
+            => AddFromTopSelectionToDeck(foil: false);
+
+        private void TopCtxAddToDeckFoil_Click(object sender, RoutedEventArgs e)
+            => AddFromTopSelectionToDeck(foil: true);
+
         private void CtxRemove1_Click(object sender, RoutedEventArgs e)
         {
             if (_bottomLocked) return;
@@ -2430,6 +2917,7 @@ namespace BreakersOfE
                     db.SaveChanges();
                     SetStatus($"Added {qty}x {(foil ? "[Foil] " : "")}{name} to existing row.");
                     RefreshBottom();
+                    RestoreFocus();
                     return;
                 }
 
@@ -2582,45 +3070,188 @@ namespace BreakersOfE
         {
             using var db = new AppDbContext();
 
-            // Only handles pool collection for now
-            var entry = db.CollectionEntries
-                .FirstOrDefault(c => c.CollectionEntryId ==
-                                     row.CollectionEntryId);
-            if (entry == null) return;
-
-            if (all)
-                db.CollectionEntries.Remove(entry);
-            else
+            switch (_currentMode)
             {
-                entry.Quantity = Math.Max(0, entry.Quantity - qty);
-                entry.DateModified = DateTime.Now;
-                if (entry.Quantity == 0 && entry.FoilQuantity == 0)
-                    db.CollectionEntries.Remove(entry);
+                case "PoolToCollection":
+                    {
+                        var e = db.CollectionEntries.FirstOrDefault(
+                            c => c.CollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (all) db.CollectionEntries.Remove(e);
+                        else
+                        {
+                            e.Quantity = Math.Max(0, e.Quantity - qty);
+                            e.DateModified = DateTime.Now;
+                            if (e.Quantity == 0 && e.FoilQuantity == 0)
+                                db.CollectionEntries.Remove(e);
+                        }
+                        break;
+                    }
+                case "PoolToPlanechase":
+                    {
+                        var e = db.PlanarCollectionEntries.FirstOrDefault(
+                            c => c.PlanarCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (all) db.PlanarCollectionEntries.Remove(e);
+                        else
+                        {
+                            e.Quantity = Math.Max(0, e.Quantity - qty);
+                            e.DateModified = DateTime.Now;
+                            if (e.Quantity == 0 && e.FoilQuantity == 0)
+                                db.PlanarCollectionEntries.Remove(e);
+                        }
+                        break;
+                    }
+                case "PoolToArchenemy":
+                    {
+                        var e = db.SchemeCollectionEntries.FirstOrDefault(
+                            c => c.SchemeCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (all) db.SchemeCollectionEntries.Remove(e);
+                        else
+                        {
+                            e.Quantity = Math.Max(0, e.Quantity - qty);
+                            e.DateModified = DateTime.Now;
+                            if (e.Quantity == 0 && e.FoilQuantity == 0)
+                                db.SchemeCollectionEntries.Remove(e);
+                        }
+                        break;
+                    }
+                case "PoolToVanguard":
+                    {
+                        var e = db.VanguardCollectionEntries.FirstOrDefault(
+                            c => c.VanguardCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (all) db.VanguardCollectionEntries.Remove(e);
+                        else
+                        {
+                            e.Quantity = Math.Max(0, e.Quantity - qty);
+                            e.DateModified = DateTime.Now;
+                            if (e.Quantity == 0 && e.FoilQuantity == 0)
+                                db.VanguardCollectionEntries.Remove(e);
+                        }
+                        break;
+                    }
+                case "PoolToTokens":
+                    {
+                        var e = db.TokenCollectionEntries.FirstOrDefault(
+                            c => c.TokenCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (all) db.TokenCollectionEntries.Remove(e);
+                        else
+                        {
+                            e.Quantity = Math.Max(0, e.Quantity - qty);
+                            e.DateModified = DateTime.Now;
+                            if (e.Quantity == 0 && e.FoilQuantity == 0)
+                                db.TokenCollectionEntries.Remove(e);
+                        }
+                        break;
+                    }
+                case "PoolToArtSeries":
+                    {
+                        var e = db.ArtSeriesCollectionEntries.FirstOrDefault(
+                            c => c.ArtSeriesCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (all) db.ArtSeriesCollectionEntries.Remove(e);
+                        else
+                        {
+                            e.Quantity = Math.Max(0, e.Quantity - qty);
+                            e.DateModified = DateTime.Now;
+                            if (e.Quantity == 0 && e.FoilQuantity == 0)
+                                db.ArtSeriesCollectionEntries.Remove(e);
+                        }
+                        break;
+                    }
+                default: return;
             }
 
             db.SaveChanges();
             SetStatus($"Removed from collection.");
             RefreshBottom();
+            RestoreFocus();
         }
 
         private void AdjustCollectionQty(
             CollectionDisplayRow row, int delta, bool foil)
         {
             using var db = new AppDbContext();
-            var entry = db.CollectionEntries
-                .FirstOrDefault(c => c.CollectionEntryId ==
-                                     row.CollectionEntryId);
-            if (entry == null) return;
 
-            if (foil)
-                entry.FoilQuantity = Math.Max(0, entry.FoilQuantity + delta);
-            else
-                entry.Quantity = Math.Max(0, entry.Quantity + delta);
-
-            entry.DateModified = DateTime.Now;
-
-            if (entry.Quantity == 0 && entry.FoilQuantity == 0)
-                db.CollectionEntries.Remove(entry);
+            switch (_currentMode)
+            {
+                case "PoolToCollection":
+                    {
+                        var e = db.CollectionEntries.FirstOrDefault(
+                            c => c.CollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = Math.Max(0, e.FoilQuantity + delta);
+                        else e.Quantity = Math.Max(0, e.Quantity + delta);
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.CollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToPlanechase":
+                    {
+                        var e = db.PlanarCollectionEntries.FirstOrDefault(
+                            c => c.PlanarCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = Math.Max(0, e.FoilQuantity + delta);
+                        else e.Quantity = Math.Max(0, e.Quantity + delta);
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.PlanarCollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToArchenemy":
+                    {
+                        var e = db.SchemeCollectionEntries.FirstOrDefault(
+                            c => c.SchemeCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = Math.Max(0, e.FoilQuantity + delta);
+                        else e.Quantity = Math.Max(0, e.Quantity + delta);
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.SchemeCollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToVanguard":
+                    {
+                        var e = db.VanguardCollectionEntries.FirstOrDefault(
+                            c => c.VanguardCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = Math.Max(0, e.FoilQuantity + delta);
+                        else e.Quantity = Math.Max(0, e.Quantity + delta);
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.VanguardCollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToTokens":
+                    {
+                        var e = db.TokenCollectionEntries.FirstOrDefault(
+                            c => c.TokenCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = Math.Max(0, e.FoilQuantity + delta);
+                        else e.Quantity = Math.Max(0, e.Quantity + delta);
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.TokenCollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToArtSeries":
+                    {
+                        var e = db.ArtSeriesCollectionEntries.FirstOrDefault(
+                            c => c.ArtSeriesCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = Math.Max(0, e.FoilQuantity + delta);
+                        else e.Quantity = Math.Max(0, e.Quantity + delta);
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.ArtSeriesCollectionEntries.Remove(e);
+                        break;
+                    }
+                default: return;
+            }
 
             db.SaveChanges();
             RefreshBottom();
@@ -2631,18 +3262,77 @@ namespace BreakersOfE
         {
             if (qty < 0) return;
             using var db = new AppDbContext();
-            var entry = db.CollectionEntries
-                .FirstOrDefault(c => c.CollectionEntryId ==
-                                     row.CollectionEntryId);
-            if (entry == null) return;
 
-            if (foil) entry.FoilQuantity = qty;
-            else entry.Quantity = qty;
-
-            entry.DateModified = DateTime.Now;
-
-            if (entry.Quantity == 0 && entry.FoilQuantity == 0)
-                db.CollectionEntries.Remove(entry);
+            switch (_currentMode)
+            {
+                case "PoolToCollection":
+                    {
+                        var e = db.CollectionEntries.FirstOrDefault(
+                            c => c.CollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = qty; else e.Quantity = qty;
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.CollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToPlanechase":
+                    {
+                        var e = db.PlanarCollectionEntries.FirstOrDefault(
+                            c => c.PlanarCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = qty; else e.Quantity = qty;
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.PlanarCollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToArchenemy":
+                    {
+                        var e = db.SchemeCollectionEntries.FirstOrDefault(
+                            c => c.SchemeCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = qty; else e.Quantity = qty;
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.SchemeCollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToVanguard":
+                    {
+                        var e = db.VanguardCollectionEntries.FirstOrDefault(
+                            c => c.VanguardCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = qty; else e.Quantity = qty;
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.VanguardCollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToTokens":
+                    {
+                        var e = db.TokenCollectionEntries.FirstOrDefault(
+                            c => c.TokenCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = qty; else e.Quantity = qty;
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.TokenCollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToArtSeries":
+                    {
+                        var e = db.ArtSeriesCollectionEntries.FirstOrDefault(
+                            c => c.ArtSeriesCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = qty; else e.Quantity = qty;
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.ArtSeriesCollectionEntries.Remove(e);
+                        break;
+                    }
+                default: return;
+            }
 
             db.SaveChanges();
         }
@@ -2715,6 +3405,7 @@ namespace BreakersOfE
                     if (int.TryParse(tb.Text, out int qty))
                         SetCollectionQty(row, qty, false);
                     RefreshBottom();
+                    RestoreFocus();
                     e.Handled = true;
                 }
             }
@@ -2735,6 +3426,7 @@ namespace BreakersOfE
                     if (int.TryParse(tb.Text, out int qty))
                         SetCollectionQty(row, qty, true);
                     RefreshBottom();
+                    RestoreFocus();
                     e.Handled = true;
                 }
             }
@@ -3100,10 +3792,12 @@ namespace BreakersOfE
             { SetCardImage(localPath); return; }
 
             if (!string.IsNullOrWhiteSpace(remoteUrl))
-            { SetCardImageFromUrl(remoteUrl); return; }
+            {
+                await SetCardImageFromUrlAsync(remoteUrl);
+                return;
+            }
 
             SetPlaceholderImage();
-            await Task.CompletedTask;
         }
 
         private void SetCardImage(string path)
@@ -3117,17 +3811,23 @@ namespace BreakersOfE
             catch { SetPlaceholderImage(); }
         }
 
-        private void SetCardImageFromUrl(string url)
+        private async Task SetCardImageFromUrlAsync(string url)
         {
             try
             {
+                using var cts = new System.Threading.CancellationTokenSource(
+                    TimeSpan.FromSeconds(3));
+                using var http = new System.Net.Http.HttpClient();
+                var bytes = await http.GetByteArrayAsync(url, cts.Token);
+
                 var bmp = new BitmapImage();
                 bmp.BeginInit();
-                bmp.UriSource = new Uri(url);
+                bmp.StreamSource = new System.IO.MemoryStream(bytes);
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.CreateOptions = BitmapCreateOptions.None;
                 bmp.EndInit();
-                CardImage.Source = bmp;
+                bmp.Freeze();
+
+                Dispatcher.Invoke(() => CardImage.Source = bmp);
             }
             catch { SetPlaceholderImage(); }
         }
@@ -3322,15 +4022,28 @@ namespace BreakersOfE
             }
 
             int totalRows = rows.Count;
-            int totalCards = rows.Sum(r => r.Quantity);
+            int totalNonFoil = rows.Sum(r => r.Quantity);
             int totalFoils = rows.Sum(r => r.FoilQuantity);
+            int totalCards = totalNonFoil + totalFoils;
             decimal totalValue = rows.Sum(r => r.TotalValue);
+
+            // Deck totals across all open decks
+            int deckNonFoil = _openDecks
+                .SelectMany(d => d.Cards)
+                .Where(c => c.Category != Models.DeckCardCategory.Sideboard)
+                .Sum(c => c.Quantity);
+            int deckFoil = _openDecks
+                .SelectMany(d => d.Cards)
+                .Where(c => c.Category != Models.DeckCardCategory.Sideboard)
+                .Sum(c => c.FoilQuantity);
 
             SummaryText.Text =
                 $"Rows: {totalRows:N0}   " +
-                $"Cards: {totalCards:N0}   " +
-                $"Foils: {totalFoils:N0}   " +
-                $"Total Value: ${totalValue:F2}";
+                $"Non-Foil: {totalNonFoil:N0}   " +
+                $"Foil: {totalFoils:N0}   " +
+                $"Total: {totalCards:N0}   " +
+                $"Value: ${totalValue:F2}   " +
+                $"│  Decks — Non-Foil: {deckNonFoil:N0}   Foil: {deckFoil:N0}";
         }
 
         // ════════════════════════════════════════════════════════════════════

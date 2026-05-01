@@ -477,7 +477,16 @@ namespace BreakersOfE.Services
             {
                 ct.ThrowIfCancellationRequested();
 
-                RouteCard(cards[i], GetString(cards[i], "layout"),
+                // Skip digital-only cards (MTGO/Arena exclusives)
+                var cardEl = cards[i];
+                if (cardEl.TryGetProperty("games", out var gamesEl))
+                {
+                    bool hasPaper = gamesEl.EnumerateArray()
+                        .Any(g => g.GetString() == "paper");
+                    if (!hasPaper) continue;
+                }
+
+                RouteCard(cardEl, GetString(cardEl, "layout"),
                     pool, tokens, planar, schemes,
                     vanguard, artSeries, result);
 

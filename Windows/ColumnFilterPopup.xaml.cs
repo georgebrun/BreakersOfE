@@ -69,16 +69,7 @@ namespace BreakersOfE.Windows
         {
             _items.Clear();
 
-            // (Select All) is always the first row
-            _items.Add(new ValueItem
-            {
-                DisplayValue = "(Select All)",
-                ActualValue = "__ALL__",
-                IsAll = true,
-                IsChecked = _state.AllSelected
-            });
-
-            // Add every unique value — all shown at all times
+            // Add every unique value — Select All is now a pinned control above
             foreach (var v in _allValues)
             {
                 _items.Add(new ValueItem
@@ -92,6 +83,11 @@ namespace BreakersOfE.Windows
             }
 
             ValuesListBox.ItemsSource = _items;
+
+            // Sync the pinned Select All checkbox
+            _busy = true;
+            ChkSelectAll.IsChecked = _state.AllSelected;
+            _busy = false;
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -119,6 +115,26 @@ namespace BreakersOfE.Windows
         }
 
         // ════════════════════════════════════════════════════════════════════
+        // PINNED SELECT ALL CHECKBOX
+        // ════════════════════════════════════════════════════════════════════
+        private void SelectAll_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_busy) return;
+            _busy = true;
+
+            bool check = ChkSelectAll.IsChecked == true;
+            foreach (var vi in _items)
+                vi.IsChecked = check;
+
+            _state.AllSelected = check;
+            _state.SelectedValues.Clear();
+            _state.UseTextFilter = false;
+
+            _busy = false;
+            FilterChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        // ════════════════════════════════════════════════════════════════════
         // CHECKBOX CHANGED
         // ════════════════════════════════════════════════════════════════════
         private void ValueCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -129,48 +145,27 @@ namespace BreakersOfE.Windows
 
             _busy = true;
 
-            if (item.IsAll)
+            if (item.IsChecked)
             {
-                // (Select All) checked   → check all rows
-                // (Select All) unchecked → uncheck all rows
-                bool check = item.IsChecked;
-                foreach (var vi in _items)
-                    vi.IsChecked = check;
-
-                _state.AllSelected = check;
-                _state.SelectedValues.Clear();
+                if (!_state.SelectedValues.Contains(item.ActualValue))
+                    _state.SelectedValues.Add(item.ActualValue);
             }
             else
             {
-                if (item.IsChecked)
-                {
-                    // Row checked — add to selected values
-                    if (!_state.SelectedValues.Contains(item.ActualValue))
-                        _state.SelectedValues.Add(item.ActualValue);
-                }
-                else
-                {
-                    // Row unchecked — remove from selected values
-                    _state.SelectedValues.Remove(item.ActualValue);
-                    _state.AllSelected = false;
-
-                    // Uncheck (Select All) row
-                    var allRow = _items.First(x => x.IsAll);
-                    allRow.IsChecked = false;
-                }
-
-                // If every value row is now checked → treat as AllSelected
-                bool allNowChecked = _items
-                    .Where(x => !x.IsAll)
-                    .All(x => x.IsChecked);
-
-                if (allNowChecked)
-                {
-                    _state.AllSelected = true;
-                    _state.SelectedValues.Clear();
-                    _items.First(x => x.IsAll).IsChecked = true;
-                }
+                _state.SelectedValues.Remove(item.ActualValue);
+                _state.AllSelected = false;
             }
+
+            // If every value row is now checked → treat as AllSelected
+            bool allNowChecked = _items.All(x => x.IsChecked);
+            if (allNowChecked)
+            {
+                _state.AllSelected = true;
+                _state.SelectedValues.Clear();
+            }
+
+            // Sync pinned checkbox
+            ChkSelectAll.IsChecked = _state.AllSelected;
 
             _state.UseTextFilter = false;
             _busy = false;
@@ -256,22 +251,18 @@ namespace BreakersOfE.Windows
         // ════════════════════════════════════════════════════════════════════
         private void BtnClearFilter_Click(object sender, RoutedEventArgs e)
         {
-            // Clear this column's filter state
             _state.Clear();
 
-            // Recheck all rows in the UI
             _busy = true;
             foreach (var item in _items)
                 item.IsChecked = true;
+            ChkSelectAll.IsChecked = true;
             TextFilterBox.Text = string.Empty;
             OperatorCombo.SelectedIndex = 0;
             _busy = false;
 
-            // Fire event — MainWindow reloads data and refreshes funnels
-            // Do NOT close yet — popup must stay open while Dispatcher runs
             FilterChanged?.Invoke(this, EventArgs.Empty);
 
-            // Close AFTER Dispatcher finishes updating the header visuals
             Dispatcher.BeginInvoke(new Action(() => Close()),
                 System.Windows.Threading.DispatcherPriority.ContextIdle);
         }

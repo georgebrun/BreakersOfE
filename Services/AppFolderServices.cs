@@ -41,7 +41,7 @@ namespace BreakersOfE.Services
             EnsureFolder(Path.Combine(ProgramFolder, "ManaSymbols"));
 
         public static string DatabasePath =>
-            Path.Combine(ProgramFolder, "breakersofe.db");
+            Path.Combine(RootFolder, "breakersofe.db");
 
         // ── Helper ────────────────────────────────────────────────────────────
         private static string EnsureFolder(string path)

@@ -305,15 +305,16 @@
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,0,1,0">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ScrollViewer VerticalScrollBarVisibility="Visible">
                     <StackPanel Margin="10">
-                        <Border Name="CardImageBorder" Width="250" Height="348"
+                        <Border Name="CardImageBorder"
+                                MaxWidth="250" MaxHeight="348"
                                 Background="{DynamicResource SurfaceAltBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1" CornerRadius="4"
                                 Margin="0,6,0,10" HorizontalAlignment="Center">
                             <Image Name="CardImage" Stretch="Uniform"
-                   MouseLeftButtonDown="CardImage_MouseDoubleClick"/>
+                                   MouseLeftButtonDown="CardImage_MouseDoubleClick"/>
                         </Border>
                         <TextBlock Text="NAME"             Style="{DynamicResource DetailLabelStyle}"/>
                         <TextBlock Name="DetailName"       Style="{DynamicResource DetailValueStyle}" FontSize="15" FontWeight="Bold"/>
@@ -350,7 +351,8 @@
 
             <!-- SPLITTER -->
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
-                          Background="{DynamicResource BorderBrush}" Cursor="SizeWE"/>
+                          Background="{DynamicResource BorderBrush}" Cursor="SizeWE"
+                          Focusable="False" IsTabStop="False"/>
 
             <!-- RIGHT PANEL -->
             <Grid Grid.Column="2">
@@ -390,6 +392,7 @@
                                        FontWeight="SemiBold" FontSize="14"
                                        VerticalAlignment="Center" Margin="0,0,8,0" DockPanel.Dock="Left"/>
                             <TextBox Name="SearchBox"
+                                     PreviewKeyDown="SearchBox_PreviewKeyDown"
                                      Style="{DynamicResource BaseTextBoxStyle}"
                                      Height="28" Width="300"
                                      VerticalContentAlignment="Center"
@@ -422,6 +425,15 @@
                             <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"                  Color="Transparent"/>
                             <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
                         </DataGrid.Resources>
+                        <DataGrid.ContextMenu>
+                            <ContextMenu Name="TopGridContextMenu" Opened="TopCtx_Opened">
+                                <MenuItem Header="Add to Collection (Non-Foil)"  Name="TopCtxAddToCollNonFoil"  Click="TopCtxAddToCollNonFoil_Click"/>
+                                <MenuItem Header="Add to Collection (Foil)"      Name="TopCtxAddToCollFoil"     Click="TopCtxAddToCollFoil_Click"/>
+                                <Separator Name="TopCtxDeckSeparator"/>
+                                <MenuItem Header="Add to Deck (Non-Foil)"        Name="TopCtxAddToDeckNonFoil"  Click="TopCtxAddToDeckNonFoil_Click"/>
+                                <MenuItem Header="Add to Deck (Foil)"            Name="TopCtxAddToDeckFoil"     Click="TopCtxAddToDeckFoil_Click"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
                         <DataGrid.RowDetailsTemplate>
                             <DataTemplate>
                                 <Border Background="#F5F8FF"
@@ -560,7 +572,8 @@
                 <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
                               VerticalAlignment="Bottom"
                               Background="{DynamicResource BorderBrush}"
-                              Cursor="SizeNS" Margin="0,-2,0,0"/>
+                              Cursor="SizeNS" Margin="0,-2,0,0"
+                              Focusable="False" IsTabStop="False"/>
 
                 <!-- BOTTOM AREA -->
                 <Grid Grid.Row="2">
@@ -583,7 +596,7 @@
 
                     <!-- COLLECTION DataGrid -->
                     <DataGrid Name="BottomDataGrid" Grid.Row="1"
-                              AutoGenerateColumns="False" IsReadOnly="False"
+                              AutoGenerateColumns="False" IsReadOnly="True"
                               SelectionMode="Single" GotFocus="BottomDataGrid_GotFocus"
                               SelectionUnit="FullRow" HeadersVisibility="Column"
                               SelectionChanged="BottomDataGrid_SelectionChanged"
@@ -620,13 +633,13 @@
                                     BorderBrush="#CCDDEE"
                                     BorderThickness="0,1,0,1"
                                     Padding="32,6,8,6">
-                                <StackPanel>
-                                    <TextBlock Text="USED IN DECKS"
+                                    <StackPanel>
+                                        <TextBlock Text="USED IN DECKS"
                                         FontSize="11"
                                         FontWeight="Bold"
                                         Foreground="#666666"
                                         Margin="0,0,0,4"/>
-                                    <DataGrid Name="DeckUsageGrid"
+                                        <DataGrid Name="DeckUsageGrid"
                           ItemsSource="{Binding DeckUsageRows}"
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
