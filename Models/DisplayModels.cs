@@ -34,7 +34,7 @@ namespace BreakersOfE.Models
     // ── Collection display row ────────────────────────────────────────────────
     public class CollectionDisplayRow
     {
-        public List<DeckUsageRow> DeckUsageRows { get; set; } = new(); 
+        public List<DeckUsageRow> DeckUsageRows { get; set; } = new();
         public int CollectionEntryId { get; set; }
         public int PoolId { get; set; }
         public string Name { get; set; } = string.Empty;
@@ -66,6 +66,7 @@ namespace BreakersOfE.Models
         public bool IsFavorite { get; set; }
 
         public bool IsExpanded { get; set; } = false;
+        public bool IsFooter { get; set; } = false;
 
         public string ExpandGlyph => IsExpanded ? "−" : "+";
 
@@ -107,7 +108,6 @@ namespace BreakersOfE.Models
                 ? $"${PriceUsdFoil.Value:F2}"
                 : "—";
 
-        // Value = Qty × Price × ConditionMultiplier
         public decimal Value =>
             PriceUsd.HasValue
                 ? Math.Round(Quantity * PriceUsd.Value * ConditionMult, 2)
@@ -173,10 +173,15 @@ namespace BreakersOfE.Models
 
         // ── Theme-aware colors ────────────────────────────────────────────────
         public Brush RowForegroundBrush =>
-            CardColorService.GetForeground(ColorIdentity, TypeLine, IsFoil);
+            IsFooter
+                ? Brushes.Black
+                : CardColorService.GetForeground(ColorIdentity, TypeLine, IsFoil);
 
         public Brush RowBackgroundBrush =>
-            CardColorService.GetBackground(IsFoil, RowIndex);
+            IsFooter
+                ? new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(0xD6, 0xE8, 0xD6))
+                : CardColorService.GetBackground(IsFoil, RowIndex);
 
         public Brush CellBorderBrush =>
             CardColorService.GetCellBorderBrush();
@@ -211,6 +216,7 @@ namespace BreakersOfE.Models
         public int DeckCount { get; set; }
     }
 
+    // ── Deck usage row ────────────────────────────────────────────────────────
     public class DeckUsageRow
     {
         public string DeckName { get; set; } = string.Empty;
@@ -218,5 +224,36 @@ namespace BreakersOfE.Models
         public int Quantity { get; set; }
         public string Category { get; set; } = string.Empty;
         public string IsFoil { get; set; } = string.Empty;
+    }
+
+    // ── Deck Import Report ────────────────────────────────────────────────────
+    public class DeckImportReportRow
+    {
+        public string Name { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public int NonFoilAdded { get; set; }
+        public int FoilAdded { get; set; }
+        public int PrevNonFoil { get; set; }
+        public int PrevFoil { get; set; }
+        public int NewNonFoil { get; set; }
+        public int NewFoil { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
+
+    // ── Footer totals row ─────────────────────────────────────────────────────
+    public class FooterRow
+    {
+        public string Label { get; set; } = string.Empty;
+        public string Qty { get; set; } = string.Empty;
+        public string FoilQty { get; set; } = string.Empty;
+        public string Used { get; set; } = string.Empty;
+        public string Available { get; set; } = string.Empty;
+        public string PriceUsd { get; set; } = string.Empty;
+        public string PriceUsdFoil { get; set; } = string.Empty;
+        public string TotalValue { get; set; } = string.Empty;
+        public string Col1 { get; set; } = string.Empty;
+        public string Col2 { get; set; } = string.Empty;
+        public string Col3 { get; set; } = string.Empty;
     }
 }

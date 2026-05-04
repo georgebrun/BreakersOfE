@@ -113,7 +113,8 @@
                              FontSize="12"
                              Padding="4,0"
                              VerticalContentAlignment="Center"
-                             TextChanged="TextFilterBox_TextChanged"/>
+                             TextChanged="TextFilterBox_TextChanged"
+                             KeyDown="TextFilterBox_KeyDown"/>
 
                     <!-- Clear X button -->
                     <Button Grid.Row="2"
@@ -145,13 +146,21 @@
                         FontSize="12"
                         DockPanel.Dock="Left"
                         Click="BtnClearFilter_Click"/>
+                <Button Name="BtnApplyTextFilter"
+                        Content="Apply"
+                        Width="70" Height="26"
+                        FontSize="12"
+                        HorizontalAlignment="Right"
+                        DockPanel.Dock="Right"
+                        Margin="4,0,0,0"
+                        IsDefault="True"
+                        Click="BtnApplyTextFilter_Click"/>
                 <Button Name="BtnClose"
                         Content="Close"
                         Width="70" Height="26"
                         FontSize="12"
                         HorizontalAlignment="Right"
                         DockPanel.Dock="Right"
-                        IsDefault="True"
                         Click="BtnClose_Click"/>
             </DockPanel>
         </Border>

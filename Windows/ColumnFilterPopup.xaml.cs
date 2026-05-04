@@ -224,8 +224,30 @@ namespace BreakersOfE.Windows
             TextChangedEventArgs e)
         {
             if (_busy) return;
+            // Only update state, don't fire FilterChanged yet —
+            // firing on every keystroke causes grid reload which steals focus
             _state.TextValue = TextFilterBox.Text;
             _state.UseTextFilter = !string.IsNullOrEmpty(_state.TextValue);
+        }
+
+        private void TextFilterBox_KeyDown(object sender,
+            System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Enter)
+            {
+                _state.TextValue = TextFilterBox.Text;
+                _state.UseTextFilter = !string.IsNullOrEmpty(_state.TextValue);
+                FilterChanged?.Invoke(this, EventArgs.Empty);
+                e.Handled = true;
+            }
+        }
+
+        private void BtnApplyTextFilter_Click(object sender, RoutedEventArgs e)
+        {
+            _state.TextValue = TextFilterBox.Text;
+            _state.UseTextFilter = !string.IsNullOrEmpty(_state.TextValue) ||
+                _state.TextOperator == ColumnFilterOperator.IsBlank ||
+                _state.TextOperator == ColumnFilterOperator.IsNotBlank;
             FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 

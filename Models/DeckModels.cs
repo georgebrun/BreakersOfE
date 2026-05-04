@@ -54,6 +54,7 @@ namespace BreakersOfE.Models
         public string OracleText { get; set; } = string.Empty;
         public string Rarity { get; set; } = string.Empty;
         public string Artist { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
         public bool IsFoil { get; set; }
         public bool IsNonFoil { get; set; }
         public string ImageNormalUrl { get; set; } = string.Empty;
@@ -67,6 +68,7 @@ namespace BreakersOfE.Models
         public DeckCardCategory Category { get; set; } =
             DeckCardCategory.Mainboard;
         public bool IsCommander { get; set; } = false;
+        public bool IsFooter { get; set; } = false;
 
         // ── Computed display ──────────────────────────────────────────────────
         [JsonIgnore]
@@ -98,6 +100,10 @@ namespace BreakersOfE.Models
         [JsonIgnore]
         public string PriceUsdDisplay =>
             PriceUsd.HasValue ? $"${PriceUsd.Value:F2}" : "—";
+
+        [JsonIgnore]
+        public string PriceUsdFoilDisplay =>
+            PriceUsdFoil.HasValue ? $"${PriceUsdFoil.Value:F2}" : "—";
 
         [JsonIgnore]
         public int TotalQuantity => Quantity + FoilQuantity;
@@ -167,12 +173,22 @@ namespace BreakersOfE.Models
         // ── Color brushes ─────────────────────────────────────────────────────
         [JsonIgnore]
         public System.Windows.Media.Brush RowForegroundBrush =>
-            Services.CardColorService.GetForeground(
-                ColorIdentity, TypeLine, false);
+            IsFooter
+                ? System.Windows.Media.Brushes.Black
+                : IsCommander
+                    ? System.Windows.Media.Brushes.White
+                    : Services.CardColorService.GetForeground(
+                        ColorIdentity, TypeLine, false);
 
         [JsonIgnore]
         public System.Windows.Media.Brush RowBackgroundBrush =>
-            Services.CardColorService.GetBackground(false, 0);
+            IsFooter
+                ? new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(0xD6, 0xE8, 0xD6))
+                : IsCommander
+                    ? new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(0x00, 0x78, 0xD4))
+                    : Services.CardColorService.GetBackground(false, 0);
 
         [JsonIgnore]
         public System.Windows.Media.Brush CellBorderBrush =>
