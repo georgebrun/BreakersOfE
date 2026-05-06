@@ -59,11 +59,41 @@ namespace BreakersOfE.Models
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public int UsedCount { get; set; }
-        public string Condition { get; set; } = string.Empty;
+        public string Condition { get; set; } = "Unknown";
         public string Language { get; set; } = string.Empty;
         public string StorageLocation { get; set; } = string.Empty;
         public string Notes { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
+
+        // ── New trading/inventory fields ──────────────────────────────────────
+        public decimal? BuyAt { get; set; }
+        public decimal? SellAt { get; set; }
+        public decimal? SellAtValue { get; set; }
+        public decimal? PriceHigh { get; set; }
+        public decimal? MarketValue { get; set; }
+        public decimal? PriceLow { get; set; }
+        public int Needed { get; set; } = 0;
+        public int Excess { get; set; } = 0;
+        public int Target { get; set; } = 0;
+        public string Desired { get; set; } = "Unassigned";
+        public string Group { get; set; } = string.Empty;
+        public string PrintType { get; set; } = "Unknown";
+        public string BuyStatus { get; set; } = "Unassigned";
+        public string SellStatus { get; set; } = "Unassigned";
+
+        public string BuyAtDisplay => BuyAt.HasValue ? $"${BuyAt.Value:F2}" : string.Empty;
+        public string SellAtDisplay => SellAt.HasValue ? $"${SellAt.Value:F2}" : string.Empty;
+        public string SellAtValueDisplay => SellAtValue.HasValue ? $"${SellAtValue.Value:F2}" : string.Empty;
+        public string PriceHighDisplay => PriceHigh.HasValue ? $"${PriceHigh.Value:F2}" : string.Empty;
+        public string MarketValueDisplay => MarketValue.HasValue ? $"${MarketValue.Value:F2}" : string.Empty;
+        public string PriceLowDisplay => PriceLow.HasValue ? $"${PriceLow.Value:F2}" : string.Empty;
+
+        // Legality — stored as bools populated from PoolCard during load
+        public bool IsLegalStandard { get; set; }
+        public bool IsLegalModern { get; set; }
+        public bool IsLegalPioneer { get; set; }
+        public bool IsLegalLegacy { get; set; }
+        public bool IsLegalVintage { get; set; }
 
         public bool IsExpanded { get; set; } = false;
         public bool IsFooter { get; set; } = false;

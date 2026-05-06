@@ -11,13 +11,29 @@ namespace BreakersOfE.Models
         public int PoolId { get; set; }
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
-        public string Condition { get; set; } = string.Empty;
+        public string Condition { get; set; } = "Unknown";
         public string Language { get; set; } = "English";
         public string Notes { get; set; } = string.Empty;
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
         public int UsedCount { get; set; } = 0;
+
+        // ── New trading/inventory fields ──────────────────────────────────────
+        public decimal? BuyAt { get; set; }
+        public decimal? SellAt { get; set; }
+        public decimal? SellAtValue { get; set; }
+        public decimal? PriceHigh { get; set; }
+        public decimal? MarketValue { get; set; }
+        public decimal? PriceLow { get; set; }
+        public int Needed { get; set; } = 0;
+        public int Excess { get; set; } = 0;
+        public int Target { get; set; } = 0;
+        public string Desired { get; set; } = "Unassigned";
+        public string Group { get; set; } = string.Empty;
+        public string PrintType { get; set; } = "Unknown";
+        public string BuyStatus { get; set; } = "Unassigned";
+        public string SellStatus { get; set; } = "Unassigned";
     }
 
     // ── Token Collection ────────────────────────────────────────────────────

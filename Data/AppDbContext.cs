@@ -51,14 +51,46 @@ namespace BreakersOfE.Data
             {
                 try
                 {
-#pragma warning disable EF1002 // table and column names are compile-time constants, not user input
+#pragma warning disable EF1002
                     Database.ExecuteSqlRaw(
                         $"ALTER TABLE {table} ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0");
 #pragma warning restore EF1002
                 }
                 catch { /* Column already exists — ignore */ }
             }
+
+            // New CollectionEntries trading/inventory columns
+            var collectionCols = new (string col, string type, string def)[]
+            {
+                ("BuyAt",       "REAL",    ""),
+                ("SellAt",      "REAL",    ""),
+                ("SellAtValue", "REAL",    ""),
+                ("PriceHigh",   "REAL",    ""),
+                ("MarketValue", "REAL",    ""),
+                ("PriceLow",    "REAL",    ""),
+                ("Needed",      "INTEGER", "NOT NULL DEFAULT 0"),
+                ("Excess",      "INTEGER", "NOT NULL DEFAULT 0"),
+                ("Target",      "INTEGER", "NOT NULL DEFAULT 0"),
+                ("Desired",     "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
+                ("Group",       "TEXT",    "NOT NULL DEFAULT ''"),
+                ("PrintType",   "TEXT",    "NOT NULL DEFAULT 'Unknown'"),
+                ("BuyStatus",   "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
+                ("SellStatus",  "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
+            };
+
+            foreach (var (col, type, def) in collectionCols)
+            {
+                try
+                {
+#pragma warning disable EF1002
+                    Database.ExecuteSqlRaw(
+                        $"ALTER TABLE CollectionEntries ADD COLUMN {col} {type} {(string.IsNullOrEmpty(def) ? "" : def)}");
+#pragma warning restore EF1002
+                }
+                catch { /* Column already exists — ignore */ }
+            }
         }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

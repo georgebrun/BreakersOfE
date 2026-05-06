@@ -77,6 +77,12 @@ namespace BreakersOfE
         private void BtnCloseAllDecks_Click(object sender, RoutedEventArgs e)
             => MenuCloseAllDecks_Click(sender, e);
 
+        private void BtnCloseDeck_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck != null)
+                CloseDeck(_activeDeck);
+        }
+
         private void BtnDeckLegality_Click(object sender, RoutedEventArgs e)
             => MessageBox.Show("Deck Legality window coming soon!",
                 "Coming Soon", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -311,12 +317,156 @@ namespace BreakersOfE
 
         private void UpdateDeckSummary(Deck? deck)
         {
-            // Deck summary is appended as a footer row in RefreshDeckGrid
-            // Just refresh the active deck grid
             if (deck != null) RefreshActiveDeckGrid();
         }
 
-        private void UpdateTopSummary(string label, int rows,
+        private void UpdateBottomTableLabel()
+        {
+            BottomTableManaSymbols.Children.Clear();
+
+            if (_activeDeck == null)
+            {
+                BottomTableLabel.Text = "Deck";
+                return;
+            }
+
+            string type = _activeDeck.DeckType == DeckType.Commander
+                ? "Commander Deck" : "Standard Deck";
+
+            if (_activeDeck.DeckType == DeckType.Commander)
+            {
+                var commander = _activeDeck.Cards
+                    .FirstOrDefault(c => c.IsCommander);
+
+                if (commander != null)
+                {
+                    BottomTableLabel.Text =
+                        $"{_activeDeck.Name}  │  {type}  │  {commander.Name}  ";
+
+                    string identity = commander.ColorIdentity ?? string.Empty;
+                    // Show C symbol for colorless if no WUBRG colors
+                    var colorChars = identity
+                        .Where(ch => "WUBRG".Contains(char.ToUpper(ch)))
+                        .ToList();
+                    var symbolsToShow = colorChars.Any()
+                        ? colorChars.Select(c => c.ToString().ToUpper())
+                        : new[] { "C" };
+
+                    foreach (string sym in symbolsToShow)
+                    {
+                        string symPath = System.IO.Path.Combine(
+                            ManaSymbolsFolder, $"{SanitizeSymbol(sym)}.png");
+                        var bmp = System.IO.File.Exists(symPath)
+                            ? LoadBitmap(symPath) : null;
+
+                        if (bmp != null)
+                        {
+                            BottomTableManaSymbols.Children.Add(
+                                new System.Windows.Controls.Image
+                                {
+                                    Source = bmp,
+                                    Width = 16,
+                                    Height = 16,
+                                    Margin = new Thickness(1, 0, 1, 0),
+                                    VerticalAlignment = VerticalAlignment.Center,
+                                    ToolTip = sym
+                                });
+                        }
+                        else
+                        {
+                            BottomTableManaSymbols.Children.Add(new TextBlock
+                            {
+                                Text = $"[{sym}]",
+                                Foreground = (System.Windows.Media.Brush)
+                                    FindResource("PrimaryTextBrush"),
+                                FontWeight = FontWeights.SemiBold,
+                                Margin = new Thickness(1, 0, 1, 0),
+                                VerticalAlignment = VerticalAlignment.Center
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    BottomTableLabel.Text = $"{_activeDeck.Name}  │  {type}";
+                }
+            }
+            else
+            {
+                BottomTableLabel.Text = $"{_activeDeck.Name}  │  {type}";
+            }
+        }
+
+        private void UpdateTopTableLabel()
+        {
+            TopTableManaSymbols.Children.Clear();
+
+            if (_currentMode != "DeckToCollection")
+                return;
+
+            if (_activeDeck == null)
+            {
+                TopSearchLabel.Text = "Deck  (no deck open)";
+                return;
+            }
+
+            string type = _activeDeck.DeckType == DeckType.Commander
+                ? "Commander Deck" : "Standard Deck";
+
+            var commander = _activeDeck.DeckType == DeckType.Commander
+                ? _activeDeck.Cards.FirstOrDefault(c => c.IsCommander)
+                : null;
+
+            if (commander != null)
+            {
+                TopSearchLabel.Text =
+                    $"{_activeDeck.Name}  │  {type}  │  {commander.Name}  ";
+
+                string identity = commander.ColorIdentity ?? string.Empty;
+                var colorChars = identity
+                    .Where(ch => "WUBRG".Contains(char.ToUpper(ch)))
+                    .ToList();
+                var symbolsToShow = colorChars.Any()
+                    ? colorChars.Select(c => c.ToString().ToUpper())
+                    : new[] { "C" };
+
+                foreach (string sym in symbolsToShow)
+                {
+                    string symPath = System.IO.Path.Combine(
+                        ManaSymbolsFolder, $"{SanitizeSymbol(sym)}.png");
+                    var bmp = System.IO.File.Exists(symPath)
+                        ? LoadBitmap(symPath) : null;
+
+                    if (bmp != null)
+                        TopTableManaSymbols.Children.Add(
+                            new System.Windows.Controls.Image
+                            {
+                                Source = bmp,
+                                Width = 16,
+                                Height = 16,
+                                Margin = new Thickness(1, 0, 1, 0),
+                                VerticalAlignment = VerticalAlignment.Center,
+                                ToolTip = sym
+                            });
+                    else
+                        TopTableManaSymbols.Children.Add(new TextBlock
+                        {
+                            Text = $"[{sym}]",
+                            Foreground = (System.Windows.Media.Brush)
+                                FindResource("PrimaryTextBrush"),
+                            FontWeight = FontWeights.SemiBold,
+                            Margin = new Thickness(1, 0, 1, 0),
+                            VerticalAlignment = VerticalAlignment.Center
+                        });
+                }
+            }
+            else
+            {
+                TopSearchLabel.Text = $"{_activeDeck.Name}  │  {type}";
+            }
+        }
+
+        private void UpdateTopSummary(string label,
             int nonFoil = -1, int foil = -1,
             int total = -1, decimal value = -1)
         {
@@ -466,12 +616,6 @@ namespace BreakersOfE
                 SaveDeck(deck);
         }
 
-        private void BtnCloseDeck_Click(object sender, RoutedEventArgs e)
-        {
-            if (_activeDeck == null) return;
-            CloseDeck(_activeDeck);
-        }
-
         private void BtnDeckProperties_Click(object sender, RoutedEventArgs e)
         {
             if (_activeDeck == null) return;
@@ -546,6 +690,13 @@ namespace BreakersOfE
             if (_activeDeck != null)
                 SelectDeckTab(_activeDeck);
 
+            if (_activeDeck == null)
+            {
+                BottomSummaryGrid.Columns.Clear();
+                BottomSummaryGrid.ItemsSource = null;
+                UpdateBottomTableLabel();
+            }
+
             UpdateDeckSummary(_activeDeck!);
             UpdateDeckToolbarState();
         }
@@ -566,64 +717,38 @@ namespace BreakersOfE
             DeckTabControl.Items.Add(tab);
             DeckTabControl.SelectedItem = tab;
             _activeDeck = deck;
-            _wiredSummaries.Clear(); // new grids built — reset sync tracking
+            _wiredSummaries.Clear();
+
+            // Show summary grid immediately — even for empty new decks
+            BottomSummaryGrid.Visibility = Visibility.Visible;
+
             Dispatcher.BeginInvoke(new Action(() =>
-                RefreshActiveDeckGrid()),
-                System.Windows.Threading.DispatcherPriority.ContextIdle);
+            {
+                RefreshActiveDeckGrid();
+                UpdateBottomTableLabel();
+            }),
+            System.Windows.Threading.DispatcherPriority.ContextIdle);
+
             UpdateDeckToolbarState();
         }
 
         // ── Build deck tab content ────────────────────────────────────────────────
         private Grid BuildDeckTabContent(Deck deck)
         {
-            bool isCommander = deck.DeckType == DeckType.Commander;
-
             var mainGrid = BuildDeckDataGrid(deck, commander: false,
-                showHeaders: !isCommander);
-            var summaryGrid = BuildDeckSummaryGrid(deck);
-
+                showHeaders: true);
             mainGrid.Name = "MainDeckGrid";
-            summaryGrid.Name = "SummaryGrid";
 
             var container = new Grid
             {
                 VerticalAlignment = VerticalAlignment.Stretch,
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
+            container.RowDefinitions.Add(new RowDefinition
+            { Height = new GridLength(1, GridUnitType.Star) });
 
-            if (isCommander)
-            {
-                var commanderGrid = BuildDeckDataGrid(deck, commander: true,
-                    showHeaders: true);
-                commanderGrid.Name = "CommanderGrid";
-
-                container.RowDefinitions.Add(new RowDefinition
-                { Height = GridLength.Auto });           // commander
-                container.RowDefinitions.Add(new RowDefinition
-                { Height = new GridLength(1, GridUnitType.Star) }); // main
-                container.RowDefinitions.Add(new RowDefinition
-                { Height = GridLength.Auto });           // summary
-
-                Grid.SetRow(commanderGrid, 0);
-                Grid.SetRow(mainGrid, 1);
-                Grid.SetRow(summaryGrid, 2);
-
-                container.Children.Add(commanderGrid);
-            }
-            else
-            {
-                container.RowDefinitions.Add(new RowDefinition
-                { Height = new GridLength(1, GridUnitType.Star) }); // main
-                container.RowDefinitions.Add(new RowDefinition
-                { Height = GridLength.Auto });           // summary
-
-                Grid.SetRow(mainGrid, 0);
-                Grid.SetRow(summaryGrid, 1);
-            }
-
+            Grid.SetRow(mainGrid, 0);
             container.Children.Add(mainGrid);
-            container.Children.Add(summaryGrid);
-
             return container;
         }
 
@@ -894,11 +1019,15 @@ namespace BreakersOfE
         // ── Refresh deck grid ─────────────────────────────────────────────────────
         private static void RefreshDeckGrid(DataGrid grid, Deck deck)
         {
-            grid.ItemsSource = deck.Cards
-                .Where(c => !c.IsCommander && !c.IsFooter)
-                .OrderBy(c => c.Category)
+            // Commanders first (blue highlight), then rest sorted by category/name
+            var cards = deck.Cards
+                .Where(c => !c.IsFooter)
+                .OrderBy(c => c.IsCommander ? 0 : 1)
+                .ThenBy(c => c.Category)
                 .ThenBy(c => c.Name)
                 .ToList();
+
+            grid.ItemsSource = cards;
         }
 
         private static void RefreshCommanderGrid(DataGrid grid, Deck deck)
@@ -961,21 +1090,13 @@ namespace BreakersOfE
             if (DeckTabControl.SelectedItem is TabItem tab)
             {
                 _activeDeck = tab.Tag as Deck;
-
-                if (_activeDeck != null)
-                    BottomTableLabel.Text = _activeDeck.DeckType ==
-                        DeckType.Commander
-                        ? "Commander Deck"
-                        : "Standard Deck";
-                else
-                    BottomTableLabel.Text = "Deck";
             }
             else
             {
                 _activeDeck = null;
-                BottomTableLabel.Text = "Deck";
             }
 
+            UpdateBottomTableLabel();
             UpdateDeckSummary(_activeDeck!);
 
             // In DeckToCollection mode refresh top grid when active deck changes
@@ -1142,28 +1263,25 @@ namespace BreakersOfE
             if (DeckTabControl.SelectedItem is TabItem tab &&
                 tab.Content is Grid container)
             {
-                var grids = container.Children.OfType<DataGrid>().ToList();
-                var cmdGrid = grids.FirstOrDefault(g => g.Name == "CommanderGrid");
-                var mainGrid = grids.FirstOrDefault(g => g.Name == "MainDeckGrid");
-                var sumGrid = grids.FirstOrDefault(g => g.Name == "SummaryGrid");
+                var mainGrid = container.Children.OfType<DataGrid>()
+                    .FirstOrDefault(g => g.Name == "MainDeckGrid");
 
-                if (cmdGrid != null) RefreshCommanderGrid(cmdGrid, _activeDeck);
-                if (mainGrid != null) RefreshDeckGrid(mainGrid, _activeDeck);
-                if (sumGrid != null)
+                if (mainGrid != null)
                 {
-                    // Use mainGrid as column source (has all columns including Non-Foil/Foil/USD)
-                    // Wire BOTH commander and main grids so resizing either syncs the summary
-                    var srcGrid = mainGrid ?? cmdGrid;
+                    RefreshDeckGrid(mainGrid, _activeDeck);
+
+                    var deck = _activeDeck;
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        SyncAndPopulateDeckSummary(sumGrid, srcGrid, _activeDeck);
-                        if (mainGrid != null)
-                            WireSummaryColumnSync(mainGrid, sumGrid);
-                        if (cmdGrid != null)
-                            WireSummaryColumnSync(cmdGrid, sumGrid);
+                        _wiredSummaries.Remove((mainGrid, BottomSummaryGrid));
+                        SyncAndPopulateDeckSummary(
+                            BottomSummaryGrid, mainGrid, deck);
+                        WireSummaryColumnSync(mainGrid, BottomSummaryGrid);
                     }),
                     System.Windows.Threading.DispatcherPriority.ContextIdle);
                 }
+
+                UpdateBottomTableLabel();
             }
         }
 
@@ -1210,9 +1328,7 @@ namespace BreakersOfE
                 bool isNumeric = bindings.ContainsKey(hdr);
                 var sc = new DataGridTextColumn
                 {
-                    Width = col.ActualWidth > 0
-                        ? new DataGridLength(col.ActualWidth)
-                        : col.Width,
+                    Width = col.Width,
                     IsReadOnly = true,
                     ElementStyle = new Style(typeof(TextBlock))
                     {
@@ -1297,13 +1413,34 @@ namespace BreakersOfE
         private void DeckCtxSetCommander_Click(object sender, RoutedEventArgs e)
         {
             if (_activeDeck?.DeckType != DeckType.Commander) return;
-            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card && !card.IsFooter)
+            if (!(GetActiveDeckGrid()?.SelectedItem is DeckCard card) ||
+                card.IsFooter) return;
+
+            // Check for existing commander
+            var existing = _activeDeck.Cards
+                .FirstOrDefault(c => c.IsCommander && c != card);
+
+            if (existing != null)
             {
-                card.Category = DeckCardCategory.Commander;
-                card.IsCommander = true;
-                _activeDeck.IsModified = true;
-                RefreshActiveDeckGrid();
+                var result = MessageBox.Show(
+                    $"'{existing.Name}' is currently the commander.\n\n" +
+                    $"Remove '{existing.Name}' as commander and set " +
+                    $"'{card.Name}' instead?",
+                    "Replace Commander",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result != MessageBoxResult.Yes) return;
+
+                existing.IsCommander = false;
+                existing.Category = DeckCardCategory.Mainboard;
             }
+
+            card.IsCommander = true;
+            card.Category = DeckCardCategory.Commander;
+            _activeDeck.IsModified = true;
+            RefreshActiveDeckGrid();
+            UpdateBottomTableLabel();
         }
 
         private void DeckCtxRemoveCommander_Click(object sender, RoutedEventArgs e)
@@ -1743,7 +1880,15 @@ namespace BreakersOfE
             bool isDeckTabMode = _currentMode == "PoolToDeck" ||
                                  _currentMode == "CollectionToDeck";
 
-            TopDataGrid.Visibility = Visibility.Visible;
+            // Reset top grid editability — only CollectionToDeck allows editing
+            TopDataGrid.IsReadOnly = true;
+
+            // Clear mana symbol panels — only deck modes populate them
+            if (!isDeckTabMode)
+            {
+                BottomTableManaSymbols.Children.Clear();
+                TopTableManaSymbols.Children.Clear();
+            }
             BottomDataGrid.Visibility = isDeckTabMode
                 ? Visibility.Collapsed : Visibility.Visible;
             DeckTabControl.Visibility = isDeckTabMode
@@ -1755,9 +1900,14 @@ namespace BreakersOfE
             TopSummaryGrid.Visibility = showTopSummary
                 ? Visibility.Visible : Visibility.Collapsed;
             if (!showTopSummary)
+            {
                 TopSummaryGrid.ItemsSource = null;
-            BottomSummaryGrid.Visibility = isDeckTabMode
-                ? Visibility.Collapsed : Visibility.Visible;
+                TopTableManaSymbols.Children.Clear();
+            }
+            // BottomSummaryGrid always visible — cleared when no data
+            BottomSummaryGrid.Visibility = Visibility.Visible;
+            if (isDeckTabMode && _activeDeck == null)
+                BottomSummaryGrid.ItemsSource = null;
 
             switch (_currentMode)
             {
@@ -1815,14 +1965,13 @@ namespace BreakersOfE
                     TopSearchLabel.Text = "Collection";
                     BottomTableLabel.Text = "Deck";
                     UpdateDeckSummary(_activeDeck);
+                    TopDataGrid.IsReadOnly = false;
                     break;
 
                 case "DeckToCollection":
                     LoadTopTable_DeckForCollection();
                     LoadBottomTable_Collection();
-                    TopSearchLabel.Text = _activeDeck != null
-                        ? $"Deck: {_activeDeck.Name}"
-                        : "Deck  (no deck open)";
+                    UpdateTopTableLabel();
                     BottomTableLabel.Text = "Collection";
                     break;
             }
@@ -1867,7 +2016,7 @@ namespace BreakersOfE
                 filtered[i].RowIndex = i;
 
             TopDataGrid.ItemsSource = filtered;
-            UpdateTopSummary("Pool", filtered.Count,
+            UpdateTopSummary("Pool",
                 nonFoil: filtered.Cast<PoolCard>().Count(c => c.IsNonFoil),
                 foil: filtered.Cast<PoolCard>().Count(c => c.IsFoil),
                 value: (decimal)filtered.Cast<PoolCard>()
@@ -1980,9 +2129,13 @@ namespace BreakersOfE
             if (_currentMode == "DeckToCollection" && _activeDeck != null)
             {
                 var deck = _activeDeck;
+                // Remove from wired set so we always re-attach listeners
+                // after SyncAndPopulateDeckSummary rebuilds the columns
+                _wiredSummaries.Remove((TopDataGrid, TopSummaryGrid));
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
                     SyncAndPopulateDeckSummary(TopSummaryGrid, TopDataGrid, deck);
+                    _wiredSummaries.Remove((TopDataGrid, TopSummaryGrid));
                     WireSummaryColumnSync(TopDataGrid, TopSummaryGrid);
                 }),
                 System.Windows.Threading.DispatcherPriority.ContextIdle);
@@ -2003,7 +2156,7 @@ namespace BreakersOfE
             for (int i = 0; i < rows.Count; i++)
                 rows[i].RowIndex = i;
             TopDataGrid.ItemsSource = rows;
-            UpdateTopSummary("Collection", rows.Count,
+            UpdateTopSummary("Collection",
                 nonFoil: rows.Sum(r => r.Quantity),
                 foil: rows.Sum(r => r.FoilQuantity),
                 total: rows.Sum(r => r.Quantity + r.FoilQuantity),
@@ -2029,17 +2182,34 @@ namespace BreakersOfE
 
             int insertAt = Math.Min(3, grid.Columns.Count);
 
-            var colDefs = new[]
+            var textCols = new[]
             {
-                (Display: "Qty",   Binding: "Quantity",       Width: 50),
-                (Display: "Foil",  Binding: "FoilQuantity",   Width: 50),
-                (Display: "Used",  Binding: "UsedCount",       Width: 50),
-                (Display: "Avail", Binding: "AvailableCount",  Width: 55),
+                (Display: "Qty",           Binding: "Quantity",        Width: 50),
+                (Display: "Foil Qty",      Binding: "FoilQuantity",    Width: 60),
+                (Display: "Used",          Binding: "UsedCount",       Width: 50),
+                (Display: "Available",     Binding: "AvailableCount",  Width: 70),
+                (Display: "Buy At",        Binding: "BuyAt",           Width: 70),
+                (Display: "Sell At",       Binding: "SellAt",          Width: 70),
+                (Display: "Sell At Value", Binding: "SellAtValue",     Width: 90),
+                (Display: "Price High",    Binding: "PriceHigh",       Width: 80),
+                (Display: "Market Value",  Binding: "MarketValue",     Width: 90),
+                (Display: "Needed",        Binding: "Needed",          Width: 60),
+                (Display: "Excess",        Binding: "Excess",          Width: 60),
+                (Display: "Target",        Binding: "Target",          Width: 60),
+                (Display: "Condition",     Binding: "Condition",       Width: 90),
+                (Display: "Notes",         Binding: "Notes",           Width: 150),
+                (Display: "Storage",       Binding: "StorageLocation", Width: 100),
+                (Display: "Desired",       Binding: "Desired",         Width: 100),
+                (Display: "Group",         Binding: "Group",           Width: 80),
+                (Display: "Print Type",    Binding: "PrintType",       Width: 90),
+                (Display: "Buy",           Binding: "BuyStatus",       Width: 90),
+                (Display: "Sell",          Binding: "SellStatus",      Width: 90),
+                (Display: "Added",         Binding: "DateAdded",       Width: 130),
             };
 
-            for (int i = 0; i < colDefs.Length; i++)
+            for (int i = 0; i < textCols.Length; i++)
             {
-                var def = colDefs[i];
+                var def = textCols[i];
                 var col = new System.Windows.Controls.DataGridTextColumn
                 {
                     Header = def.Display,
@@ -2124,7 +2294,27 @@ namespace BreakersOfE
                         UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
-                        StorageLocation = ce.StorageLocation
+                        StorageLocation = ce.StorageLocation,
+                        Notes = ce.Notes,
+                        BuyAt = ce.BuyAt,
+                        SellAt = ce.SellAt,
+                        SellAtValue = ce.SellAtValue,
+                        PriceHigh = ce.PriceHigh,
+                        MarketValue = ce.MarketValue,
+                        PriceLow = ce.PriceLow,
+                        Needed = ce.Needed,
+                        Excess = ce.Excess,
+                        Target = ce.Target,
+                        Desired = ce.Desired,
+                        Group = ce.Group,
+                        PrintType = ce.PrintType,
+                        BuyStatus = ce.BuyStatus,
+                        SellStatus = ce.SellStatus,
+                        IsLegalStandard = pc.IsLegalStandard,
+                        IsLegalModern = pc.IsLegalModern,
+                        IsLegalPioneer = pc.IsLegalPioneer,
+                        IsLegalLegacy = pc.IsLegalLegacy,
+                        IsLegalVintage = pc.IsLegalVintage
                     })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -2159,7 +2349,27 @@ namespace BreakersOfE
                         UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
-                        StorageLocation = ce.StorageLocation
+                        StorageLocation = ce.StorageLocation,
+                        Notes = ce.Notes,
+                        BuyAt = ce.BuyAt,
+                        SellAt = ce.SellAt,
+                        SellAtValue = ce.SellAtValue,
+                        PriceHigh = ce.PriceHigh,
+                        MarketValue = ce.MarketValue,
+                        PriceLow = ce.PriceLow,
+                        Needed = ce.Needed,
+                        Excess = ce.Excess,
+                        Target = ce.Target,
+                        Desired = ce.Desired,
+                        Group = ce.Group,
+                        PrintType = ce.PrintType,
+                        BuyStatus = ce.BuyStatus,
+                        SellStatus = ce.SellStatus,
+                        IsLegalStandard = pc.IsLegalStandard,
+                        IsLegalModern = pc.IsLegalModern,
+                        IsLegalPioneer = pc.IsLegalPioneer,
+                        IsLegalLegacy = pc.IsLegalLegacy,
+                        IsLegalVintage = pc.IsLegalVintage
                     })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -2194,7 +2404,27 @@ namespace BreakersOfE
                         UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
-                        StorageLocation = ce.StorageLocation
+                        StorageLocation = ce.StorageLocation,
+                        Notes = ce.Notes,
+                        BuyAt = ce.BuyAt,
+                        SellAt = ce.SellAt,
+                        SellAtValue = ce.SellAtValue,
+                        PriceHigh = ce.PriceHigh,
+                        MarketValue = ce.MarketValue,
+                        PriceLow = ce.PriceLow,
+                        Needed = ce.Needed,
+                        Excess = ce.Excess,
+                        Target = ce.Target,
+                        Desired = ce.Desired,
+                        Group = ce.Group,
+                        PrintType = ce.PrintType,
+                        BuyStatus = ce.BuyStatus,
+                        SellStatus = ce.SellStatus,
+                        IsLegalStandard = pc.IsLegalStandard,
+                        IsLegalModern = pc.IsLegalModern,
+                        IsLegalPioneer = pc.IsLegalPioneer,
+                        IsLegalLegacy = pc.IsLegalLegacy,
+                        IsLegalVintage = pc.IsLegalVintage
                     })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -2229,7 +2459,27 @@ namespace BreakersOfE
                         UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
-                        StorageLocation = ce.StorageLocation
+                        StorageLocation = ce.StorageLocation,
+                        Notes = ce.Notes,
+                        BuyAt = ce.BuyAt,
+                        SellAt = ce.SellAt,
+                        SellAtValue = ce.SellAtValue,
+                        PriceHigh = ce.PriceHigh,
+                        MarketValue = ce.MarketValue,
+                        PriceLow = ce.PriceLow,
+                        Needed = ce.Needed,
+                        Excess = ce.Excess,
+                        Target = ce.Target,
+                        Desired = ce.Desired,
+                        Group = ce.Group,
+                        PrintType = ce.PrintType,
+                        BuyStatus = ce.BuyStatus,
+                        SellStatus = ce.SellStatus,
+                        IsLegalStandard = pc.IsLegalStandard,
+                        IsLegalModern = pc.IsLegalModern,
+                        IsLegalPioneer = pc.IsLegalPioneer,
+                        IsLegalLegacy = pc.IsLegalLegacy,
+                        IsLegalVintage = pc.IsLegalVintage
                     })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -2263,7 +2513,27 @@ namespace BreakersOfE
                         UsedCount = ce.UsedCount,
                         Condition = ce.Condition,
                         Language = ce.Language,
-                        StorageLocation = ce.StorageLocation
+                        StorageLocation = ce.StorageLocation,
+                        Notes = ce.Notes,
+                        BuyAt = ce.BuyAt,
+                        SellAt = ce.SellAt,
+                        SellAtValue = ce.SellAtValue,
+                        PriceHigh = ce.PriceHigh,
+                        MarketValue = ce.MarketValue,
+                        PriceLow = ce.PriceLow,
+                        Needed = ce.Needed,
+                        Excess = ce.Excess,
+                        Target = ce.Target,
+                        Desired = ce.Desired,
+                        Group = ce.Group,
+                        PrintType = ce.PrintType,
+                        BuyStatus = ce.BuyStatus,
+                        SellStatus = ce.SellStatus,
+                        IsLegalStandard = pc.IsLegalStandard,
+                        IsLegalModern = pc.IsLegalModern,
+                        IsLegalPioneer = pc.IsLegalPioneer,
+                        IsLegalLegacy = pc.IsLegalLegacy,
+                        IsLegalVintage = pc.IsLegalVintage
                     })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -2307,6 +2577,26 @@ namespace BreakersOfE
                         Condition = ce.Condition,
                         Language = ce.Language,
                         StorageLocation = ce.StorageLocation,
+                        Notes = ce.Notes,
+                        BuyAt = ce.BuyAt,
+                        SellAt = ce.SellAt,
+                        SellAtValue = ce.SellAtValue,
+                        PriceHigh = ce.PriceHigh,
+                        MarketValue = ce.MarketValue,
+                        PriceLow = ce.PriceLow,
+                        Needed = ce.Needed,
+                        Excess = ce.Excess,
+                        Target = ce.Target,
+                        Desired = ce.Desired,
+                        Group = ce.Group,
+                        PrintType = ce.PrintType,
+                        BuyStatus = ce.BuyStatus,
+                        SellStatus = ce.SellStatus,
+                        IsLegalStandard = pc.IsLegalStandard,
+                        IsLegalModern = pc.IsLegalModern,
+                        IsLegalPioneer = pc.IsLegalPioneer,
+                        IsLegalLegacy = pc.IsLegalLegacy,
+                        IsLegalVintage = pc.IsLegalVintage,
                         Notes = ce.Notes,
                         DateAdded = ce.DateAdded,
                         DateModified = ce.DateModified,
@@ -2457,6 +2747,7 @@ namespace BreakersOfE
             BtnOpenDeck.IsEnabled = isDeckMode;
             BtnSaveDeck.IsEnabled = isDeckMode && hasDeck;
             BtnSaveAllDecks.IsEnabled = isDeckMode && anyDecks;
+            BtnCloseDeck.IsEnabled = isDeckMode && hasDeck;
             BtnCloseAllDecks.IsEnabled = isDeckMode && anyDecks;
             BtnDeckProperties.IsEnabled = isDeckMode && hasDeck;
             BtnDeckLegality.IsEnabled = hasDeck;
@@ -2486,14 +2777,115 @@ namespace BreakersOfE
             if (MenuOpenDeck != null) MenuOpenDeck.IsEnabled = isDeckMode;
             if (MenuSaveDeck != null) MenuSaveDeck.IsEnabled = isDeckMode && hasDeck;
             if (MenuSaveAllDecks != null) MenuSaveAllDecks.IsEnabled = isDeckMode && anyDecks;
+            if (MenuCloseDeck != null) MenuCloseDeck.IsEnabled = isDeckMode && hasDeck;
             if (MenuCloseAllDecks != null) MenuCloseAllDecks.IsEnabled = isDeckMode && anyDecks;
         }
 
         // ════════════════════════════════════════════════════════════════════
         // SELECTION HANDLERS
         // ════════════════════════════════════════════════════════════════════
+        private void TopDataGrid_CellEditEnding(object sender,
+            DataGridCellEditEndingEventArgs e)
+        {
+            // Only save collection edits in CollectionToDeck mode
+            if (_currentMode != "CollectionToDeck") return;
+            if (e.EditAction != DataGridEditAction.Commit) return;
+            if (e.Row.Item is not CollectionDisplayRow row || row.IsFooter) return;
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    using var db = new Data.AppDbContext();
+                    var entry = db.CollectionEntries
+                        .FirstOrDefault(c => c.CollectionEntryId == row.CollectionEntryId);
+                    if (entry == null) return;
+
+                    entry.Quantity = row.Quantity;
+                    entry.FoilQuantity = row.FoilQuantity;
+                    entry.Condition = row.Condition;
+                    entry.Notes = row.Notes;
+                    entry.StorageLocation = row.StorageLocation;
+                    entry.BuyAt = row.BuyAt;
+                    entry.SellAt = row.SellAt;
+                    entry.SellAtValue = row.SellAtValue;
+                    entry.PriceHigh = row.PriceHigh;
+                    entry.MarketValue = row.MarketValue;
+                    entry.PriceLow = row.PriceLow;
+                    entry.Needed = row.Needed;
+                    entry.Excess = row.Excess;
+                    entry.Target = row.Target;
+                    entry.Desired = row.Desired;
+                    entry.Group = row.Group;
+                    entry.PrintType = row.PrintType;
+                    entry.BuyStatus = row.BuyStatus;
+                    entry.SellStatus = row.SellStatus;
+                    entry.DateModified = DateTime.Now;
+
+                    db.SaveChanges();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Save failed: {ex.Message}",
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }),
+            System.Windows.Threading.DispatcherPriority.Background);
+        }
+
         private void TopDataGrid_GotFocus(object sender, RoutedEventArgs e)
             => _bottomTableHasFocus = false;
+
+        private void BottomDataGrid_CellEditEnding(object sender,
+            DataGridCellEditEndingEventArgs e)
+        {
+            if (e.EditAction != DataGridEditAction.Commit) return;
+            if (e.Row.Item is not CollectionDisplayRow row || row.IsFooter) return;
+
+            // Save after the binding commits (slight delay)
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    using var db = new Data.AppDbContext();
+                    var entry = db.CollectionEntries
+                        .FirstOrDefault(c => c.CollectionEntryId == row.CollectionEntryId);
+                    if (entry == null) return;
+
+                    entry.Quantity = row.Quantity;
+                    entry.FoilQuantity = row.FoilQuantity;
+                    entry.Condition = row.Condition;
+                    entry.Notes = row.Notes;
+                    entry.StorageLocation = row.StorageLocation;
+                    entry.BuyAt = row.BuyAt;
+                    entry.SellAt = row.SellAt;
+                    entry.SellAtValue = row.SellAtValue;
+                    entry.PriceHigh = row.PriceHigh;
+                    entry.MarketValue = row.MarketValue;
+                    entry.PriceLow = row.PriceLow;
+                    entry.Needed = row.Needed;
+                    entry.Excess = row.Excess;
+                    entry.Target = row.Target;
+                    entry.Desired = row.Desired;
+                    entry.Group = row.Group;
+                    entry.PrintType = row.PrintType;
+                    entry.BuyStatus = row.BuyStatus;
+                    entry.SellStatus = row.SellStatus;
+                    entry.DateModified = DateTime.Now;
+
+                    db.SaveChanges();
+                    UpdateSummaryRow(
+                        BottomDataGrid.ItemsSource as List<CollectionDisplayRow>
+                        ?? new List<CollectionDisplayRow>());
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Save failed: {ex.Message}",
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }),
+            System.Windows.Threading.DispatcherPriority.Background);
+        }
 
         private void BottomDataGrid_GotFocus(object sender, RoutedEventArgs e)
             => _bottomTableHasFocus = true;
@@ -4438,12 +4830,11 @@ namespace BreakersOfE
 
             Dispatcher.BeginInvoke(new Action(() =>
             {
+                _wiredSummaries.Remove((BottomDataGrid, BottomSummaryGrid));
                 SyncAndPopulateCollectionSummary(
                     BottomSummaryGrid, BottomDataGrid,
                     totalNonFoil, totalFoils,
                     totalUsed, totalAvail, totalVal);
-
-                // Wire column width changes to keep summary aligned
                 WireSummaryColumnSync(BottomDataGrid, BottomSummaryGrid);
             }),
             System.Windows.Threading.DispatcherPriority.ContextIdle);
@@ -4461,19 +4852,15 @@ namespace BreakersOfE
                 .FromProperty(DataGridColumn.ActualWidthProperty,
                     typeof(DataGridColumn));
 
-            foreach (var col in src.Columns)
+            for (int i = 0; i < src.Columns.Count; i++)
             {
-                var srcCol = col;
+                int idx = i; // capture for closure
+                var srcCol = src.Columns[i];
                 descriptor.AddValueChanged(srcCol, (s, e) =>
                 {
-                    int idx = src.Columns.IndexOf(srcCol);
-                    if (idx >= 0 && idx < summary.Columns.Count)
-                    {
-                        double w = srcCol.ActualWidth;
-                        if (w > 0)
-                            summary.Columns[idx].Width =
-                                new DataGridLength(w);
-                    }
+                    if (idx < summary.Columns.Count)
+                        summary.Columns[idx].Width =
+                            new DataGridLength(srcCol.ActualWidth);
                 });
             }
         }
@@ -4526,9 +4913,7 @@ namespace BreakersOfE
                 string hdr = col.Header?.ToString() ?? string.Empty;
                 var sc = new DataGridTextColumn
                 {
-                    Width = col.ActualWidth > 0
-                        ? new DataGridLength(col.ActualWidth)
-                        : col.Width,
+                    Width = col.Width,
                     IsReadOnly = true,
                     ElementStyle = new Style(typeof(TextBlock))
                     {

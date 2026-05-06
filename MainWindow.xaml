@@ -186,6 +186,7 @@
                 <MenuItem Header="_Open Deck..."     Name="MenuOpenDeck"     IsEnabled="False" Click="MenuOpenDeck_Click"/>
                 <MenuItem Header="_Save Deck"        Name="MenuSaveDeck"      IsEnabled="False" Click="MenuSaveDeck_Click"/>
                 <MenuItem Header="Save _All Decks"   Name="MenuSaveAllDecks"  IsEnabled="False" Click="MenuSaveAllDecks_Click"/>
+                <MenuItem Header="_Close Deck"        Name="MenuCloseDeck"     IsEnabled="False" Click="BtnCloseDeck_Click"/>
                 <MenuItem Header="Close _All Decks"  Name="MenuCloseAllDecks" IsEnabled="False" Click="MenuCloseAllDecks_Click"/>
                 <Separator/>
                 <MenuItem Header="_Preferences"      Click="MenuPreferences_Click"/>
@@ -221,7 +222,8 @@
                 <Button Name="BtnOpenDeck"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1A5;" ToolTip="Open Deck"             IsEnabled="False" Click="BtnOpenDeck_Click"        Margin="2,2"/>
                 <Button Name="BtnSaveDeck"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE105;" ToolTip="Save Deck"             IsEnabled="False" Click="BtnSaveDeck_Click"        Margin="2,2"/>
                 <Button Name="BtnSaveAllDecks"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE116;" ToolTip="Save All Decks"        IsEnabled="False" Click="BtnSaveAllDecks_Click"    Margin="2,2"/>
-                <Button Name="BtnCloseAllDecks"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE10A;" ToolTip="Close All Decks"       IsEnabled="False" Click="BtnCloseAllDecks_Click"   Margin="2,2"/>
+                <Button Name="BtnCloseDeck"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE10A;" ToolTip="Close Deck"            IsEnabled="False" Click="BtnCloseDeck_Click"       Margin="2,2"/>
+                <Button Name="BtnCloseAllDecks"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE711;" ToolTip="Close All Decks"       IsEnabled="False" Click="BtnCloseAllDecks_Click"   Margin="2,2"/>
                 <Button Name="BtnDeckProperties"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE946;" ToolTip="Deck Properties"       IsEnabled="False" Click="BtnDeckProperties_Click"  Margin="2,2"/>
                 <Button Name="BtnDeckLegality"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1C6;" ToolTip="Deck Legality"         IsEnabled="False" Click="BtnDeckLegality_Click"    Margin="2,2"/>
                 <Button Name="BtnDeckStats"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE9F9;" ToolTip="Deck Statistics"       IsEnabled="False" Click="BtnDeckStats_Click"       Margin="2,2"/>
@@ -389,10 +391,17 @@
                             <TextBlock Text="&#xE11A;" FontFamily="Segoe MDL2 Assets"
                                        FontSize="14" Foreground="{DynamicResource MutedTextBrush}"
                                        VerticalAlignment="Center" Margin="0,0,6,0" DockPanel.Dock="Left"/>
-                            <TextBlock Name="TopSearchLabel" Text="Pool"
-                                       Foreground="{DynamicResource PrimaryTextBrush}"
-                                       FontWeight="SemiBold" FontSize="14"
-                                       VerticalAlignment="Center" Margin="0,0,8,0" DockPanel.Dock="Left"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                        DockPanel.Dock="Left" Margin="0,0,8,0">
+                                <TextBlock Name="TopSearchLabel" Text="Pool"
+                                           Foreground="{DynamicResource PrimaryTextBrush}"
+                                           FontWeight="SemiBold" FontSize="14"
+                                           VerticalAlignment="Center"/>
+                                <StackPanel Name="TopTableManaSymbols"
+                                            Orientation="Horizontal"
+                                            Margin="6,0,0,0"
+                                            VerticalAlignment="Center"/>
+                            </StackPanel>
                             <TextBox Name="SearchBox"
                                      PreviewKeyDown="SearchBox_PreviewKeyDown"
                                      Style="{DynamicResource BaseTextBoxStyle}"
@@ -410,6 +419,7 @@
                               SelectionUnit="FullRow" HeadersVisibility="Column"
                               SelectionChanged="TopDataGrid_SelectionChanged"
                               PreviewKeyDown="TopDataGrid_PreviewKeyDown"
+                              CellEditEnding="TopDataGrid_CellEditEnding"
                               Background="{DynamicResource GridRowBrush}"
                               Foreground="{DynamicResource PrimaryTextBrush}"
                               BorderThickness="0" GridLinesVisibility="None"
@@ -476,24 +486,19 @@
                         </DataGrid.RowDetailsTemplate>
                         <DataGrid.Columns>
                             <!-- Expand/collapse deck usage -->
-                            <DataGridTemplateColumn Header="↕" Width="28">
+                            <DataGridTemplateColumn Header="↕" Width="28" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Button Content="{Binding ExpandGlyph}"
-                    Visibility="{Binding ExpandButtonVisibility}"
-                    IsEnabled="True"
-                    Width="20" Height="20"
-                    FontSize="14" FontWeight="Bold"
-                    Padding="0"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    Cursor="Hand"
-                    Tag="{Binding}"
-                    Click="BtnExpandDeckUsage_Click"/>
+                                                Visibility="{Binding ExpandButtonVisibility}"
+                                                Width="20" Height="20" FontSize="14" FontWeight="Bold"
+                                                Padding="0" Background="Transparent" BorderThickness="0"
+                                                Cursor="Hand" Tag="{Binding}"
+                                                Click="BtnExpandDeckUsage_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="ES" Width="32"  CanUserResize="False">
+                            <DataGridTemplateColumn Header="ES" Width="32" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Image Source="{Binding SetSymbolPath, Converter={StaticResource ImageSourceConverter}}"
@@ -501,13 +506,41 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Name"         Binding="{Binding Name}"                Width="200"/>
-                            <DataGridTextColumn Header="Edition"      Binding="{Binding SetCode}"            Width="60"/>
-                            <DataGridTextColumn Header="Edition Name" Binding="{Binding SetName}"            Width="160"/>
-                            <DataGridTextColumn Header="Color"        Binding="{Binding ColorDisplay}" Width="50"/>
-                            <DataGridTextColumn Header="Color ID"     Binding="{Binding ColorIdentity}" Width="80"/>
-                            <DataGridTextColumn Header="Type"         Binding="{Binding TypeLine}"           Width="180"/>
-                            <DataGridTextColumn Header="Rarity"       Binding="{Binding RarityCode}"         Width="50"/>
+                            <!-- Legal: S M P L V coloured pills -->
+                            <DataGridTemplateColumn Header="Legal" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="2,0">
+                                            <Border CornerRadius="3" Margin="1,0" Padding="3,1"
+                                                    Background="{Binding IsLegalStandard, Converter={StaticResource BoolToGreenRedConverter}}">
+                                                <TextBlock Text="S" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                            <Border CornerRadius="3" Margin="1,0" Padding="3,1"
+                                                    Background="{Binding IsLegalModern, Converter={StaticResource BoolToGreenRedConverter}}">
+                                                <TextBlock Text="M" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                            <Border CornerRadius="3" Margin="1,0" Padding="3,1"
+                                                    Background="{Binding IsLegalPioneer, Converter={StaticResource BoolToGreenRedConverter}}">
+                                                <TextBlock Text="P" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                            <Border CornerRadius="3" Margin="1,0" Padding="3,1"
+                                                    Background="{Binding IsLegalLegacy, Converter={StaticResource BoolToGreenRedConverter}}">
+                                                <TextBlock Text="L" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                            <Border CornerRadius="3" Margin="1,0" Padding="3,1"
+                                                    Background="{Binding IsLegalVintage, Converter={StaticResource BoolToGreenRedConverter}}">
+                                                <TextBlock Text="V" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Name"         Binding="{Binding Name}"            Width="200"/>
+                            <DataGridTextColumn Header="Edition"      Binding="{Binding SetCode}"         Width="55"/>
+                            <DataGridTextColumn Header="Edition Name" Binding="{Binding SetName}"         Width="160"/>
+                            <DataGridTextColumn Header="Color"        Binding="{Binding ColorDisplay}"    Width="50"/>
+                            <DataGridTextColumn Header="Type"         Binding="{Binding TypeLine}"        Width="180"/>
+                            <DataGridTextColumn Header="Rarity"       Binding="{Binding RarityCode}"      Width="50"/>
                             <DataGridTemplateColumn Header="Cost" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -515,23 +548,15 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="P/T"          Binding="{Binding PowerToughness}"     Width="55"/>
-                            <DataGridTextColumn Header="USD"          Binding="{Binding PriceUsdDisplay}"    Width="70"/>
-                            <DataGridTextColumn Header="USD Foil"     Binding="{Binding PriceUsdFoilDisplay}" Width="75"/>
-                            <DataGridTextColumn Header="Text"         Binding="{Binding OracleText}"         Width="220"/>
-                            <DataGridTextColumn Header="Flavor"       Binding="{Binding FlavorText}"         Width="160"/>
-                            <DataGridTextColumn Header="Artist"       Binding="{Binding Artist}"             Width="130"/>
-                            <DataGridTextColumn Header="No"           Binding="{Binding CollectorNumber}"    Width="55"/>
-                            <DataGridTextColumn Header="Power"        Binding="{Binding Power}"              Width="50"/>
-                            <DataGridTextColumn Header="Toughness"    Binding="{Binding Toughness}"          Width="70"/>
-                            <DataGridTextColumn Header="CMC"          Binding="{Binding ManaValue}"          Width="45"/>
-                            <DataGridTextColumn Header="Standard"     Binding="{Binding LegalityStandard}"   Width="70" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Pioneer"      Binding="{Binding LegalityPioneer}"    Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Modern"       Binding="{Binding LegalityModern}"     Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Legacy"       Binding="{Binding LegalityLegacy}"     Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Vintage"      Binding="{Binding LegalityVintage}"    Width="65" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Commander"    Binding="{Binding LegalityCommander}"  Width="80" Visibility="Collapsed"/>
-                            <DataGridTextColumn Header="Pauper"       Binding="{Binding LegalityPauper}"     Width="65" Visibility="Collapsed"/>
+                            <DataGridTextColumn Header="P/T"          Binding="{Binding PowerToughness}"  Width="55"/>
+                            <DataGridTextColumn Header="Text"         Binding="{Binding OracleText}"      Width="220"/>
+                            <DataGridTextColumn Header="Flavor"       Binding="{Binding FlavorText}"      Width="160"/>
+                            <DataGridTextColumn Header="Artist"       Binding="{Binding Artist}"          Width="130"/>
+                            <DataGridTextColumn Header="No"           Binding="{Binding CollectorNumber}" Width="55"/>
+                            <DataGridTextColumn Header="Power"        Binding="{Binding Power}"           Width="50"/>
+                            <DataGridTextColumn Header="Toughness"    Binding="{Binding Toughness}"       Width="70"/>
+                            <DataGridTextColumn Header="CMC"          Binding="{Binding ManaValue}"       Width="45"/>
+                            <DataGridTextColumn Header="Row"          Binding="{Binding RowIndex}"        Width="45"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -599,19 +624,28 @@
                     <!-- Bottom label bar -->
                     <Border Grid.Row="0" Style="{DynamicResource GroupByBarStyle}">
                         <DockPanel Margin="6,0">
-                            <TextBlock Name="BottomTableLabel" Text="Collection"
-                                       Foreground="{DynamicResource PrimaryTextBrush}"
-                                       FontWeight="SemiBold" FontSize="13"
-                                       VerticalAlignment="Center" DockPanel.Dock="Left"/>
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        DockPanel.Dock="Left">
+                                <TextBlock Name="BottomTableLabel" Text="Collection"
+                                           Foreground="{DynamicResource PrimaryTextBrush}"
+                                           FontWeight="SemiBold" FontSize="13"
+                                           VerticalAlignment="Center"/>
+                                <StackPanel Name="BottomTableManaSymbols"
+                                            Orientation="Horizontal"
+                                            Margin="6,0,0,0"
+                                            VerticalAlignment="Center"/>
+                            </StackPanel>
                         </DockPanel>
                     </Border>
 
                     <!-- COLLECTION DataGrid -->
                     <DataGrid Name="BottomDataGrid" Grid.Row="1"
-                              AutoGenerateColumns="False" IsReadOnly="True"
+                              AutoGenerateColumns="False" IsReadOnly="False"
                               SelectionMode="Single" GotFocus="BottomDataGrid_GotFocus"
                               SelectionUnit="FullRow" HeadersVisibility="Column"
                               SelectionChanged="BottomDataGrid_SelectionChanged"
+                              CellEditEnding="BottomDataGrid_CellEditEnding"
                               Background="{DynamicResource GridRowBrush}"
                               Foreground="{DynamicResource PrimaryTextBrush}"
                               BorderThickness="0" GridLinesVisibility="None"
@@ -678,25 +712,19 @@
                             </DataTemplate>
                         </DataGrid.RowDetailsTemplate>
                         <DataGrid.Columns>
-                            <!-- Expand/collapse deck usage -->
-                            <DataGridTemplateColumn Header="↕" Width="28">
+                            <DataGridTemplateColumn Header="↕" Width="28" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Button Content="{Binding ExpandGlyph}"
-                    Visibility="{Binding ExpandButtonVisibility}"
-                    IsEnabled="True"
-                    Width="20" Height="20"
-                    FontSize="14" FontWeight="Bold"
-                    Padding="0"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    Cursor="Hand"
-                    Tag="{Binding}"
-                    Click="BtnExpandDeckUsage_Click"/>
+                                                Visibility="{Binding ExpandButtonVisibility}"
+                                                Width="20" Height="20" FontSize="14" FontWeight="Bold"
+                                                Padding="0" Background="Transparent" BorderThickness="0"
+                                                Cursor="Hand" Tag="{Binding}"
+                                                Click="BtnExpandDeckUsage_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="ES" Width="32"  CanUserResize="False">
+                            <DataGridTemplateColumn Header="ES" Width="32" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Image Source="{Binding SetSymbolPath, Converter={StaticResource ImageSourceConverter}}"
@@ -704,105 +732,182 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Name"         Binding="{Binding Name}"            Width="200"/>
-                            <DataGridTextColumn Header="Edition"      Binding="{Binding SetCode}"         Width="60"/>
-                            <DataGridTextColumn Header="Edition Name" Binding="{Binding SetName}"         Width="160"/>
-                            <!-- Qty spinner -->
-                            <DataGridTemplateColumn Header="Qty" Width="95">
+                            <DataGridTextColumn Header="Name"         Binding="{Binding Name}"              Width="200" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Edition"      Binding="{Binding SetCode}"           Width="55"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Qty"          Binding="{Binding Quantity}"          Width="45"/>
+                            <DataGridTextColumn Header="Foil Qty"     Binding="{Binding FoilQuantity}"      Width="60"/>
+                            <DataGridTextColumn Header="Used"         Binding="{Binding UsedCount}"         Width="50"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Available"    Binding="{Binding AvailableCount}"    Width="70"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Buy At"       Binding="{Binding BuyAt}"             Width="70"/>
+                            <DataGridTextColumn Header="Sell At"      Binding="{Binding SellAt}"            Width="70"/>
+                            <DataGridTextColumn Header="Sell At Value" Binding="{Binding SellAtValue}"      Width="90"/>
+                            <DataGridTextColumn Header="Price High"   Binding="{Binding PriceHigh}"         Width="80"/>
+                            <DataGridTextColumn Header="Market Value" Binding="{Binding MarketValue}"       Width="90"/>
+                            <DataGridTextColumn Header="Needed"       Binding="{Binding Needed}"            Width="60"/>
+                            <DataGridTextColumn Header="Excess"       Binding="{Binding Excess}"            Width="60"/>
+                            <DataGridTextColumn Header="Target"       Binding="{Binding Target}"            Width="60"/>
+                            <DataGridTemplateColumn Header="Condition" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid>
-                                            <TextBlock Text="{Binding Quantity}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                <StackPanel.Style>
-                                                    <Style TargetType="StackPanel">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </StackPanel.Style>
-                                                <Button Content="−" Width="22" Height="20" FontSize="13" Padding="0" Tag="{Binding}" Click="BtnQtyMinus_Row_Click"/>
-                                                <TextBox Width="34" Height="20" Text="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" FontSize="13" Padding="0" BorderThickness="1" Tag="{Binding}" TextChanged="TxtQtyRow_TextChanged" PreviewKeyDown="TxtQtyRow_KeyDown"/>
-                                                <Button Content="+" Width="22" Height="20" FontSize="13" Padding="0" Tag="{Binding}" Click="BtnQtyPlus_Row_Click"/>
-                                            </StackPanel>
-                                        </Grid>
+                                        <TextBlock Text="{Binding Condition}" VerticalAlignment="Center" Margin="4,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox SelectedItem="{Binding Condition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center">
+                                            <ComboBoxItem Content="Unknown"/>
+                                            <ComboBoxItem Content="Sealed"/>
+                                            <ComboBoxItem Content="Brand New"/>
+                                            <ComboBoxItem Content="Mint"/>
+                                            <ComboBoxItem Content="Near Mint"/>
+                                            <ComboBoxItem Content="Fine"/>
+                                            <ComboBoxItem Content="Good"/>
+                                            <ComboBoxItem Content="Fair"/>
+                                            <ComboBoxItem Content="Poor"/>
+                                            <ComboBoxItem Content="Misprint"/>
+                                            <ComboBoxItem Content="Signed"/>
+                                            <ComboBoxItem Content="Foreign"/>
+                                            <ComboBoxItem Content="Graded"/>
+                                            <ComboBoxItem Content="Laminated"/>
+                                            <ComboBoxItem Content="Proof"/>
+                                        </ComboBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Notes"        Binding="{Binding Notes}"             Width="150"/>
+                            <DataGridTextColumn Header="Storage"      Binding="{Binding StorageLocation}"   Width="100"/>
+                            <DataGridTemplateColumn Header="Desired" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Desired}" VerticalAlignment="Center" Margin="4,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox SelectedItem="{Binding Desired, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center">
+                                            <ComboBoxItem Content="Unassigned"/>
+                                            <ComboBoxItem Content="Junk"/>
+                                            <ComboBoxItem Content="Needed"/>
+                                            <ComboBoxItem Content="Needed Badly"/>
+                                            <ComboBoxItem Content="Normal"/>
+                                            <ComboBoxItem Content="Not Needed"/>
+                                        </ComboBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Group"        Binding="{Binding Group}"             Width="80"/>
+                            <DataGridTemplateColumn Header="Print Type" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding PrintType}" VerticalAlignment="Center" Margin="4,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox SelectedItem="{Binding PrintType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center">
+                                            <ComboBoxItem Content="Unknown"/>
+                                            <ComboBoxItem Content="Duels"/>
+                                            <ComboBoxItem Content="MTGA"/>
+                                            <ComboBoxItem Content="MTGO"/>
+                                            <ComboBoxItem Content="Paper"/>
+                                            <ComboBoxItem Content="Proxy"/>
+                                            <ComboBoxItem Content="Virtual"/>
+                                        </ComboBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Buy" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding BuyStatus}" VerticalAlignment="Center" Margin="4,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox SelectedItem="{Binding BuyStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center">
+                                            <ComboBoxItem Content="Unassigned"/>
+                                            <ComboBoxItem Content="None"/>
+                                            <ComboBoxItem Content="Buy"/>
+                                            <ComboBoxItem Content="Exchange"/>
+                                            <ComboBoxItem Content="B&amp;E"/>
+                                        </ComboBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Sell" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding SellStatus}" VerticalAlignment="Center" Margin="4,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox SelectedItem="{Binding SellStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center">
+                                            <ComboBoxItem Content="Unassigned"/>
+                                            <ComboBoxItem Content="None"/>
+                                            <ComboBoxItem Content="Buy"/>
+                                            <ComboBoxItem Content="Exchange"/>
+                                            <ComboBoxItem Content="B&amp;E"/>
+                                        </ComboBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Added"        Binding="{Binding DateAdded, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" Width="130" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Market Price"  Binding="{Binding PriceUsdDisplay}"  Width="90"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Price Low"     Binding="{Binding PriceLowDisplay}"  Width="80"  IsReadOnly="True"/>
+                            <!-- Legal: S M P L V coloured pills -->
+                            <DataGridTemplateColumn Header="Legal" Width="100" IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="2,0">
+                                            <Border CornerRadius="3" Margin="1,0" Padding="3,1"
+                                                    Background="{Binding IsLegalStandard, Converter={StaticResource BoolToGreenRedConverter}}">
+                                                <TextBlock Text="S" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                            <Border CornerRadius="3" Margin="1,0" Padding="3,1"
+                                                    Background="{Binding IsLegalModern, Converter={StaticResource BoolToGreenRedConverter}}">
+                                                <TextBlock Text="M" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                            <Border CornerRadius="3" Margin="1,0" Padding="3,1"
+                                                    Background="{Binding IsLegalPioneer, Converter={StaticResource BoolToGreenRedConverter}}">
+                                                <TextBlock Text="P" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                            <Border CornerRadius="3" Margin="1,0" Padding="3,1"
+                                                    Background="{Binding IsLegalLegacy, Converter={StaticResource BoolToGreenRedConverter}}">
+                                                <TextBlock Text="L" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                            <Border CornerRadius="3" Margin="1,0" Padding="3,1"
+                                                    Background="{Binding IsLegalVintage, Converter={StaticResource BoolToGreenRedConverter}}">
+                                                <TextBlock Text="V" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                        </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <!-- Foil Qty spinner -->
-                            <DataGridTemplateColumn Header="Foil Qty" Width="105">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid>
-                                            <TextBlock Text="{Binding FoilQuantity}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                <StackPanel.Style>
-                                                    <Style TargetType="StackPanel">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </StackPanel.Style>
-                                                <Button Content="−" Width="22" Height="20" FontSize="13" Padding="0" Tag="{Binding}" Click="BtnFoilQtyMinus_Row_Click"/>
-                                                <TextBox Width="34" Height="20" Text="{Binding FoilQuantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" FontSize="13" Padding="0" BorderThickness="1" Tag="{Binding}" TextChanged="TxtFoilQtyRow_TextChanged" PreviewKeyDown="TxtFoilQtyRow_KeyDown"/>
-                                                <Button Content="+" Width="22" Height="20" FontSize="13" Padding="0" Tag="{Binding}" Click="BtnFoilQtyPlus_Row_Click"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Used"        Binding="{Binding UsedCount}"           Width="50"/>
-                            <DataGridTextColumn Header="Available"   Binding="{Binding AvailableCount}"      Width="75"/>
-                            <DataGridTextColumn Header="USD"         Binding="{Binding PriceUsdDisplay}"     Width="70"/>
-                            <DataGridTextColumn Header="USD Foil"    Binding="{Binding PriceUsdFoilDisplay}" Width="80"/>
-                            <DataGridTextColumn Header="Value"       Binding="{Binding ValueDisplay}"        Width="75"/>
-                            <DataGridTextColumn Header="Foil Value"  Binding="{Binding FoilValueDisplay}"    Width="80"/>
-                            <DataGridTextColumn Header="Total Value" Binding="{Binding TotalValueDisplay}"   Width="85"/>
-                            <DataGridTextColumn Header="Color"       Binding="{Binding ColorDisplay}" Width="50"/>
-                            <DataGridTextColumn Header="Color ID"    Binding="{Binding ColorIdentity}" Width="80"/>
-                            <DataGridTextColumn Header="Type"        Binding="{Binding TypeLine}"            Width="160"/>
-                            <DataGridTextColumn Header="Rarity"      Binding="{Binding RarityCode}"          Width="50"/>
-                            <DataGridTemplateColumn Header="Cost" Width="110">
+                            <DataGridTextColumn Header="Color"        Binding="{Binding ColorDisplay}"      Width="50"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Type"         Binding="{Binding TypeLine}"          Width="160" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Rarity"       Binding="{Binding RarityCode}"        Width="50"  IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Cost" Width="110" IsReadOnly="True">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ContentPresenter Content="{Binding ManaCost, Converter={StaticResource ManaCostConverter}}" VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="P/T"         Binding="{Binding PowerToughness}"      Width="55"/>
-                            <DataGridTextColumn Header="Condition"   Binding="{Binding Condition}"           Width="85"/>
-                            <DataGridTextColumn Header="Language"    Binding="{Binding Language}"            Width="75"/>
-                            <DataGridTextColumn Header="Storage"     Binding="{Binding StorageLocation}"     Width="100"/>
-                            <DataGridTextColumn Header="Artist"      Binding="{Binding Artist}"              Width="130"/>
-                            <DataGridTextColumn Header="No"          Binding="{Binding CollectorNumber}"     Width="55"/>
+                            <DataGridTextColumn Header="P/T"          Binding="{Binding PowerToughness}"    Width="55"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Text"         Binding="{Binding OracleText}"        Width="220" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Flavor"       Binding="{Binding FlavorText}"        Width="160" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Artist"       Binding="{Binding Artist}"            Width="130" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="No"           Binding="{Binding CollectorNumber}"   Width="55"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Power"        Binding="{Binding Power}"             Width="50"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Toughness"    Binding="{Binding Toughness}"         Width="70"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="CMC"          Binding="{Binding ManaValue}"         Width="45"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Row"          Binding="{Binding RowIndex}"          Width="45"  IsReadOnly="True"/>
                         </DataGrid.Columns>
                     </DataGrid>
 

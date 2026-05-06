@@ -7,8 +7,9 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
             </ResourceDictionary.MergedDictionaries>
-            <services:ImageSourceConverter x:Key="ImageSourceConverter"/>
-            <services:ManaCostConverter x:Key="ManaCostConverter"/>
+            <services:ImageSourceConverter    x:Key="ImageSourceConverter"/>
+            <services:ManaCostConverter       x:Key="ManaCostConverter"/>
+            <services:BoolToGreenRedConverter x:Key="BoolToGreenRedConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

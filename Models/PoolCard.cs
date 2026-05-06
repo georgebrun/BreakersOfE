@@ -130,6 +130,26 @@ namespace BreakersOfE.Models
         [NotMapped] public string LegalityCommander => GetLegality("commander");
         [NotMapped] public string LegalityPauper => GetLegality("pauper");
 
+        // S=Standard M=Modern P=Pioneer L=Legacy V=Vintage — true = legal
+        [NotMapped] public bool IsLegalStandard => GetLegalityRaw("standard") == "legal";
+        [NotMapped] public bool IsLegalModern => GetLegalityRaw("modern") == "legal";
+        [NotMapped] public bool IsLegalPioneer => GetLegalityRaw("pioneer") == "legal";
+        [NotMapped] public bool IsLegalLegacy => GetLegalityRaw("legacy") == "legal";
+        [NotMapped] public bool IsLegalVintage => GetLegalityRaw("vintage") == "legal";
+
+        private string GetLegalityRaw(string format)
+        {
+            if (string.IsNullOrWhiteSpace(LegalitiesJson)) return string.Empty;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(LegalitiesJson);
+                if (doc.RootElement.TryGetProperty(format, out var v))
+                    return v.GetString()?.ToLower() ?? string.Empty;
+            }
+            catch { }
+            return string.Empty;
+        }
+
         private string GetLegality(string format)
         {
             if (string.IsNullOrWhiteSpace(LegalitiesJson))
