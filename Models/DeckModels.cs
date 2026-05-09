@@ -55,6 +55,41 @@ namespace BreakersOfE.Models
         public string Rarity { get; set; } = string.Empty;
         public string Artist { get; set; } = string.Empty;
         public string FlavorText { get; set; } = string.Empty;
+
+        // ── Legality ──────────────────────────────────────────────────────────
+        public string LegalitiesJson { get; set; } = string.Empty;
+
+        [JsonIgnore]
+        public bool IsLegalStandard => GetLegalityRaw("standard") == "legal";
+        [JsonIgnore]
+        public bool IsLegalModern => GetLegalityRaw("modern") == "legal";
+        [JsonIgnore]
+        public bool IsLegalPioneer => GetLegalityRaw("pioneer") == "legal";
+        [JsonIgnore]
+        public bool IsLegalLegacy => GetLegalityRaw("legacy") == "legal";
+        [JsonIgnore]
+        public bool IsLegalVintage => GetLegalityRaw("vintage") == "legal";
+
+        private string GetLegalityRaw(string format)
+        {
+            if (string.IsNullOrWhiteSpace(LegalitiesJson)) return string.Empty;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(LegalitiesJson);
+                if (doc.RootElement.TryGetProperty(format, out var v))
+                    return v.GetString()?.ToLower() ?? string.Empty;
+            }
+            catch { }
+            return string.Empty;
+        }
+
+        // ── Sideboard ─────────────────────────────────────────────────────────
+        [JsonIgnore]
+        public string SideboardDisplay =>
+            Category == DeckCardCategory.Sideboard ? "SB" : string.Empty;
+
+        // ── Row index ─────────────────────────────────────────────────────────
+        public int RowIndex { get; set; }
         public bool IsFoil { get; set; }
         public bool IsNonFoil { get; set; }
         public string ImageNormalUrl { get; set; } = string.Empty;

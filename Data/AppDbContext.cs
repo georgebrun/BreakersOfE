@@ -59,8 +59,18 @@ namespace BreakersOfE.Data
                 catch { /* Column already exists — ignore */ }
             }
 
-            // New CollectionEntries trading/inventory columns
-            var collectionCols = new (string col, string type, string def)[]
+            // New trading/inventory columns for all collection tables
+            var allCollectionTables = new[]
+            {
+                "CollectionEntries",
+                "TokenCollectionEntries",
+                "PlanarCollectionEntries",
+                "SchemeCollectionEntries",
+                "VanguardCollectionEntries",
+                "ArtSeriesCollectionEntries",
+            };
+
+            var tradingCols = new (string col, string type, string def)[]
             {
                 ("BuyAt",       "REAL",    ""),
                 ("SellAt",      "REAL",    ""),
@@ -72,24 +82,72 @@ namespace BreakersOfE.Data
                 ("Excess",      "INTEGER", "NOT NULL DEFAULT 0"),
                 ("Target",      "INTEGER", "NOT NULL DEFAULT 0"),
                 ("Desired",     "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
-                ("Group",       "TEXT",    "NOT NULL DEFAULT ''"),
+                ("CardGroup",       "TEXT",    "NOT NULL DEFAULT ''"),
                 ("PrintType",   "TEXT",    "NOT NULL DEFAULT 'Unknown'"),
                 ("BuyStatus",   "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
                 ("SellStatus",  "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
             };
 
-            foreach (var (col, type, def) in collectionCols)
-            {
-                try
+            foreach (var table in allCollectionTables)
+                foreach (var (col, type, def) in tradingCols)
                 {
+                    try
+                    {
 #pragma warning disable EF1002
-                    Database.ExecuteSqlRaw(
-                        $"ALTER TABLE CollectionEntries ADD COLUMN {col} {type} {(string.IsNullOrEmpty(def) ? "" : def)}");
+                        Database.ExecuteSqlRaw(
+                            $"ALTER TABLE {table} ADD COLUMN `{col}` {type} {def}");
 #pragma warning restore EF1002
+                    }
+                    catch { /* Column already exists — ignore */ }
                 }
-                catch { /* Column already exists — ignore */ }
+
+            // (Legacy block kept for CollectionEntries-only migration — now handled above)
+            // New CollectionEntries trading/inventory columns
+
+
+            // New fields for special collection tables
+            var specialTables = new[]
+            {
+                "TokenCollectionEntries",
+                "PlanarCollectionEntries",
+                "SchemeCollectionEntries",
+                "VanguardCollectionEntries",
+                "ArtSeriesCollectionEntries"
+            };
+
+            foreach (var tbl in specialTables)
+            {
+                var specialCols = new (string col, string type, string def)[]
+                {
+                    ("BuyAt",       "REAL",    ""),
+                    ("SellAt",      "REAL",    ""),
+                    ("SellAtValue", "REAL",    ""),
+                    ("PriceHigh",   "REAL",    ""),
+                    ("MarketValue", "REAL",    ""),
+                    ("PriceLow",    "REAL",    ""),
+                    ("Needed",      "INTEGER", "NOT NULL DEFAULT 0"),
+                    ("Excess",      "INTEGER", "NOT NULL DEFAULT 0"),
+                    ("Target",      "INTEGER", "NOT NULL DEFAULT 0"),
+                    ("Desired",     "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
+                    ("CardGroup",       "TEXT",    "NOT NULL DEFAULT ''"),
+                    ("PrintType",   "TEXT",    "NOT NULL DEFAULT 'Unknown'"),
+                    ("BuyStatus",   "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
+                    ("SellStatus",  "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
+                };
+                foreach (var (col, type, def) in specialCols)
+                {
+                    try
+                    {
+#pragma warning disable EF1002
+                        Database.ExecuteSqlRaw(
+                            $"ALTER TABLE {tbl} ADD COLUMN {col} {type} {def}");
+#pragma warning restore EF1002
+                    }
+                    catch { }
+                }
             }
         }
+
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

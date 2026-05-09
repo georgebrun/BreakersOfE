@@ -18,8 +18,6 @@ namespace BreakersOfE.Models
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
         public int UsedCount { get; set; } = 0;
-
-        // ── New trading/inventory fields ──────────────────────────────────────
         public decimal? BuyAt { get; set; }
         public decimal? SellAt { get; set; }
         public decimal? SellAtValue { get; set; }
@@ -30,7 +28,7 @@ namespace BreakersOfE.Models
         public int Excess { get; set; } = 0;
         public int Target { get; set; } = 0;
         public string Desired { get; set; } = "Unassigned";
-        public string Group { get; set; } = string.Empty;
+        public string CardGroup { get; set; } = string.Empty;
         public string PrintType { get; set; } = "Unknown";
         public string BuyStatus { get; set; } = "Unassigned";
         public string SellStatus { get; set; } = "Unassigned";
@@ -44,13 +42,27 @@ namespace BreakersOfE.Models
         public int TokenId { get; set; }
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
-        public string Condition { get; set; } = string.Empty;
+        public string Condition { get; set; } = "Unknown";
         public string Language { get; set; } = "English";
         public string Notes { get; set; } = string.Empty;
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
         public int UsedCount { get; set; } = 0;
+        public decimal? BuyAt { get; set; }
+        public decimal? SellAt { get; set; }
+        public decimal? SellAtValue { get; set; }
+        public decimal? PriceHigh { get; set; }
+        public decimal? MarketValue { get; set; }
+        public decimal? PriceLow { get; set; }
+        public int Needed { get; set; } = 0;
+        public int Excess { get; set; } = 0;
+        public int Target { get; set; } = 0;
+        public string Desired { get; set; } = "Unassigned";
+        public string CardGroup { get; set; } = string.Empty;
+        public string PrintType { get; set; } = "Unknown";
+        public string BuyStatus { get; set; } = "Unassigned";
+        public string SellStatus { get; set; } = "Unassigned";
     }
 
     // ── Planar Collection ───────────────────────────────────────────────────
@@ -61,13 +73,27 @@ namespace BreakersOfE.Models
         public int PlanarId { get; set; }
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
-        public string Condition { get; set; } = string.Empty;
+        public string Condition { get; set; } = "Unknown";
         public string Language { get; set; } = "English";
         public string Notes { get; set; } = string.Empty;
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
         public int UsedCount { get; set; } = 0;
+        public decimal? BuyAt { get; set; }
+        public decimal? SellAt { get; set; }
+        public decimal? SellAtValue { get; set; }
+        public decimal? PriceHigh { get; set; }
+        public decimal? MarketValue { get; set; }
+        public decimal? PriceLow { get; set; }
+        public int Needed { get; set; } = 0;
+        public int Excess { get; set; } = 0;
+        public int Target { get; set; } = 0;
+        public string Desired { get; set; } = "Unassigned";
+        public string CardGroup { get; set; } = string.Empty;
+        public string PrintType { get; set; } = "Unknown";
+        public string BuyStatus { get; set; } = "Unassigned";
+        public string SellStatus { get; set; } = "Unassigned";
     }
 
     // ── Scheme Collection ───────────────────────────────────────────────────
@@ -78,13 +104,27 @@ namespace BreakersOfE.Models
         public int SchemeId { get; set; }
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
-        public string Condition { get; set; } = string.Empty;
+        public string Condition { get; set; } = "Unknown";
         public string Language { get; set; } = "English";
         public string Notes { get; set; } = string.Empty;
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
         public int UsedCount { get; set; } = 0;
+        public decimal? BuyAt { get; set; }
+        public decimal? SellAt { get; set; }
+        public decimal? SellAtValue { get; set; }
+        public decimal? PriceHigh { get; set; }
+        public decimal? MarketValue { get; set; }
+        public decimal? PriceLow { get; set; }
+        public int Needed { get; set; } = 0;
+        public int Excess { get; set; } = 0;
+        public int Target { get; set; } = 0;
+        public string Desired { get; set; } = "Unassigned";
+        public string CardGroup { get; set; } = string.Empty;
+        public string PrintType { get; set; } = "Unknown";
+        public string BuyStatus { get; set; } = "Unassigned";
+        public string SellStatus { get; set; } = "Unassigned";
     }
 
     // ── Vanguard Collection ─────────────────────────────────────────────────
@@ -95,13 +135,27 @@ namespace BreakersOfE.Models
         public int VanguardId { get; set; }
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
-        public string Condition { get; set; } = string.Empty;
+        public string Condition { get; set; } = "Unknown";
         public string Language { get; set; } = "English";
         public string Notes { get; set; } = string.Empty;
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
         public int UsedCount { get; set; } = 0;
+        public decimal? BuyAt { get; set; }
+        public decimal? SellAt { get; set; }
+        public decimal? SellAtValue { get; set; }
+        public decimal? PriceHigh { get; set; }
+        public decimal? MarketValue { get; set; }
+        public decimal? PriceLow { get; set; }
+        public int Needed { get; set; } = 0;
+        public int Excess { get; set; } = 0;
+        public int Target { get; set; } = 0;
+        public string Desired { get; set; } = "Unassigned";
+        public string CardGroup { get; set; } = string.Empty;
+        public string PrintType { get; set; } = "Unknown";
+        public string BuyStatus { get; set; } = "Unassigned";
+        public string SellStatus { get; set; } = "Unassigned";
     }
 
     // ── Conspiracy Collection ───────────────────────────────────────────────
@@ -112,7 +166,7 @@ namespace BreakersOfE.Models
         public int ConspiracyId { get; set; }
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
-        public string Condition { get; set; } = string.Empty;
+        public string Condition { get; set; } = "Unknown";
         public string Language { get; set; } = "English";
         public string Notes { get; set; } = string.Empty;
         public string StorageLocation { get; set; } = string.Empty;
@@ -128,13 +182,27 @@ namespace BreakersOfE.Models
         public int ArtSeriesId { get; set; }
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
-        public string Condition { get; set; } = string.Empty;
+        public string Condition { get; set; } = "Unknown";
         public string Language { get; set; } = "English";
         public string Notes { get; set; } = string.Empty;
         public string StorageLocation { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
         public DateTime DateModified { get; set; } = DateTime.Now;
         public int UsedCount { get; set; } = 0;
+        public decimal? BuyAt { get; set; }
+        public decimal? SellAt { get; set; }
+        public decimal? SellAtValue { get; set; }
+        public decimal? PriceHigh { get; set; }
+        public decimal? MarketValue { get; set; }
+        public decimal? PriceLow { get; set; }
+        public int Needed { get; set; } = 0;
+        public int Excess { get; set; } = 0;
+        public int Target { get; set; } = 0;
+        public string Desired { get; set; } = "Unassigned";
+        public string CardGroup { get; set; } = string.Empty;
+        public string PrintType { get; set; } = "Unknown";
+        public string BuyStatus { get; set; } = "Unassigned";
+        public string SellStatus { get; set; } = "Unassigned";
     }
 
     // ── Trade Binder ────────────────────────────────────────────────────────
@@ -160,6 +228,4 @@ namespace BreakersOfE.Models
         public string Key { get; set; } = string.Empty;
         public string Value { get; set; } = string.Empty;
     }
-
-
 }

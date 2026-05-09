@@ -48,6 +48,36 @@ namespace BreakersOfE
 
         // ── Lock key prefix for AppSettings ──────────────────────────────────
         private const string LockKeyPrefix = "Lock_";
+        private const string ColVisPrefix = "ColVis_";
+        private const string ColOrderPrefix = "ColOrder_";
+
+        // ── AppSettings helpers ───────────────────────────────────────────────
+        private static string? GetSetting(string key)
+        {
+            try
+            {
+                using var db = new Data.AppDbContext();
+                return db.AppSettings
+                    .FirstOrDefault(s => s.Key == key)?.Value;
+            }
+            catch { return null; }
+        }
+
+        private static void SaveSetting(string key, string value)
+        {
+            try
+            {
+                using var db = new Data.AppDbContext();
+                var s = db.AppSettings.FirstOrDefault(s => s.Key == key);
+                if (s == null)
+                    db.AppSettings.Add(new Models.AppSetting
+                    { Key = key, Value = value });
+                else
+                    s.Value = value;
+                db.SaveChanges();
+            }
+            catch { }
+        }
 
         // ── Asset folders ────────────────────────────────────────────────────
         private string SetSymbolsFolder =>
@@ -84,8 +114,11 @@ namespace BreakersOfE
         }
 
         private void BtnDeckLegality_Click(object sender, RoutedEventArgs e)
-            => MessageBox.Show("Deck Legality window coming soon!",
-                "Coming Soon", MessageBoxButton.OK, MessageBoxImage.Information);
+        {
+            if (_activeDeck == null) return;
+            var win = new Windows.DeckStatisticsWindow(_activeDeck) { Owner = this };
+            win.Show();
+        }
 
         private void BtnAddToDeck_Click(object sender, RoutedEventArgs e)
             => AddFromTopSelectionToDeck(foil: false);
@@ -173,18 +206,134 @@ namespace BreakersOfE
         private void BtnAdvancedFilter_Click(object sender, RoutedEventArgs e)
             => OpenFilterWindow(top: !_bottomTableHasFocus);
 
+        private void ChooserBtn_DeckGrid_PreviewMouseDown(object sender,
+            System.Windows.Input.MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is not Button btn) return;
+
+            // For deck grids, walk up to find the DataGrid
+            var header = FindParent<DataGridColumnHeader>(btn);
+            var grid = header != null
+                ? FindParent<DataGrid>(header)
+                : FindParent<DataGrid>(btn);
+            if (grid == null) return;
+
+            try
+            {
+                var popup = new Windows.ColumnChooserPopup(grid, "Deck")
+                { Owner = this };
+                var screenPos = btn.PointToScreen(new Point(0, btn.ActualHeight));
+                popup.Left = screenPos.X;
+                popup.Top = screenPos.Y;
+                popup.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Column chooser error:\n{ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ChooserBtn_PreviewMouseDown(object sender,
+            System.Windows.Input.MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is not Button btn) return;
+
+            bool isDeckTabMode = _currentMode == "PoolToDeck" ||
+                                 _currentMode == "CollectionToDeck";
+
+            DataGrid? grid;
+            string tableKey;
+
+            if (btn.Tag is string t && t == "Bottom")
+            {
+                // Bottom button — in deck tab modes show the active deck grid
+                if (isDeckTabMode && _activeDeck != null)
+                {
+                    grid = GetActiveDeckGrid();
+                    tableKey = "Deck";
+                }
+                else
+                {
+                    grid = BottomDataGrid;
+                    tableKey = GetTableKey(BottomDataGrid);
+                }
+            }
+            else
+            {
+                // Top button
+                grid = TopDataGrid;
+                tableKey = GetTableKey(TopDataGrid);
+            }
+
+            if (grid == null) return;
+
+            try
+            {
+                var popup = new Windows.ColumnChooserPopup(grid, tableKey)
+                { Owner = this };
+                var screenPos = btn.PointToScreen(new Point(0, btn.ActualHeight));
+                popup.Left = screenPos.X;
+                popup.Top = screenPos.Y;
+                popup.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Column chooser error:\n{ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void BtnColumnChooser_Click(object sender, RoutedEventArgs e)
         {
-            var grid = _bottomTableHasFocus
-                ? (DataGrid)BottomDataGrid
-                : TopDataGrid;
-            var popup = new BreakersOfE.Windows.ColumnChooserPopup(grid)
-            { Owner = this };
-            var btn = sender as Button;
-            var screenPos = btn!.PointToScreen(new Point(0, btn.ActualHeight));
-            popup.Left = screenPos.X;
-            popup.Top = screenPos.Y;
-            popup.Show();
+            System.Diagnostics.Debug.WriteLine("[ColChooser] Click fired.");
+            if (sender is not Button btn) return;
+            e.Handled = true;
+
+            bool isDeckTabMode = _currentMode == "PoolToDeck" ||
+                                 _currentMode == "CollectionToDeck";
+
+            DataGrid? grid;
+            string tableKey;
+
+            if (isDeckTabMode && _activeDeck != null)
+            {
+                grid = GetActiveDeckGrid();
+                tableKey = "Deck";
+            }
+            else if (_bottomTableHasFocus)
+            {
+                grid = BottomDataGrid;
+                tableKey = GetTableKey(BottomDataGrid);
+            }
+            else
+            {
+                grid = TopDataGrid;
+                tableKey = GetTableKey(TopDataGrid);
+            }
+
+            if (grid == null) return;
+
+            System.Diagnostics.Debug.WriteLine(
+                $"[ColChooser] Using grid={grid.Name}, tableKey={tableKey}");
+
+            try
+            {
+                var popup = new Windows.ColumnChooserPopup(grid, tableKey)
+                { Owner = this };
+                var screenPos = btn.PointToScreen(new Point(0, btn.ActualHeight));
+                popup.Left = screenPos.X;
+                popup.Top = screenPos.Y;
+                popup.Show();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ColChooser] EXCEPTION: {ex}");
+                MessageBox.Show($"Column chooser error:\n{ex.Message}",
+                    "Debug", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void AddFromTopSelectionToDeck(bool foil)
@@ -630,9 +779,8 @@ namespace BreakersOfE
         private void BtnDeckStats_Click(object sender, RoutedEventArgs e)
         {
             if (_activeDeck == null) return;
-            MessageBox.Show("Deck Statistics window coming in Round 5!",
-                "Coming Soon", MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            var win = new Windows.DeckStatisticsWindow(_activeDeck) { Owner = this };
+            win.Show();
         }
 
         // ── Save deck ─────────────────────────────────────────────────────────────
@@ -865,7 +1013,37 @@ namespace BreakersOfE
             if (!commander)
                 grid.CellEditEnding += DeckGrid_CellEditEnding;
 
-            // Columns
+            // ── Column chooser button (fixed, leftmost) ────────────────────
+            var chooserCol = new DataGridTemplateColumn
+            {
+                Width = new DataGridLength(22),
+                CanUserResize = false,
+                CanUserReorder = false,
+                CanUserSort = false
+            };
+            var chooserHeaderTemplate = new DataTemplate();
+            var btnFactory = new FrameworkElementFactory(typeof(Button));
+            btnFactory.SetValue(Button.ContentProperty, "\u2630");
+            btnFactory.SetValue(Button.WidthProperty, 18.0);
+            btnFactory.SetValue(Button.HeightProperty, 18.0);
+            btnFactory.SetValue(Button.PaddingProperty, new Thickness(0));
+            btnFactory.SetValue(Button.FontSizeProperty, 10.0);
+            btnFactory.SetValue(Button.ToolTipProperty, "Show/Hide Columns");
+            btnFactory.SetValue(Button.StyleProperty,
+                (Style)FindResource("BaseButtonStyle"));
+            btnFactory.AddHandler(
+                Button.PreviewMouseLeftButtonDownEvent,
+                new System.Windows.Input.MouseButtonEventHandler(
+                    ChooserBtn_DeckGrid_PreviewMouseDown));
+            chooserHeaderTemplate.VisualTree = btnFactory;
+            chooserCol.HeaderTemplate = chooserHeaderTemplate;
+            var emptyCell = new DataTemplate();
+            emptyCell.VisualTree = new FrameworkElementFactory(typeof(TextBlock));
+            chooserCol.CellTemplate = emptyCell;
+            grid.Columns.Add(chooserCol);
+
+            // ── Columns in requested order ─────────────────────────────────
+            // ES
             grid.Columns.Add(new DataGridTemplateColumn
             {
                 Header = "ES",
@@ -874,6 +1052,7 @@ namespace BreakersOfE
                 CellTemplate = CreateSetSymbolTemplate()
             });
 
+            // Name
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "Name",
@@ -881,13 +1060,15 @@ namespace BreakersOfE
                 Width = new DataGridLength(200)
             });
 
-            grid.Columns.Add(new DataGridTextColumn
+            // Legality pills
+            grid.Columns.Add(new DataGridTemplateColumn
             {
-                Header = "Edition",
-                Binding = new System.Windows.Data.Binding("SetCode"),
-                Width = new DataGridLength(60)
+                Header = "Legal",
+                Width = new DataGridLength(100),
+                CellTemplate = CreateLegalityPillTemplate()
             });
 
+            // Qty (total, read-only)
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "Qty",
@@ -896,46 +1077,32 @@ namespace BreakersOfE
                 IsReadOnly = true
             });
 
+            // SB (sideboard indicator)
             grid.Columns.Add(new DataGridTextColumn
             {
-                Header = "Non-Foil",
-                Binding = new System.Windows.Data.Binding("Quantity")
-                {
-                    Mode = System.Windows.Data.BindingMode.TwoWay,
-                    UpdateSourceTrigger =
-                        System.Windows.Data.UpdateSourceTrigger.LostFocus
-                },
-                Width = new DataGridLength(58),
-                IsReadOnly = false
+                Header = "SB",
+                Binding = new System.Windows.Data.Binding("SideboardDisplay"),
+                Width = new DataGridLength(35),
+                IsReadOnly = true
             });
 
+            // Edition (abbreviation)
             grid.Columns.Add(new DataGridTextColumn
             {
-                Header = "Foil",
-                Binding = new System.Windows.Data.Binding("FoilQuantity")
-                {
-                    Mode = System.Windows.Data.BindingMode.TwoWay,
-                    UpdateSourceTrigger =
-                        System.Windows.Data.UpdateSourceTrigger.LostFocus
-                },
-                Width = new DataGridLength(45),
-                IsReadOnly = false
+                Header = "Edition",
+                Binding = new System.Windows.Data.Binding("SetCode"),
+                Width = new DataGridLength(55)
             });
 
-            grid.Columns.Add(new DataGridTextColumn
-            {
-                Header = "Category",
-                Binding = new System.Windows.Data.Binding("CategoryDisplay"),
-                Width = new DataGridLength(85)
-            });
-
+            // Color
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "Color",
                 Binding = new System.Windows.Data.Binding("ColorDisplay"),
-                Width = new DataGridLength(55)
+                Width = new DataGridLength(50)
             });
 
+            // Type
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "Type",
@@ -943,6 +1110,7 @@ namespace BreakersOfE
                 Width = new DataGridLength(160)
             });
 
+            // Rarity
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "Rarity",
@@ -950,6 +1118,7 @@ namespace BreakersOfE
                 Width = new DataGridLength(50)
             });
 
+            // Cost (mana symbols)
             grid.Columns.Add(new DataGridTemplateColumn
             {
                 Header = "Cost",
@@ -957,6 +1126,23 @@ namespace BreakersOfE
                 CellTemplate = CreateManaCostTemplate()
             });
 
+            // Text
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Text",
+                Binding = new System.Windows.Data.Binding("OracleText"),
+                Width = new DataGridLength(200)
+            });
+
+            // Flavor
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Flavor",
+                Binding = new System.Windows.Data.Binding("FlavorText"),
+                Width = new DataGridLength(160)
+            });
+
+            // P/T
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "P/T",
@@ -964,18 +1150,61 @@ namespace BreakersOfE
                 Width = new DataGridLength(55)
             });
 
+            // Artist
             grid.Columns.Add(new DataGridTextColumn
             {
-                Header = "USD",
-                Binding = new System.Windows.Data.Binding("PriceUsdDisplay"),
+                Header = "Artist",
+                Binding = new System.Windows.Data.Binding("Artist"),
+                Width = new DataGridLength(130)
+            });
+
+            // Edition Name
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Edition Name",
+                Binding = new System.Windows.Data.Binding("SetName"),
+                Width = new DataGridLength(160)
+            });
+
+            // Number (collector number)
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Number",
+                Binding = new System.Windows.Data.Binding("CollectorNumber"),
+                Width = new DataGridLength(65)
+            });
+
+            // Power
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Power",
+                Binding = new System.Windows.Data.Binding("Power"),
+                Width = new DataGridLength(50)
+            });
+
+            // Toughness
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Toughness",
+                Binding = new System.Windows.Data.Binding("Toughness"),
                 Width = new DataGridLength(70)
             });
 
+            // CMC
             grid.Columns.Add(new DataGridTextColumn
             {
-                Header = "Value",
-                Binding = new System.Windows.Data.Binding("ValueDisplay"),
-                Width = new DataGridLength(70)
+                Header = "CMC",
+                Binding = new System.Windows.Data.Binding("ManaValue"),
+                Width = new DataGridLength(45)
+            });
+
+            // Row
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Row",
+                Binding = new System.Windows.Data.Binding("RowIndex"),
+                Width = new DataGridLength(45),
+                IsReadOnly = true
             });
 
             // Load data
@@ -1016,16 +1245,57 @@ namespace BreakersOfE
             return new DataTemplate { VisualTree = factory };
         }
 
+        private DataTemplate CreateLegalityPillTemplate()
+        {
+            var converter = (System.Windows.Data.IValueConverter)
+                Application.Current.Resources["BoolToGreenRedConverter"];
+
+            var panel = new FrameworkElementFactory(typeof(StackPanel));
+            panel.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
+            panel.SetValue(FrameworkElement.MarginProperty, new Thickness(2, 0, 2, 0));
+
+            foreach (var (letter, prop) in new[]
+            {
+                ("S", "IsLegalStandard"),
+                ("M", "IsLegalModern"),
+                ("P", "IsLegalPioneer"),
+                ("L", "IsLegalLegacy"),
+                ("V", "IsLegalVintage")
+            })
+            {
+                var border = new FrameworkElementFactory(typeof(Border));
+                border.SetValue(Border.CornerRadiusProperty, new CornerRadius(3));
+                border.SetValue(Border.MarginProperty, new Thickness(1, 0, 1, 0));
+                border.SetValue(Border.PaddingProperty, new Thickness(3, 1, 3, 1));
+                border.SetBinding(Border.BackgroundProperty,
+                    new System.Windows.Data.Binding(prop) { Converter = converter });
+
+                var text = new FrameworkElementFactory(typeof(TextBlock));
+                text.SetValue(TextBlock.TextProperty, letter);
+                text.SetValue(TextBlock.FontSizeProperty, 10.0);
+                text.SetValue(TextBlock.FontWeightProperty, FontWeights.Bold);
+                text.SetValue(TextBlock.ForegroundProperty,
+                    System.Windows.Media.Brushes.White);
+
+                border.AppendChild(text);
+                panel.AppendChild(border);
+            }
+
+            return new DataTemplate { VisualTree = panel };
+        }
+
         // ── Refresh deck grid ─────────────────────────────────────────────────────
         private static void RefreshDeckGrid(DataGrid grid, Deck deck)
         {
-            // Commanders first (blue highlight), then rest sorted by category/name
             var cards = deck.Cards
                 .Where(c => !c.IsFooter)
                 .OrderBy(c => c.IsCommander ? 0 : 1)
                 .ThenBy(c => c.Category)
                 .ThenBy(c => c.Name)
                 .ToList();
+
+            for (int i = 0; i < cards.Count; i++)
+                cards[i].RowIndex = i + 1;
 
             grid.ItemsSource = cards;
         }
@@ -1277,6 +1547,10 @@ namespace BreakersOfE
                         SyncAndPopulateDeckSummary(
                             BottomSummaryGrid, mainGrid, deck);
                         WireSummaryColumnSync(mainGrid, BottomSummaryGrid);
+                        // Restore and wire column layout
+                        RestoreColumnLayout(mainGrid, "Deck");
+                        AutoSizeColumnsToHeader(mainGrid, "Deck");
+                        WireColumnLayoutSave(mainGrid, "Deck");
                     }),
                     System.Windows.Threading.DispatcherPriority.ContextIdle);
                 }
@@ -1660,6 +1934,35 @@ namespace BreakersOfE
                 dgRow.DetailsVisibility = Visibility.Visible;
         }
 
+        private string GetTableKey(DataGrid grid)
+        {
+            if (grid == TopDataGrid)
+            {
+                return _currentMode switch
+                {
+                    "CollectionToDeck" => "Collection",
+                    "DeckToCollection" => "Deck",
+                    _ => "Pool"
+                };
+            }
+            if (grid == BottomDataGrid)
+            {
+                return _currentMode switch
+                {
+                    "PoolToCollection" => "Collection",
+                    "PoolToPlanechase" => "Planechase",
+                    "PoolToArchenemy" => "Archenemy",
+                    "PoolToVanguard" => "Vanguard",
+                    "PoolToTokens" => "Tokens",
+                    "PoolToArtSeries" => "ArtSeries",
+                    "DeckToCollection" => "Collection",
+                    _ => "Collection"
+                };
+            }
+            // Deck tab grids
+            return "Deck";
+        }
+
         private void BtnExpandDeckUsage_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button btn) return;
@@ -1793,7 +2096,35 @@ namespace BreakersOfE
             LoadCaches();
             BtnTheme.Content = ThemeService.ThemeToggleIcon;
             BtnTheme.ToolTip = ThemeService.ThemeToggleTooltip;
+
+            // Wire column order persistence for the two permanent grids
+            WireColumnLayoutSave(TopDataGrid, "Pool");
+            WireColumnLayoutSave(BottomDataGrid, "Collection");
+
+            // Auto-size columns after first full render
+            Loaded += MainWindow_Loaded;
+
             ViewModeComboBox.SelectedIndex = 0;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Dispatcher at Render priority ensures the grid has laid out
+            // and ActualWidth values are valid
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                string topKey = _currentMode switch
+                {
+                    "CollectionToDeck" => "Collection",
+                    "DeckToCollection" => "Deck",
+                    _ => "Pool"
+                };
+                AutoSizeColumnsToHeader(TopDataGrid, topKey);
+
+                if (BottomDataGrid.Visibility == Visibility.Visible)
+                    AutoSizeColumnsToHeader(BottomDataGrid, GetTableKey(BottomDataGrid));
+            }),
+            System.Windows.Threading.DispatcherPriority.Render);
         }
 
         private void EnsureDatabase()
@@ -1882,6 +2213,9 @@ namespace BreakersOfE
 
             // Reset top grid editability — only CollectionToDeck allows editing
             TopDataGrid.IsReadOnly = true;
+
+            // Restore pool columns if leaving DeckToCollection
+            RemoveDeckColumns(TopDataGrid);
 
             // Clear mana symbol panels — only deck modes populate them
             if (!isDeckTabMode)
@@ -1975,6 +2309,21 @@ namespace BreakersOfE
                     BottomTableLabel.Text = "Collection";
                     break;
             }
+
+            // Restore column visibility & order after mode loads
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                string topKey = _currentMode switch
+                {
+                    "CollectionToDeck" => "Collection",
+                    "DeckToCollection" => "Deck",
+                    _ => "Pool"
+                };
+                RestoreColumnLayout(TopDataGrid, topKey);
+                if (BottomDataGrid.Visibility == Visibility.Visible)
+                    RestoreColumnLayout(BottomDataGrid, "Collection");
+            }),
+            System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
 
         // ── Lock state ───────────────────────────────────────────────────────
@@ -2090,6 +2439,7 @@ namespace BreakersOfE
         private void LoadTopTable_DeckForCollection()
         {
             RemoveCollectionColumns(TopDataGrid);
+            EnsureDeckColumns(TopDataGrid);
             SetTopExpandColumnVisibility(Visibility.Collapsed);
 
             // Apply commander highlight row style
@@ -2171,63 +2521,230 @@ namespace BreakersOfE
         }
 
         private static readonly string CollectionColumnMarker = "CollectionCol_";
+        private readonly List<DataGridColumn> _savedPoolColumns = new();
 
         private void EnsureCollectionColumns(DataGrid grid)
         {
-            var toRemove = grid.Columns
-                .Where(c => c.SortMemberPath?.StartsWith(CollectionColumnMarker) == true)
-                .ToList();
-            foreach (var col in toRemove)
-                grid.Columns.Remove(col);
+            // If already in collection mode, do nothing
+            if (grid.Columns.Any(c =>
+                c.SortMemberPath?.StartsWith(CollectionColumnMarker) == true))
+                return;
 
-            int insertAt = Math.Min(3, grid.Columns.Count);
+            // Save existing pool columns to restore later
+            _savedPoolColumns.Clear();
+            _savedPoolColumns.AddRange(grid.Columns);
+            grid.Columns.Clear();
 
-            var textCols = new[]
+            DataGridColumn MakeText(string header, string binding,
+                double width, bool readOnly = false)
             {
-                (Display: "Qty",           Binding: "Quantity",        Width: 50),
-                (Display: "Foil Qty",      Binding: "FoilQuantity",    Width: 60),
-                (Display: "Used",          Binding: "UsedCount",       Width: 50),
-                (Display: "Available",     Binding: "AvailableCount",  Width: 70),
-                (Display: "Buy At",        Binding: "BuyAt",           Width: 70),
-                (Display: "Sell At",       Binding: "SellAt",          Width: 70),
-                (Display: "Sell At Value", Binding: "SellAtValue",     Width: 90),
-                (Display: "Price High",    Binding: "PriceHigh",       Width: 80),
-                (Display: "Market Value",  Binding: "MarketValue",     Width: 90),
-                (Display: "Needed",        Binding: "Needed",          Width: 60),
-                (Display: "Excess",        Binding: "Excess",          Width: 60),
-                (Display: "Target",        Binding: "Target",          Width: 60),
-                (Display: "Condition",     Binding: "Condition",       Width: 90),
-                (Display: "Notes",         Binding: "Notes",           Width: 150),
-                (Display: "Storage",       Binding: "StorageLocation", Width: 100),
-                (Display: "Desired",       Binding: "Desired",         Width: 100),
-                (Display: "Group",         Binding: "Group",           Width: 80),
-                (Display: "Print Type",    Binding: "PrintType",       Width: 90),
-                (Display: "Buy",           Binding: "BuyStatus",       Width: 90),
-                (Display: "Sell",          Binding: "SellStatus",      Width: 90),
-                (Display: "Added",         Binding: "DateAdded",       Width: 130),
-            };
-
-            for (int i = 0; i < textCols.Length; i++)
-            {
-                var def = textCols[i];
-                var col = new System.Windows.Controls.DataGridTextColumn
+                var col = new DataGridTextColumn
                 {
-                    Header = def.Display,
-                    SortMemberPath = CollectionColumnMarker + def.Binding,
-                    Binding = new System.Windows.Data.Binding(def.Binding),
-                    Width = new System.Windows.Controls.DataGridLength(def.Width)
+                    Header = header,
+                    SortMemberPath = CollectionColumnMarker + binding,
+                    Binding = new System.Windows.Data.Binding(binding),
+                    Width = new DataGridLength(width),
+                    IsReadOnly = readOnly
                 };
-                grid.Columns.Insert(insertAt + i, col);
+                return col;
             }
+
+            // ── Expand button ─────────────────────────────────────────────
+            var expandCol = new DataGridTemplateColumn
+            {
+                Header = "↕",
+                SortMemberPath = CollectionColumnMarker + "expand",
+                Width = new DataGridLength(28),
+                CanUserResize = false
+            };
+            var expandTemplate = new DataTemplate();
+            var btnFactory = new FrameworkElementFactory(typeof(Button));
+            btnFactory.SetBinding(Button.ContentProperty,
+                new System.Windows.Data.Binding("ExpandGlyph"));
+            btnFactory.SetBinding(VisibilityProperty,
+                new System.Windows.Data.Binding("ExpandButtonVisibility"));
+            btnFactory.SetValue(Button.WidthProperty, 20.0);
+            btnFactory.SetValue(Button.HeightProperty, 20.0);
+            btnFactory.SetValue(Button.BackgroundProperty,
+                System.Windows.Media.Brushes.Transparent);
+            btnFactory.SetValue(Button.BorderThicknessProperty,
+                new Thickness(0));
+            btnFactory.AddHandler(Button.ClickEvent,
+                new RoutedEventHandler(BtnExpandDeckUsage_Click));
+            expandTemplate.VisualTree = btnFactory;
+            expandCol.CellTemplate = expandTemplate;
+            grid.Columns.Add(expandCol);
+
+            // ── ES symbol ────────────────────────────────────────────────
+            var esCol = new DataGridTemplateColumn
+            {
+                Header = "ES",
+                SortMemberPath = CollectionColumnMarker + "SetSymbolPath",
+                Width = new DataGridLength(32),
+                CanUserResize = false
+            };
+            var esTemplate = new DataTemplate();
+            var imgFactory = new FrameworkElementFactory(typeof(Image));
+            imgFactory.SetBinding(Image.SourceProperty,
+                new System.Windows.Data.Binding("SetSymbolPath")
+                {
+                    Converter = (System.Windows.Data.IValueConverter)
+                        Application.Current.Resources["ImageSourceConverter"]
+                });
+            imgFactory.SetValue(Image.WidthProperty, 16.0);
+            imgFactory.SetValue(Image.HeightProperty, 16.0);
+            esTemplate.VisualTree = imgFactory;
+            esCol.CellTemplate = esTemplate;
+            grid.Columns.Add(esCol);
+
+            // ── Text columns in exact order ───────────────────────────────
+            grid.Columns.Add(MakeText("Name", "Name", 200, true));
+            grid.Columns.Add(MakeText("Edition", "SetCode", 55, true));
+            grid.Columns.Add(MakeText("Qty", "Quantity", 45));
+            grid.Columns.Add(MakeText("Foil Qty", "FoilQuantity", 60));
+            grid.Columns.Add(MakeText("Used", "UsedCount", 50, true));
+            grid.Columns.Add(MakeText("Available", "AvailableCount", 70, true));
+            grid.Columns.Add(MakeText("Buy At", "BuyAt", 70));
+            grid.Columns.Add(MakeText("Sell At", "SellAt", 70));
+            grid.Columns.Add(MakeText("Sell At Value", "SellAtValue", 90));
+            grid.Columns.Add(MakeText("Price High", "PriceHigh", 80));
+            grid.Columns.Add(MakeText("Market Value", "MarketValue", 90));
+            grid.Columns.Add(MakeText("Needed", "Needed", 60));
+            grid.Columns.Add(MakeText("Excess", "Excess", 60));
+            grid.Columns.Add(MakeText("Target", "Target", 60));
+            grid.Columns.Add(MakeText("Condition", "Condition", 90));
+            grid.Columns.Add(MakeText("Notes", "Notes", 150));
+            grid.Columns.Add(MakeText("Storage", "StorageLocation", 100));
+            grid.Columns.Add(MakeText("Desired", "Desired", 90));
+            grid.Columns.Add(MakeText("Group", "CardGroup", 80));
+            grid.Columns.Add(MakeText("Print Type", "PrintType", 90));
+            grid.Columns.Add(MakeText("Buy", "BuyStatus", 90));
+            grid.Columns.Add(MakeText("Sell", "SellStatus", 90));
+            grid.Columns.Add(MakeText("Added", "DateAdded", 130, true));
+            grid.Columns.Add(MakeText("Market Price", "PriceUsdDisplay", 90, true));
+            grid.Columns.Add(MakeText("Price Low", "PriceLowDisplay", 80, true));
+            grid.Columns.Add(MakeText("Color", "ColorDisplay", 50, true));
+            grid.Columns.Add(MakeText("Type", "TypeLine", 160, true));
+            grid.Columns.Add(MakeText("Rarity", "RarityCode", 50, true));
+            grid.Columns.Add(MakeText("P/T", "PowerToughness", 55, true));
+            grid.Columns.Add(MakeText("Text", "OracleText", 220, true));
+            grid.Columns.Add(MakeText("Flavor", "FlavorText", 160, true));
+            grid.Columns.Add(MakeText("Artist", "Artist", 130, true));
+            grid.Columns.Add(MakeText("No", "CollectorNumber", 55, true));
+            grid.Columns.Add(MakeText("Power", "Power", 50, true));
+            grid.Columns.Add(MakeText("Toughness", "Toughness", 70, true));
+            grid.Columns.Add(MakeText("CMC", "ManaValue", 45, true));
+            grid.Columns.Add(MakeText("Row", "RowIndex", 45, true));
         }
 
         private void RemoveCollectionColumns(DataGrid grid)
         {
-            var toRemove = grid.Columns
-                .Where(c => c.SortMemberPath?.StartsWith(CollectionColumnMarker) == true)
-                .ToList();
-            foreach (var col in toRemove)
-                grid.Columns.Remove(col);
+            bool hasCollectionCols = grid.Columns.Any(c =>
+                c.SortMemberPath?.StartsWith(CollectionColumnMarker) == true);
+
+            if (!hasCollectionCols) return;
+
+            grid.Columns.Clear();
+            foreach (var col in _savedPoolColumns)
+                grid.Columns.Add(col);
+            _savedPoolColumns.Clear();
+        }
+
+        private const string DeckColumnMarker = "DeckCol_";
+        private readonly List<DataGridColumn> _savedPoolColumnsForDeck = new();
+
+        private void EnsureDeckColumns(DataGrid grid)
+        {
+            // Already has deck columns
+            if (grid.Columns.Any(c =>
+                c.SortMemberPath?.StartsWith(DeckColumnMarker) == true))
+                return;
+
+            // Save existing pool columns
+            _savedPoolColumnsForDeck.Clear();
+            _savedPoolColumnsForDeck.AddRange(grid.Columns);
+            grid.Columns.Clear();
+
+            DataGridColumn MakeText(string header, string binding,
+                double width, bool readOnly = true)
+            {
+                var col = new DataGridTextColumn
+                {
+                    Header = header,
+                    SortMemberPath = DeckColumnMarker + binding,
+                    Binding = new System.Windows.Data.Binding(binding),
+                    Width = new DataGridLength(width),
+                    IsReadOnly = readOnly
+                };
+                return col;
+            }
+
+            // ES
+            var esCol = new DataGridTemplateColumn
+            {
+                Header = "ES",
+                SortMemberPath = DeckColumnMarker + "SetSymbolPath",
+                Width = new DataGridLength(32),
+                CanUserResize = false
+            };
+            var esTemplate = new DataTemplate();
+            var imgFactory = new FrameworkElementFactory(typeof(Image));
+            imgFactory.SetBinding(Image.SourceProperty,
+                new System.Windows.Data.Binding("SetSymbolPath")
+                {
+                    Converter = (System.Windows.Data.IValueConverter)
+                        Application.Current.Resources["ImageSourceConverter"]
+                });
+            imgFactory.SetValue(Image.WidthProperty, 16.0);
+            imgFactory.SetValue(Image.HeightProperty, 16.0);
+            esTemplate.VisualTree = imgFactory;
+            esCol.CellTemplate = esTemplate;
+            grid.Columns.Add(esCol);
+
+            grid.Columns.Add(MakeText("Name", "Name", 200));
+            grid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = "Legal",
+                SortMemberPath = DeckColumnMarker + "Legal",
+                Width = new DataGridLength(100),
+                CellTemplate = CreateLegalityPillTemplate()
+            });
+            grid.Columns.Add(MakeText("Qty", "TotalQuantity", 45));
+            grid.Columns.Add(MakeText("SB", "SideboardDisplay", 35));
+            grid.Columns.Add(MakeText("Edition", "SetCode", 55));
+            grid.Columns.Add(MakeText("Color", "ColorDisplay", 50));
+            grid.Columns.Add(MakeText("Type", "TypeLine", 160));
+            grid.Columns.Add(MakeText("Rarity", "RarityCode", 50));
+            grid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = "Cost",
+                SortMemberPath = DeckColumnMarker + "ManaCost",
+                Width = new DataGridLength(110),
+                CellTemplate = CreateManaCostTemplate()
+            });
+            grid.Columns.Add(MakeText("Text", "OracleText", 200));
+            grid.Columns.Add(MakeText("Flavor", "FlavorText", 160));
+            grid.Columns.Add(MakeText("P/T", "PowerToughness", 55));
+            grid.Columns.Add(MakeText("Artist", "Artist", 130));
+            grid.Columns.Add(MakeText("Edition Name", "SetName", 160));
+            grid.Columns.Add(MakeText("Number", "CollectorNumber", 65));
+            grid.Columns.Add(MakeText("Power", "Power", 50));
+            grid.Columns.Add(MakeText("Toughness", "Toughness", 70));
+            grid.Columns.Add(MakeText("CMC", "ManaValue", 45));
+            grid.Columns.Add(MakeText("Row", "RowIndex", 45));
+        }
+
+        private void RemoveDeckColumns(DataGrid grid)
+        {
+            bool hasDeckCols = grid.Columns.Any(c =>
+                c.SortMemberPath?.StartsWith(DeckColumnMarker) == true);
+
+            if (!hasDeckCols) return;
+
+            grid.Columns.Clear();
+            foreach (var col in _savedPoolColumnsForDeck)
+                grid.Columns.Add(col);
+            _savedPoolColumnsForDeck.Clear();
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -2306,15 +2823,17 @@ namespace BreakersOfE
                         Excess = ce.Excess,
                         Target = ce.Target,
                         Desired = ce.Desired,
-                        Group = ce.Group,
+                        CardGroup = ce.CardGroup,
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
-                        IsLegalStandard = pc.IsLegalStandard,
-                        IsLegalModern = pc.IsLegalModern,
-                        IsLegalPioneer = pc.IsLegalPioneer,
-                        IsLegalLegacy = pc.IsLegalLegacy,
-                        IsLegalVintage = pc.IsLegalVintage
+                        IsLegalStandard = false,
+                        IsLegalModern = false,
+                        IsLegalPioneer = false,
+                        IsLegalLegacy = false,
+                        IsLegalVintage = false,
+                        DateAdded = ce.DateAdded,
+                        DateModified = ce.DateModified
                     })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -2350,7 +2869,6 @@ namespace BreakersOfE
                         Condition = ce.Condition,
                         Language = ce.Language,
                         StorageLocation = ce.StorageLocation,
-                        Notes = ce.Notes,
                         BuyAt = ce.BuyAt,
                         SellAt = ce.SellAt,
                         SellAtValue = ce.SellAtValue,
@@ -2361,15 +2879,17 @@ namespace BreakersOfE
                         Excess = ce.Excess,
                         Target = ce.Target,
                         Desired = ce.Desired,
-                        Group = ce.Group,
+                        CardGroup = ce.CardGroup,
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
-                        IsLegalStandard = pc.IsLegalStandard,
-                        IsLegalModern = pc.IsLegalModern,
-                        IsLegalPioneer = pc.IsLegalPioneer,
-                        IsLegalLegacy = pc.IsLegalLegacy,
-                        IsLegalVintage = pc.IsLegalVintage
+                        IsLegalStandard = false,
+                        IsLegalModern = false,
+                        IsLegalPioneer = false,
+                        IsLegalLegacy = false,
+                        IsLegalVintage = false,
+                        DateAdded = ce.DateAdded,
+                        DateModified = ce.DateModified
                     })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -2416,15 +2936,17 @@ namespace BreakersOfE
                         Excess = ce.Excess,
                         Target = ce.Target,
                         Desired = ce.Desired,
-                        Group = ce.Group,
+                        CardGroup = ce.CardGroup,
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
-                        IsLegalStandard = pc.IsLegalStandard,
-                        IsLegalModern = pc.IsLegalModern,
-                        IsLegalPioneer = pc.IsLegalPioneer,
-                        IsLegalLegacy = pc.IsLegalLegacy,
-                        IsLegalVintage = pc.IsLegalVintage
+                        IsLegalStandard = false,
+                        IsLegalModern = false,
+                        IsLegalPioneer = false,
+                        IsLegalLegacy = false,
+                        IsLegalVintage = false,
+                        DateAdded = ce.DateAdded,
+                        DateModified = ce.DateModified
                     })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -2460,7 +2982,6 @@ namespace BreakersOfE
                         Condition = ce.Condition,
                         Language = ce.Language,
                         StorageLocation = ce.StorageLocation,
-                        Notes = ce.Notes,
                         BuyAt = ce.BuyAt,
                         SellAt = ce.SellAt,
                         SellAtValue = ce.SellAtValue,
@@ -2471,15 +2992,17 @@ namespace BreakersOfE
                         Excess = ce.Excess,
                         Target = ce.Target,
                         Desired = ce.Desired,
-                        Group = ce.Group,
+                        CardGroup = ce.CardGroup,
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
-                        IsLegalStandard = pc.IsLegalStandard,
-                        IsLegalModern = pc.IsLegalModern,
-                        IsLegalPioneer = pc.IsLegalPioneer,
-                        IsLegalLegacy = pc.IsLegalLegacy,
-                        IsLegalVintage = pc.IsLegalVintage
+                        IsLegalStandard = false,
+                        IsLegalModern = false,
+                        IsLegalPioneer = false,
+                        IsLegalLegacy = false,
+                        IsLegalVintage = false,
+                        DateAdded = ce.DateAdded,
+                        DateModified = ce.DateModified
                     })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -2525,15 +3048,17 @@ namespace BreakersOfE
                         Excess = ce.Excess,
                         Target = ce.Target,
                         Desired = ce.Desired,
-                        Group = ce.Group,
+                        CardGroup = ce.CardGroup,
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
-                        IsLegalStandard = pc.IsLegalStandard,
-                        IsLegalModern = pc.IsLegalModern,
-                        IsLegalPioneer = pc.IsLegalPioneer,
-                        IsLegalLegacy = pc.IsLegalLegacy,
-                        IsLegalVintage = pc.IsLegalVintage
+                        IsLegalStandard = false,
+                        IsLegalModern = false,
+                        IsLegalPioneer = false,
+                        IsLegalLegacy = false,
+                        IsLegalVintage = false,
+                        DateAdded = ce.DateAdded,
+                        DateModified = ce.DateModified
                     })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -2588,7 +3113,7 @@ namespace BreakersOfE
                         Excess = ce.Excess,
                         Target = ce.Target,
                         Desired = ce.Desired,
-                        Group = ce.Group,
+                        CardGroup = ce.CardGroup,
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
@@ -2597,7 +3122,7 @@ namespace BreakersOfE
                         IsLegalPioneer = pc.IsLegalPioneer,
                         IsLegalLegacy = pc.IsLegalLegacy,
                         IsLegalVintage = pc.IsLegalVintage,
-                        Notes = ce.Notes,
+                        LegalitiesJson = pc.LegalitiesJson,
                         DateAdded = ce.DateAdded,
                         DateModified = ce.DateModified,
                         // ── Pricing ──────────────────────────────────────────────
@@ -2710,6 +3235,221 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         // TOOLBAR STATE
         // ════════════════════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════════════════════
+        // COLUMN LAYOUT — VISIBILITY & ORDER
+        // ════════════════════════════════════════════════════════════════════
+
+        private bool _suppressLayoutSave = false;
+
+        private void SaveColumnLayout(DataGrid grid, string tableKey)
+        {
+            if (_suppressLayoutSave) return;
+            // Visibility: dict of header→bool
+            var vis = new Dictionary<string, bool>();
+            var order = new Dictionary<string, int>();
+            foreach (var col in grid.Columns)
+            {
+                string hdr = col.Header?.ToString() ?? string.Empty;
+                if (string.IsNullOrEmpty(hdr)) continue;
+                vis[hdr] = col.Visibility == Visibility.Visible;
+                order[hdr] = col.DisplayIndex;
+            }
+            SaveSetting(ColVisPrefix + tableKey,
+                System.Text.Json.JsonSerializer.Serialize(vis));
+            SaveSetting(ColOrderPrefix + tableKey,
+                System.Text.Json.JsonSerializer.Serialize(order));
+        }
+
+        private void RestoreColumnLayout(DataGrid grid, string tableKey)
+        {
+            _suppressLayoutSave = true;
+            try
+            {
+                var visJson = GetSetting(ColVisPrefix + tableKey);
+                var orderJson = GetSetting(ColOrderPrefix + tableKey);
+
+                if (!string.IsNullOrEmpty(visJson))
+                {
+                    try
+                    {
+                        var vis = System.Text.Json.JsonSerializer
+                            .Deserialize<Dictionary<string, bool>>(visJson);
+                        if (vis != null)
+                            foreach (var col in grid.Columns)
+                            {
+                                string hdr = col.Header?.ToString() ?? string.Empty;
+                                if (vis.TryGetValue(hdr, out bool show))
+                                    col.Visibility = show
+                                        ? Visibility.Visible
+                                        : Visibility.Collapsed;
+                            }
+                    }
+                    catch { }
+                }
+
+                if (!string.IsNullOrEmpty(orderJson))
+                {
+                    try
+                    {
+                        var order = System.Text.Json.JsonSerializer
+                            .Deserialize<Dictionary<string, int>>(orderJson);
+                        if (order != null)
+                        {
+                            // Apply in ascending display-index order to avoid conflicts
+                            var sorted = order.OrderBy(kv => kv.Value).ToList();
+                            foreach (var (hdr, idx) in sorted)
+                            {
+                                var col = grid.Columns.FirstOrDefault(
+                                    c => c.Header?.ToString() == hdr);
+                                if (col != null)
+                                {
+                                    int safeIdx = Math.Min(idx,
+                                        grid.Columns.Count - 1);
+                                    if (col.DisplayIndex != safeIdx)
+                                        col.DisplayIndex = safeIdx;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            finally
+            {
+                _suppressLayoutSave = false;
+            }
+        }
+
+        private void AutoSizeColumnsToHeader(DataGrid grid, string tableKey)
+        {
+            // Skip if user already has a saved layout
+            if (!string.IsNullOrEmpty(GetSetting(ColOrderPrefix + tableKey)))
+                return;
+
+            foreach (var col in grid.Columns)
+            {
+                // Skip fixed-width utility columns (ES, ↕, chooser)
+                var hdr = col.Header?.ToString() ?? string.Empty;
+                if (string.IsNullOrEmpty(hdr) || hdr == "ES" || hdr == "↕")
+                    continue;
+
+                col.Width = DataGridLength.Auto;
+            }
+
+            // Force measure, then freeze widths so they stay resizable
+            grid.UpdateLayout();
+            foreach (var col in grid.Columns)
+            {
+                var hdr = col.Header?.ToString() ?? string.Empty;
+                if (string.IsNullOrEmpty(hdr) || hdr == "ES" || hdr == "↕")
+                    continue;
+
+                if (col.ActualWidth > 0)
+                    col.Width = new DataGridLength(col.ActualWidth);
+            }
+        }
+
+        private void WireColumnLayoutSave(DataGrid grid, string tableKey)
+        {
+            grid.ColumnDisplayIndexChanged += (s, e) =>
+                SaveColumnLayout(grid, tableKey);
+        }
+
+        private void ShowColumnChooser(DataGrid grid, string tableKey,
+            UIElement anchor)
+        {
+            var popup = new System.Windows.Controls.Primitives.Popup
+            {
+                PlacementTarget = anchor,
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+                StaysOpen = false,
+                AllowsTransparency = true,
+                PopupAnimation = System.Windows.Controls.Primitives.PopupAnimation.Slide
+            };
+
+            var border = new Border
+            {
+                Background = (System.Windows.Media.Brush)
+                    FindResource("SurfaceBrush"),
+                BorderBrush = (System.Windows.Media.Brush)
+                    FindResource("BorderBrush"),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(4),
+                MinWidth = 320,
+                MaxHeight = 500
+            };
+
+            var scroll = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            };
+
+            var outer = new StackPanel { Margin = new Thickness(2) };
+
+            // (All) checkbox
+            var allCb = new CheckBox
+            {
+                Content = "(All)",
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(2, 2, 2, 6),
+                IsChecked = grid.Columns.All(c =>
+                    c.Visibility == Visibility.Visible)
+            };
+
+            // Two-column WrapPanel for individual columns
+            var wrap = new WrapPanel
+            {
+                Orientation = Orientation.Vertical,
+                MaxHeight = 400
+            };
+
+            // Skip the chooser-button column itself (no header text)
+            var colsToShow = grid.Columns
+                .Where(c => !string.IsNullOrEmpty(c.Header?.ToString()))
+                .ToList();
+
+            var checkboxes = new List<CheckBox>();
+            foreach (var col in colsToShow)
+            {
+                var cb = new CheckBox
+                {
+                    Content = col.Header?.ToString(),
+                    IsChecked = col.Visibility == Visibility.Visible,
+                    Margin = new Thickness(4, 2, 12, 2),
+                    Width = 130,
+                    Tag = col
+                };
+                cb.Checked += (s, e) => {
+                    ((DataGridColumn)((CheckBox)s!).Tag).Visibility =
+                        Visibility.Visible;
+                    allCb.IsChecked = checkboxes.All(c => c.IsChecked == true);
+                    SaveColumnLayout(grid, tableKey);
+                };
+                cb.Unchecked += (s, e) => {
+                    ((DataGridColumn)((CheckBox)s!).Tag).Visibility =
+                        Visibility.Collapsed;
+                    allCb.IsChecked = false;
+                    SaveColumnLayout(grid, tableKey);
+                };
+                checkboxes.Add(cb);
+                wrap.Children.Add(cb);
+            }
+
+            allCb.Checked += (s, e) => {
+                foreach (var cb in checkboxes) cb.IsChecked = true;
+            };
+            allCb.Unchecked += (s, e) => {
+                foreach (var cb in checkboxes) cb.IsChecked = false;
+            };
+
+            outer.Children.Add(allCb);
+            outer.Children.Add(wrap);
+            scroll.Content = outer;
+            border.Child = scroll;
+            popup.Child = border;
+            popup.IsOpen = true;
+        }
+
         private void UpdateToolbarState()
         {
             bool isDeckMode = _currentMode == "PoolToDeck" ||
@@ -2816,7 +3556,7 @@ namespace BreakersOfE
                     entry.Excess = row.Excess;
                     entry.Target = row.Target;
                     entry.Desired = row.Desired;
-                    entry.Group = row.Group;
+                    entry.CardGroup = row.CardGroup;
                     entry.PrintType = row.PrintType;
                     entry.BuyStatus = row.BuyStatus;
                     entry.SellStatus = row.SellStatus;
@@ -2867,7 +3607,7 @@ namespace BreakersOfE
                     entry.Excess = row.Excess;
                     entry.Target = row.Target;
                     entry.Desired = row.Desired;
-                    entry.Group = row.Group;
+                    entry.CardGroup = row.CardGroup;
                     entry.PrintType = row.PrintType;
                     entry.BuyStatus = row.BuyStatus;
                     entry.SellStatus = row.SellStatus;
@@ -4267,17 +5007,26 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void BtnLegality_Click(object sender, RoutedEventArgs e)
         {
+            // Toggle the Legal pill column visibility in all active grids
             _legalityVisible = !_legalityVisible;
-            var vis = _legalityVisible
-                ? Visibility.Visible : Visibility.Collapsed;
+            var vis = _legalityVisible ? Visibility.Visible : Visibility.Collapsed;
 
-            foreach (var col in TopDataGrid.Columns)
+            foreach (var grid in new[] { TopDataGrid, BottomDataGrid })
             {
-                if (col.Header is string h &&
-                    new[] { "Standard", "Pioneer", "Modern",
-                            "Legacy", "Vintage", "Commander", "Pauper" }
-                        .Contains(h))
-                    col.Visibility = vis;
+                var legalCol = grid.Columns.FirstOrDefault(
+                    c => c.Header?.ToString() == "Legal");
+                if (legalCol != null)
+                    legalCol.Visibility = vis;
+            }
+
+            // Also toggle in active deck grid
+            var deckGrid = GetActiveDeckGrid();
+            if (deckGrid != null)
+            {
+                var legalCol = deckGrid.Columns.FirstOrDefault(
+                    c => c.Header?.ToString() == "Legal");
+                if (legalCol != null)
+                    legalCol.Visibility = vis;
             }
         }
 
@@ -5203,7 +5952,8 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void BtnColumnChooserTop_Click(object sender, RoutedEventArgs e)
         {
-            var popup = new BreakersOfE.Windows.ColumnChooserPopup(TopDataGrid)
+            var popup = new BreakersOfE.Windows.ColumnChooserPopup(
+                TopDataGrid, GetTableKey(TopDataGrid))
             { Owner = this };
             var btn = sender as Button;
             var screenPos = btn!.PointToScreen(
@@ -5216,7 +5966,8 @@ namespace BreakersOfE
         private void BtnColumnChooserBottom_Click(
             object sender, RoutedEventArgs e)
         {
-            var popup = new BreakersOfE.Windows.ColumnChooserPopup(BottomDataGrid)
+            var popup = new BreakersOfE.Windows.ColumnChooserPopup(
+                BottomDataGrid, GetTableKey(BottomDataGrid))
             { Owner = this };
             var btn = sender as Button;
             var screenPos = btn!.PointToScreen(

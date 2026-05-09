@@ -76,7 +76,7 @@ namespace BreakersOfE.Models
         public int Excess { get; set; } = 0;
         public int Target { get; set; } = 0;
         public string Desired { get; set; } = "Unassigned";
-        public string Group { get; set; } = string.Empty;
+        public string CardGroup { get; set; } = string.Empty;
         public string PrintType { get; set; } = "Unknown";
         public string BuyStatus { get; set; } = "Unassigned";
         public string SellStatus { get; set; } = "Unassigned";
@@ -94,6 +94,7 @@ namespace BreakersOfE.Models
         public bool IsLegalPioneer { get; set; }
         public bool IsLegalLegacy { get; set; }
         public bool IsLegalVintage { get; set; }
+        public string LegalitiesJson { get; set; } = string.Empty;
 
         public bool IsExpanded { get; set; } = false;
         public bool IsFooter { get; set; } = false;
