@@ -5519,6 +5519,15 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         // MENU HANDLERS
         // ════════════════════════════════════════════════════════════════════
+        private void MenuTabletop_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new Windows.TabletopWindow(
+                _activeDeck,
+                null) // second deck added in Phase 3
+            { Owner = this };
+            win.Show();
+        }
+
         private void MenuExit_Click(object sender, RoutedEventArgs e) =>
             Application.Current.Shutdown();
 

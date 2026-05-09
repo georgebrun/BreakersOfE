@@ -192,6 +192,9 @@
                 <MenuItem Header="_Preferences"      Click="MenuPreferences_Click"/>
                 <Separator/>
                 <MenuItem Header="E_xit"             Click="MenuExit_Click"/>
+                <Separator/>
+                <MenuItem Header="🂠 _Tabletop Simulator" Name="MenuTabletop"
+                          Click="MenuTabletop_Click"/>
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="_Theme">
