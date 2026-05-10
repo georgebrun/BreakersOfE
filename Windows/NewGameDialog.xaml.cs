@@ -41,40 +41,44 @@ namespace BreakersOfE.Windows
         // ================================================================
         // DECK COMBOS
         // ================================================================
+        private List<DeckComboItem> _player1Items = new();
+        private List<DeckComboItem> _player2Items = new();
+
         private void PopulateDeckCombos()
         {
-            // Start with blank entry for solo/goldfish
+            _player1Items = BuildDeckItems();
+            _player2Items = BuildDeckItems();
+
+            Player1DeckCombo.ItemsSource = _player1Items;
+            Player2DeckCombo.ItemsSource = _player2Items;
+            Player1DeckCombo.DisplayMemberPath = "Label";
+            Player2DeckCombo.DisplayMemberPath = "Label";
+
+            Player1DeckCombo.SelectedIndex = _openDecks.Count > 0 ? 1 : 0;
+            Player2DeckCombo.SelectedIndex = _openDecks.Count > 1 ? 2 : 0;
+
+            UpdateLifeDefault();
+        }
+
+        private List<DeckComboItem> BuildDeckItems()
+        {
             var items = new List<DeckComboItem>
             {
                 new DeckComboItem { Label = "— None (Goldfish) —", Deck = null }
             };
-
-            // Add all currently open decks
             foreach (var deck in _openDecks)
                 items.Add(new DeckComboItem
                 {
                     Label = $"{deck.Name} ({deck.Cards.Count} cards)",
                     Deck = deck
                 });
-
-            // Also allow browsing for a deck file
             items.Add(new DeckComboItem
             {
                 Label = "📁 Browse for deck file...",
                 Deck = null,
                 IsBrowse = true
             });
-
-            Player1DeckCombo.ItemsSource = items;
-            Player2DeckCombo.ItemsSource = items;
-            Player1DeckCombo.DisplayMemberPath = "Label";
-            Player2DeckCombo.DisplayMemberPath = "Label";
-
-            // Pre-select first open deck for player 1 if available
-            Player1DeckCombo.SelectedIndex = _openDecks.Count > 0 ? 1 : 0;
-            Player2DeckCombo.SelectedIndex = _openDecks.Count > 1 ? 2 : 0;
-
-            UpdateLifeDefault();
+            return items;
         }
 
         private void DeckCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -82,35 +86,34 @@ namespace BreakersOfE.Windows
             if (sender is not ComboBox combo) return;
 
             var item = combo.SelectedItem as DeckComboItem;
-            if (item?.IsBrowse == true)
+            if (item?.IsBrowse != true) { UpdateLifeDefault(); return; }
+
+            var dlg = new OpenFileDialog
             {
-                var dlg = new OpenFileDialog
+                Title = "Select Deck File",
+                Filter = "Deck Files (*.deck)|*.deck|All Files (*.*)|*.*"
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                var deck = DeckService.Load(dlg.FileName);
+                if (deck != null)
                 {
-                    Title = "Select Deck File",
-                    Filter = "Deck Files (*.deck)|*.deck|All Files (*.*)|*.*"
-                };
-                if (dlg.ShowDialog() == true)
-                {
-                    var deck = DeckService.Load(dlg.FileName);
-                    if (deck != null)
+                    // Add to the correct independent list
+                    var items = combo == Player1DeckCombo ? _player1Items : _player2Items;
+                    var newItem = new DeckComboItem
                     {
-                        // Insert loaded deck into combo
-                        var items = (combo.ItemsSource as List<DeckComboItem>)!;
-                        var newItem = new DeckComboItem
-                        {
-                            Label = $"{deck.Name} ({deck.Cards.Count} cards)",
-                            Deck = deck
-                        };
-                        items.Insert(items.Count - 1, newItem);
-                        combo.Items.Refresh();
-                        combo.SelectedItem = newItem;
-                    }
-                    else
-                        combo.SelectedIndex = 0;
+                        Label = $"{deck.Name} ({deck.Cards.Count} cards)",
+                        Deck = deck
+                    };
+                    items.Insert(items.Count - 1, newItem);
+                    combo.Items.Refresh();
+                    combo.SelectedItem = newItem;
                 }
                 else
                     combo.SelectedIndex = 0;
             }
+            else
+                combo.SelectedIndex = 0;
 
             UpdateLifeDefault();
         }
@@ -165,15 +168,7 @@ namespace BreakersOfE.Windows
             StartingLife = int.TryParse(StartingLifeBox.Text, out int life)
                          ? life : 20;
 
-            if (Player1Deck == null && Player2Deck == null)
-            {
-                MessageBox.Show(
-                    "Please select at least one deck to start a game.",
-                    "No Deck Selected",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
+            // Allow starting with no deck — goldfish / empty table mode
             DialogResult = true;
         }
 

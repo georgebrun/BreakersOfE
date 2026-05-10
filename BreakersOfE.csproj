@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <Resource Include="Resources\Images\image_unavailable.png" />
+	<Resource Include="Resources\Images\MTG_Back.png" />  
   </ItemGroup>
 
 </Project>

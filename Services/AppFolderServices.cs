@@ -40,6 +40,9 @@ namespace BreakersOfE.Services
         public static string ManaSymbolsFolder =>
             EnsureFolder(Path.Combine(ProgramFolder, "ManaSymbols"));
 
+        public static string CardImagesFolder =>
+            EnsureFolder(Path.Combine(RootFolder, "CardImages"));
+
         public static string DatabasePath =>
             Path.Combine(RootFolder, "breakersofe.db");
 

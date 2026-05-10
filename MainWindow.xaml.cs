@@ -86,6 +86,42 @@ namespace BreakersOfE
         private string ManaSymbolsFolder =>
             Services.AppFolderService.ManaSymbolsFolder;
 
+        private static string CardImagesFolder =>
+            Services.AppFolderService.CardImagesFolder;
+
+        private static string ImageUnavailablePath =>
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                "Resources", "Images", "image_unavailable.png");
+
+        private static async Task DownloadAndCacheCardImageAsync(
+            string cardName, string imageUrl)
+        {
+            if (string.IsNullOrEmpty(imageUrl)) return;
+            try
+            {
+                string safeName = string.Concat(
+                    cardName.Split(Path.GetInvalidFileNameChars()));
+                string path = Path.Combine(CardImagesFolder, $"{safeName}.jpg");
+                if (File.Exists(path)) return; // already cached
+
+                using var http = new System.Net.Http.HttpClient();
+                http.Timeout = TimeSpan.FromSeconds(10);
+                var bytes = await http.GetByteArrayAsync(imageUrl);
+                await File.WriteAllBytesAsync(path, bytes);
+
+                // Update LocalImagePath on all matching PoolCards in DB
+                using var db = new Data.AppDbContext();
+                var card = db.PoolCards
+                    .FirstOrDefault(p => p.Name == cardName);
+                if (card != null)
+                {
+                    card.LocalImagePath = path;
+                    db.SaveChanges();
+                }
+            }
+            catch { /* Silent fail — image unavailable fallback used */ }
+        }
+
         // ── Deck menu handlers ────────────────────────────────────────────────────
         private void MenuNewDeck_Click(object sender, RoutedEventArgs e)
             => BtnNewDeck_Click(sender, e);
@@ -4486,6 +4522,11 @@ namespace BreakersOfE
 
             db.SaveChanges();
             RefreshBottom();
+
+            // Download card image in background if not already cached
+            var poolCard = db.PoolCards.FirstOrDefault(p => p.PoolId == poolId);
+            if (poolCard != null && !string.IsNullOrEmpty(poolCard.ImageNormalUrl))
+                _ = DownloadAndCacheCardImageAsync(poolCard.Name, poolCard.ImageNormalUrl);
         }
 
         private void AddToSpecialCollection(string type, int cardId,
@@ -5521,10 +5562,13 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void MenuTabletop_Click(object sender, RoutedEventArgs e)
         {
-            var win = new Windows.TabletopWindow(
-                _activeDeck,
-                null) // second deck added in Phase 3
-            { Owner = this };
+            // Put active deck first so it pre-populates as Player 1
+            var decks = new List<Deck>();
+            if (_activeDeck != null) decks.Add(_activeDeck);
+            foreach (var d in _openDecks)
+                if (d != _activeDeck) decks.Add(d);
+
+            var win = new Windows.TabletopWindow(decks) { Owner = this };
             win.Show();
         }
 
@@ -6021,6 +6065,212 @@ namespace BreakersOfE
         private void MenuSettings_Click(object sender, RoutedEventArgs e) =>
             MessageBox.Show("Settings coming soon.", "Settings",
                 MessageBoxButton.OK, MessageBoxImage.Information);
+
+        // ================================================================
+        // DOWNLOAD MISSING CARD IMAGES
+        // ================================================================
+        private bool _downloadInProgress = false;
+
+        private async void MenuDownloadImages_Click(object sender, RoutedEventArgs e)
+        {
+            if (_downloadInProgress)
+            {
+                MessageBox.Show("A download is already in progress.",
+                    "Download Images", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                "This will download card images for all cards in your collections.\n\n" +
+                "The download runs in the background — you can keep using the app.\n\n" +
+                "Continue?",
+                "Download Missing Card Images",
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes) return;
+
+            _downloadInProgress = true;
+            MenuDownloadImages.IsEnabled = false;
+            SetStatus("Scanning collections for missing images...", 0);
+            StatusProgressBar.Visibility = System.Windows.Visibility.Visible;
+
+            try
+            {
+                await DownloadAllCollectionImagesAsync();
+                SetStatus("Image download complete.", 100);
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Download error: {ex.Message}", 0);
+            }
+            finally
+            {
+                _downloadInProgress = false;
+                MenuDownloadImages.IsEnabled = true;
+                await Task.Delay(3000);
+                StatusProgressBar.Visibility = System.Windows.Visibility.Collapsed;
+                SetStatus("Ready", 0);
+            }
+        }
+
+        private async Task DownloadAllCollectionImagesAsync()
+        {
+            var folder = Services.AppFolderService.CardImagesFolder;
+            using var http = new System.Net.Http.HttpClient();
+            http.Timeout = TimeSpan.FromSeconds(15);
+
+            // Gather all cards from all 6 collection types
+            var cards = new List<(string Name, string ImageUrl, Action<string> SetPath)>();
+
+            using var db = new Data.AppDbContext();
+
+            // Standard collection — join to PoolCards
+            var poolIds = db.CollectionEntries.Select(c => c.PoolId).Distinct().ToList();
+            foreach (var id in poolIds)
+            {
+                var card = db.PoolCards.FirstOrDefault(p => p.PoolId == id);
+                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
+                    && (string.IsNullOrEmpty(card.LocalImagePath)
+                        || !File.Exists(card.LocalImagePath)))
+                {
+                    var capturedCard = card;
+                    cards.Add((card.Name, card.ImageNormalUrl,
+                        path => { capturedCard.LocalImagePath = path; }
+                    ));
+                }
+            }
+
+            // Token collection
+            var tokenIds = db.TokenCollectionEntries.Select(c => c.TokenId).Distinct().ToList();
+            foreach (var id in tokenIds)
+            {
+                var card = db.TokenCards.FirstOrDefault(p => p.TokenId == id);
+                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
+                    && (string.IsNullOrEmpty(card.LocalImagePath)
+                        || !File.Exists(card.LocalImagePath)))
+                {
+                    var capturedCard = card;
+                    cards.Add((card.Name, card.ImageNormalUrl,
+                        path => { capturedCard.LocalImagePath = path; }
+                    ));
+                }
+            }
+
+            // Planar collection
+            var planarIds = db.PlanarCollectionEntries.Select(c => c.PlanarId).Distinct().ToList();
+            foreach (var id in planarIds)
+            {
+                var card = db.PlanarCards.FirstOrDefault(p => p.PlanarId == id);
+                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
+                    && (string.IsNullOrEmpty(card.LocalImagePath)
+                        || !File.Exists(card.LocalImagePath)))
+                {
+                    var capturedCard = card;
+                    cards.Add((card.Name, card.ImageNormalUrl,
+                        path => { capturedCard.LocalImagePath = path; }
+                    ));
+                }
+            }
+
+            // Scheme collection
+            var schemeIds = db.SchemeCollectionEntries.Select(c => c.SchemeId).Distinct().ToList();
+            foreach (var id in schemeIds)
+            {
+                var card = db.SchemeCards.FirstOrDefault(p => p.SchemeId == id);
+                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
+                    && (string.IsNullOrEmpty(card.LocalImagePath)
+                        || !File.Exists(card.LocalImagePath)))
+                {
+                    var capturedCard = card;
+                    cards.Add((card.Name, card.ImageNormalUrl,
+                        path => { capturedCard.LocalImagePath = path; }
+                    ));
+                }
+            }
+
+            // Vanguard collection
+            var vanguardIds = db.VanguardCollectionEntries.Select(c => c.VanguardId).Distinct().ToList();
+            foreach (var id in vanguardIds)
+            {
+                var card = db.VanguardCards.FirstOrDefault(p => p.VanguardId == id);
+                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
+                    && (string.IsNullOrEmpty(card.LocalImagePath)
+                        || !File.Exists(card.LocalImagePath)))
+                {
+                    var capturedCard = card;
+                    cards.Add((card.Name, card.ImageNormalUrl,
+                        path => { capturedCard.LocalImagePath = path; }
+                    ));
+                }
+            }
+
+            // Art Series collection
+            var artIds = db.ArtSeriesCollectionEntries.Select(c => c.ArtSeriesId).Distinct().ToList();
+            foreach (var id in artIds)
+            {
+                var card = db.ArtSeriesCards.FirstOrDefault(p => p.ArtSeriesId == id);
+                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
+                    && (string.IsNullOrEmpty(card.LocalImagePath)
+                        || !File.Exists(card.LocalImagePath)))
+                {
+                    var capturedCard = card;
+                    cards.Add((card.Name, card.ImageNormalUrl,
+                        path => { capturedCard.LocalImagePath = path; }
+                    ));
+                }
+            }
+
+            if (cards.Count == 0)
+            {
+                SetStatus("All collection images already downloaded.", 100);
+                return;
+            }
+
+            SetStatus($"Downloading {cards.Count} card images...", 0);
+            int done = 0, failed = 0;
+
+            foreach (var (name, url, setPath) in cards)
+            {
+                string safeName = string.Concat(
+                    name.Split(Path.GetInvalidFileNameChars()));
+                string path = Path.Combine(folder, $"{safeName}.jpg");
+
+                try
+                {
+                    if (!File.Exists(path))
+                    {
+                        var bytes = await http.GetByteArrayAsync(url);
+                        await File.WriteAllBytesAsync(path, bytes);
+                    }
+                    setPath(path);
+                    done++;
+                }
+                catch
+                {
+                    failed++;
+                }
+
+                int pct = (int)((double)(done + failed) / cards.Count * 100);
+                SetStatus(
+                    $"Downloading images: {done + failed} of {cards.Count}" +
+                    (failed > 0 ? $" ({failed} failed)" : ""),
+                    pct);
+            }
+
+            // Save all LocalImagePath updates to DB
+            db.SaveChanges();
+
+            SetStatus(
+                $"Done — {done} images downloaded" +
+                (failed > 0 ? $", {failed} failed" : "") + ".",
+                100);
+        }
+
+        private void SetStatus(string text, int progress)
+        {
+            StatusText.Text = text;
+            StatusProgressBar.Value = progress;
+        }
 
         private void MenuAbout_Click(object sender, RoutedEventArgs e) =>
             MessageBox.Show(

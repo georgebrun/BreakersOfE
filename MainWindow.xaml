@@ -168,6 +168,7 @@
             <RowDefinition Height="25"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- ══ ROW 0 — MENU BAR ══ -->
@@ -205,6 +206,10 @@
             <MenuItem Header="_Tools">
                 <MenuItem Header="_Update Card Database" Click="MenuUpdateDatabase_Click"/>
                 <MenuItem Header="_Update Prices Only"   Click="MenuUpdatePrices_Click"/>
+                <Separator/>
+                <MenuItem Header="⬇ Download Missing Card Images"
+                          Name="MenuDownloadImages"
+                          Click="MenuDownloadImages_Click"/>
                 <Separator/>
                 <MenuItem Header="_Settings"             Click="MenuSettings_Click"/>
             </MenuItem>
@@ -977,6 +982,24 @@
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- STATUS BAR -->
+        <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0" Height="22">
+            <DockPanel Margin="8,0">
+                <TextBlock Name="StatusText" Text="Ready"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           FontSize="11" VerticalAlignment="Center"
+                           DockPanel.Dock="Left"/>
+                <ProgressBar Name="StatusProgressBar"
+                             DockPanel.Dock="Right"
+                             Width="150" Height="12"
+                             Minimum="0" Maximum="100"
+                             Visibility="Collapsed"
+                             Margin="8,0,0,0"/>
+            </DockPanel>
+        </Border>
 
     </Grid>
 </Window>

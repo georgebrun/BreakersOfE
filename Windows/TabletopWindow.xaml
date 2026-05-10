@@ -47,22 +47,28 @@
             <GradientStop Color="#88000000" Offset="1.0"/>
         </LinearGradientBrush>
 
-        <!-- Zone label style -->
+        <!-- Zone label style — visible over playmat -->
         <Style x:Key="ZoneLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#66FFFFFF"/>
+            <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="10"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="Black" BlurRadius="4"
+                                      ShadowDepth="1" Opacity="0.9"/>
+                </Setter.Value>
+            </Setter>
         </Style>
 
-        <!-- Zone border style -->
+        <!-- Zone border style — transparent, no overlay -->
         <Style x:Key="ZoneBorderStyle" TargetType="Border">
-            <Setter Property="BorderBrush" Value="#44FFFFFF"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Background" Value="#11FFFFFF"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
         </Style>
 
         <!-- Control button style -->
@@ -164,20 +170,20 @@
                 <Grid.RowDefinitions>
                     <!-- Opponent info bar — outside playmat -->
                     <RowDefinition Height="36"/>
-                    <!-- Opponent hand — part of opp playmat -->
-                    <RowDefinition Height="100"/>
+                    <!-- Opponent hand — hidden, count shown in info bar -->
+                    <RowDefinition Name="OppHandRow" Height="0"/>
+                    <!-- Opponent mana/land zone — opp playmat (closest to rail) -->
+                    <RowDefinition Height="1*"/>
                     <!-- Opponent battlefield creatures/spells — opp playmat -->
                     <RowDefinition Height="2*"/>
-                    <!-- Opponent mana/land zone — opp playmat -->
-                    <RowDefinition Height="1*"/>
                     <!-- Center rail — table edge between seats -->
                     <RowDefinition Height="44"/>
-                    <!-- Your mana/land zone — your playmat -->
-                    <RowDefinition Height="1*"/>
                     <!-- Your battlefield creatures/spells — your playmat -->
                     <RowDefinition Height="2*"/>
-                    <!-- Your hand — part of your playmat -->
-                    <RowDefinition Height="100"/>
+                    <!-- Your mana/land zone — your playmat (closest to rail) -->
+                    <RowDefinition Height="1*"/>
+                    <!-- Your hand — animated, collapses to peek strip -->
+                    <RowDefinition Name="YourHandRow" Height="32"/>
                     <!-- Your info bar — outside playmat -->
                     <RowDefinition Height="36"/>
                 </Grid.RowDefinitions>
@@ -189,9 +195,9 @@
                 <Image Name="YourPlaymatImage"
                        Grid.Row="5" Grid.RowSpan="3"
                        Stretch="Fill"
-                       Opacity="0.55"
+                       Opacity="1.0"
                        IsHitTestVisible="False"
-                       Panel.ZIndex="1"
+                       Panel.ZIndex="0"
                        HorizontalAlignment="Stretch"
                        VerticalAlignment="Stretch"/>
 
@@ -202,9 +208,9 @@
                 <Image Name="OppPlaymatImage"
                        Grid.Row="1" Grid.RowSpan="3"
                        Stretch="Fill"
-                       Opacity="0.55"
+                       Opacity="1.0"
                        IsHitTestVisible="False"
-                       Panel.ZIndex="1"
+                       Panel.ZIndex="0"
                        HorizontalAlignment="Stretch"
                        VerticalAlignment="Stretch"
                        RenderTransformOrigin="0.5,0.5">
@@ -216,7 +222,7 @@
                 <!-- ══════════════════════════════════════════════════ -->
                 <!-- ROW 0 — OPPONENT INFO BAR                         -->
                 <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="0" Style="{StaticResource InfoBarStyle}"
+                <Border Grid.Row="0" Panel.ZIndex="2" Style="{StaticResource InfoBarStyle}"
                         CornerRadius="8,8,0,0">
                     <Grid Margin="12,0">
                         <Grid.ColumnDefinitions>
@@ -284,14 +290,19 @@
                                     Click="OppCmdDmgDown_Click"/>
                         </StackPanel>
 
-                        <!-- Hide hand toggle -->
-                        <Button Grid.Column="5" Name="BtnToggleOppHand"
-                                Content="👁 Hand" Style="{StaticResource TableBtnStyle}"
-                                Margin="0,0,8,0" Click="BtnToggleOppHand_Click"/>
+                        <!-- Opp hand count -->
+                        <StackPanel Grid.Column="5" Orientation="Horizontal"
+                                    VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="🂠 Hand: " Foreground="#AAAAAA"
+                                       FontSize="12" VerticalAlignment="Center"/>
+                            <TextBlock Name="OppHandCountLabel" Text="0"
+                                       Foreground="#EEEEEE" FontSize="13"
+                                       FontWeight="Bold" VerticalAlignment="Center"/>
+                        </StackPanel>
 
                         <!-- Rotate table button -->
                         <Button Grid.Column="7" Name="BtnRotateTable"
-                                Content="⟳ Rotate" Style="{StaticResource TableBtnStyle}"
+                                Content="⇄ Switch Seats" Style="{StaticResource TableBtnStyle}"
                                 Margin="0,0,0,0" Click="BtnRotateTable_Click"/>
                     </Grid>
                 </Border>
@@ -299,13 +310,13 @@
                 <!-- ══════════════════════════════════════════════════ -->
                 <!-- ROW 1 — OPPONENT HAND (flipped, blurred when hidden)-->
                 <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="1" Background="#0AFFFFFF"
-                        BorderBrush="#22FFFFFF" BorderThickness="0,0,0,1">
+                <Border Grid.Row="1" Panel.ZIndex="2" Background="Transparent"
+                        BorderBrush="Transparent" BorderThickness="0">
                     <Grid>
                         <TextBlock Text="OPPONENT HAND" Style="{StaticResource ZoneLabelStyle}"
-                                   Opacity="0.4"/>
+                                   Opacity="1.0"/>
                         <!-- Cards will be added here in Phase 4 -->
-                        <Canvas Name="OppHandCanvas"
+                        <Canvas Name="OppHandCanvas" SizeChanged="OppHandCanvas_SizeChanged"
                                 RenderTransformOrigin="0.5,0.5">
                             <Canvas.RenderTransform>
                                 <RotateTransform Angle="180"/>
@@ -323,9 +334,9 @@
                 </Border>
 
                 <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 2 — OPPONENT BATTLEFIELD (creatures/spells)   -->
+                <!-- ROW 2 — OPPONENT MANA / LAND ZONE                 -->
                 <!-- ══════════════════════════════════════════════════ -->
-                <Grid Grid.Row="2">
+                <Grid Grid.Row="2" Panel.ZIndex="2">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="90"/>
                         <ColumnDefinition Width="*"/>
@@ -342,12 +353,7 @@
                             <TextBlock Name="OppCmdTaxText" Text="Tax: 0"
                                        Foreground="#88FFFFFF" FontSize="9"
                                        HorizontalAlignment="Center"/>
-                            <Canvas Name="OppCommandCanvas" Height="120"
-                                    RenderTransformOrigin="0.5,0.5">
-                                <Canvas.RenderTransform>
-                                    <RotateTransform Angle="180"/>
-                                </Canvas.RenderTransform>
-                            </Canvas>
+                            <Canvas Name="OppCommandCanvas" Height="120"/>
                         </StackPanel>
                     </Border>
 
@@ -356,15 +362,8 @@
                             Margin="2,4,2,4"
                             MouseRightButtonDown="OppPlaymat_RightClick">
                         <Grid>
-                            <TextBlock Text="CREATURES / SPELLS"
-                                       Style="{StaticResource ZoneLabelStyle}"
-                                       Opacity="0.2"/>
-                            <Canvas Name="OppBattlefieldCanvas"
-                                    RenderTransformOrigin="0.5,0.5">
-                                <Canvas.RenderTransform>
-                                    <RotateTransform Angle="180"/>
-                                </Canvas.RenderTransform>
-                            </Canvas>
+
+                            <Canvas Name="OppBattlefieldCanvas"/>
                         </Grid>
                     </Border>
 
@@ -373,11 +372,13 @@
                             Margin="2,4,2,4" Cursor="Hand"
                             MouseLeftButtonDown="OppLibrary_Click">
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="🂠" Foreground="#888888"
-                                       FontSize="32" HorizontalAlignment="Center"/>
+                            <Image Source="pack://application:,,,/Resources/Images/MTG_Back.png"
+                                   Width="44" Height="62" Stretch="Fill"
+                                   Margin="0,0,0,4" HorizontalAlignment="Center"/>
                             <TextBlock Text="LIBRARY" Style="{StaticResource ZoneLabelStyle}"/>
                             <TextBlock Name="OppLibraryCount" Text="0"
-                                       Foreground="#88FFFFFF" FontSize="11"
+                                       Foreground="White" FontSize="11"
+                                       FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -391,7 +392,8 @@
                                        FontSize="24" HorizontalAlignment="Center"/>
                             <TextBlock Text="GRAVEYARD" Style="{StaticResource ZoneLabelStyle}"/>
                             <TextBlock Name="OppGraveyardCount" Text="0"
-                                       Foreground="#88FFFFFF" FontSize="11"
+                                       Foreground="White" FontSize="11"
+                                       FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -405,22 +407,22 @@
                                        FontSize="24" HorizontalAlignment="Center"/>
                             <TextBlock Text="EXILE" Style="{StaticResource ZoneLabelStyle}"/>
                             <TextBlock Name="OppExileCount" Text="0"
-                                       Foreground="#88FFFFFF" FontSize="11"
+                                       Foreground="White" FontSize="11"
+                                       FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
                 </Grid>
 
                 <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 3 — OPPONENT MANA / LAND ZONE                 -->
+                <!-- ROW 3 — OPPONENT BATTLEFIELD (creatures/spells)   -->
                 <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="3" Background="#0A000000"
-                        BorderBrush="#22FFFFFF" BorderThickness="0,1,0,1"
+                <Border Grid.Row="3" Panel.ZIndex="2" Background="Transparent"
+                        BorderBrush="Transparent" BorderThickness="0"
                         Margin="4,0"
                         MouseRightButtonDown="OppPlaymat_RightClick">
                     <Grid>
-                        <TextBlock Text="LANDS / MANA" Style="{StaticResource ZoneLabelStyle}"
-                                   Opacity="0.3" VerticalAlignment="Center"/>
+
                         <Canvas Name="OppLandCanvas"
                                 RenderTransformOrigin="0.5,0.5">
                             <Canvas.RenderTransform>
@@ -433,7 +435,7 @@
                 <!-- ══════════════════════════════════════════════════ -->
                 <!-- ROW 4 — CENTER RAIL                               -->
                 <!-- ══════════════════════════════════════════════════ -->
-                <Grid Grid.Row="4">
+                <Grid Grid.Row="4" Panel.ZIndex="3">
                     <!-- Shadow above rail -->
                     <Border Background="{StaticResource ShadowTopBrush}"
                             Height="8" VerticalAlignment="Top" Margin="0,-8,0,0"/>
@@ -506,23 +508,22 @@
                 </Grid>
 
                 <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 5 — YOUR MANA / LAND ZONE                    -->
+                <!-- ROW 5 — YOUR BATTLEFIELD (creatures/spells)       -->
                 <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="5" Background="#0A000000"
-                        BorderBrush="#22FFFFFF" BorderThickness="0,1,0,1"
+                <Border Grid.Row="5" Panel.ZIndex="2" Background="Transparent"
+                        BorderBrush="Transparent" BorderThickness="0"
                         Margin="4,0"
                         MouseRightButtonDown="YourPlaymat_RightClick">
                     <Grid>
-                        <TextBlock Text="LANDS / MANA" Style="{StaticResource ZoneLabelStyle}"
-                                   Opacity="0.3" VerticalAlignment="Center"/>
+
                         <Canvas Name="YourLandCanvas"/>
                     </Grid>
                 </Border>
 
                 <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 6 — YOUR BATTLEFIELD (creatures/spells)       -->
+                <!-- ROW 6 — YOUR MANA / LAND ZONE                    -->
                 <!-- ══════════════════════════════════════════════════ -->
-                <Grid Grid.Row="6">
+                <Grid Grid.Row="6" Panel.ZIndex="2">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="90"/>
                         <ColumnDefinition Width="*"/>
@@ -548,9 +549,7 @@
                             Margin="2,4,2,4"
                             MouseRightButtonDown="YourPlaymat_RightClick">
                         <Grid>
-                            <TextBlock Text="CREATURES / SPELLS"
-                                       Style="{StaticResource ZoneLabelStyle}"
-                                       Opacity="0.2"/>
+
                             <Canvas Name="YourBattlefieldCanvas"/>
                         </Grid>
                     </Border>
@@ -560,11 +559,13 @@
                             Margin="2,4,2,4" Cursor="Hand"
                             MouseLeftButtonDown="YourLibrary_Click">
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="🂠" Foreground="#888888"
-                                       FontSize="32" HorizontalAlignment="Center"/>
+                            <Image Source="pack://application:,,,/Resources/Images/MTG_Back.png"
+                                   Width="44" Height="62" Stretch="Fill"
+                                   Margin="0,0,0,4" HorizontalAlignment="Center"/>
                             <TextBlock Text="LIBRARY" Style="{StaticResource ZoneLabelStyle}"/>
                             <TextBlock Name="YourLibraryCount" Text="0"
-                                       Foreground="#88FFFFFF" FontSize="11"
+                                       Foreground="White" FontSize="11"
+                                       FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -578,7 +579,8 @@
                                        FontSize="24" HorizontalAlignment="Center"/>
                             <TextBlock Text="GRAVEYARD" Style="{StaticResource ZoneLabelStyle}"/>
                             <TextBlock Name="YourGraveyardCount" Text="0"
-                                       Foreground="#88FFFFFF" FontSize="11"
+                                       Foreground="White" FontSize="11"
+                                       FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -592,28 +594,40 @@
                                        FontSize="24" HorizontalAlignment="Center"/>
                             <TextBlock Text="EXILE" Style="{StaticResource ZoneLabelStyle}"/>
                             <TextBlock Name="YourExileCount" Text="0"
-                                       Foreground="#88FFFFFF" FontSize="11"
+                                       Foreground="White" FontSize="11"
+                                       FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
                 </Grid>
 
                 <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 7 — YOUR HAND                                 -->
+                <!-- ROW 7 — YOUR HAND (peek strip, click to expand) -->
                 <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="7" Background="#0AFFFFFF"
-                        BorderBrush="#22FFFFFF" BorderThickness="0,1,0,0">
-                    <Grid>
-                        <TextBlock Text="YOUR HAND" Style="{StaticResource ZoneLabelStyle}"
-                                   Opacity="0.4"/>
-                        <Canvas Name="YourHandCanvas"/>
+                <Border Grid.Row="7" Panel.ZIndex="2" Background="#AA000000"
+                        BorderBrush="#44FFFFFF" BorderThickness="0,1,0,0"
+                        Cursor="Hand" MouseLeftButtonDown="YourHand_Click">
+                    <Grid ClipToBounds="True">
+                        <!-- Peek label shown when collapsed -->
+                        <StackPanel Name="HandPeekLabel" Orientation="Horizontal"
+                                    HorizontalAlignment="Center" VerticalAlignment="Top"
+                                    Margin="0,4,0,0">
+                            <TextBlock Text="▲ HAND " Foreground="White"
+                                       FontSize="10" FontWeight="Bold"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Name="HandCountLabel" Text="(0)"
+                                       Foreground="#CCCCCC" FontSize="10"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Canvas Name="YourHandCanvas" SizeChanged="YourHandCanvas_SizeChanged"
+                                Margin="0,20,0,0"/>
                     </Grid>
                 </Border>
 
                 <!-- ══════════════════════════════════════════════════ -->
                 <!-- ROW 8 — YOUR INFO BAR                             -->
                 <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="8" Background="#CC000000"
+                <Border Grid.Row="8" Panel.ZIndex="2" Background="#CC000000"
                         BorderBrush="#44FFFFFF" BorderThickness="0,1,0,0"
                         CornerRadius="0,0,8,8">
                     <Grid Margin="12,0">

@@ -55,17 +55,18 @@ namespace BreakersOfE.Windows
 
         private readonly Deck? _yourDeck;
         private readonly Deck? _oppDeck;
+        private readonly List<Deck> _allOpenDecks;
 
         // ================================================================
         // CONSTRUCTOR
         // ================================================================
-        public TabletopWindow(Deck? yourDeck = null, Deck? oppDeck = null)
+        public TabletopWindow(List<Deck>? openDecks = null)
         {
             InitializeComponent();
-            _yourDeck = yourDeck;
-            _oppDeck = oppDeck;
+            _allOpenDecks = openDecks ?? new List<Deck>();
+            _yourDeck = _allOpenDecks.FirstOrDefault();
+            _oppDeck = _allOpenDecks.Count > 1 ? _allOpenDecks[1] : null;
 
-            OppHandBlur.Visibility = Visibility.Visible;
             Loaded += TabletopWindow_Loaded;
         }
 
@@ -82,13 +83,7 @@ namespace BreakersOfE.Windows
         {
             bool hasSave = !string.IsNullOrEmpty(GetSetting(SavedGameKey));
 
-            // Gather open decks — start with injected decks
-            var openDecks = new List<Deck>();
-            if (_yourDeck != null) openDecks.Add(_yourDeck);
-            if (_oppDeck != null && _oppDeck != _yourDeck)
-                openDecks.Add(_oppDeck);
-
-            var dlg = new NewGameDialog(openDecks, hasSave) { Owner = this };
+            var dlg = new NewGameDialog(_allOpenDecks, hasSave) { Owner = this };
             if (dlg.ShowDialog() != true)
             {
                 Close();
@@ -101,15 +96,12 @@ namespace BreakersOfE.Windows
                 return;
             }
 
-            // Start fresh game with chosen settings
             _yourPlayerName = dlg.Player1Name;
             _oppPlayerName = dlg.Player2Name;
             _yourLife = dlg.StartingLife;
             _oppLife = dlg.StartingLife;
-            _yourPoison = 0;
-            _oppPoison = 0;
-            _yourCmdDmg = 0;
-            _oppCmdDmg = 0;
+            _yourPoison = _oppPoison = 0;
+            _yourCmdDmg = _oppCmdDmg = 0;
             _turnCounter = 1;
             _currentPhase = 0;
 
@@ -122,9 +114,82 @@ namespace BreakersOfE.Windows
             UpdateLifeDisplays();
             UpdatePhaseDisplay();
             UpdateZoneCounts();
+            RenderLibrary(isYour: true);
+            RenderLibrary(isYour: false);
+            RenderHand(isYour: true);
+            RenderHand(isYour: false);
+            RenderCommander(isYour: true);
+            RenderCommander(isYour: false);
+            UpdateHandCounts();
 
-            // Clear saved game on new start
             SaveSetting(SavedGameKey, string.Empty);
+
+            // Download missing card images in background
+            _ = CacheCardImagesAsync(dlg.Player1Deck);
+            _ = CacheCardImagesAsync(dlg.Player2Deck);
+        }
+
+        // ================================================================
+        // IMAGE CACHING — download missing card images for tabletop use
+        // ================================================================
+        private static string GetImageCacheFolder() =>
+            Services.AppFolderService.CardImagesFolder;
+
+        private static string CardBackPath =>
+            System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                "Resources", "Images", "MTG_Back.png");
+
+        private static string ImageUnavailablePath =>
+            System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                "Resources", "Images", "image_unavailable.png");
+
+        private async System.Threading.Tasks.Task CacheCardImagesAsync(Deck? deck)
+        {
+            if (deck == null) return;
+            var folder = GetImageCacheFolder();
+            using var http = new System.Net.Http.HttpClient();
+            http.Timeout = TimeSpan.FromSeconds(10);
+
+            foreach (var card in deck.Cards)
+            {
+                // Skip if already cached
+                if (!string.IsNullOrEmpty(card.LocalImagePath)
+                    && System.IO.File.Exists(card.LocalImagePath))
+                    continue;
+
+                // Build a safe filename
+                string safeName = string.Concat(
+                    card.Name.Split(System.IO.Path.GetInvalidFileNameChars()));
+                string path = System.IO.Path.Combine(folder, $"{safeName}.jpg");
+
+                if (!System.IO.File.Exists(path))
+                {
+                    if (string.IsNullOrEmpty(card.ImageNormalUrl)) continue;
+                    try
+                    {
+                        var bytes = await http.GetByteArrayAsync(card.ImageNormalUrl);
+                        await System.IO.File.WriteAllBytesAsync(path, bytes);
+                    }
+                    catch { continue; }
+                }
+
+                card.LocalImagePath = path;
+
+                // Re-render hand/commander on UI thread if this card is there
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (_yourHand.Any(c => c.Name == card.Name)
+                        || _oppHand.Any(c => c.Name == card.Name))
+                    {
+                        RenderHand(isYour: true);
+                        RenderHand(isYour: false);
+                    }
+                    if (_yourCommander?.Name == card.Name)
+                        RenderCommander(isYour: true);
+                    if (_oppCommander?.Name == card.Name)
+                        RenderCommander(isYour: false);
+                });
+            }
         }
 
         // ================================================================
@@ -186,6 +251,247 @@ namespace BreakersOfE.Windows
                 int j = _rng.Next(i + 1);
                 (list[i], list[j]) = (list[j], list[i]);
             }
+        }
+
+        // ================================================================
+        // CARD DIMENSIONS (75% of standard 63x88mm at 96dpi)
+        // ================================================================
+        private const double CardW = 90;  // ~135 * 0.67
+        private const double CardH = 126; // ~189 * 0.67
+
+        // ================================================================
+        // RENDER LIBRARY — show card back stack with count
+        // ================================================================
+        private void RenderLibrary(bool isYour)
+        {
+            // Library uses the count label in XAML — just update count
+            // The card back image is shown in the Border placeholder
+            // We draw a card back visual in the library border
+            UpdateZoneCounts();
+        }
+
+        // ================================================================
+        // RENDER HAND — draw cards in hand canvas
+        // ================================================================
+        private void RenderHand(bool isYour)
+        {
+            // Opponent hand is never rendered - only count shown in info bar
+            if (!isYour)
+            {
+                UpdateHandCounts();
+                return;
+            }
+
+            var canvas = YourHandCanvas;
+            canvas.Children.Clear();
+            if (_yourHand.Count == 0) return;
+
+            double canvasW = canvas.ActualWidth;
+            double canvasH = canvas.ActualHeight;
+            if (canvasW < 10) canvasW = 700;
+            if (canvasH < 10) canvasH = 100;
+
+            double spacing = Math.Min(CardW + 4,
+                (canvasW - CardW) / Math.Max(1, _yourHand.Count - 1));
+            double totalW = CardW + spacing * (_yourHand.Count - 1);
+            double startX = (canvasW - totalW) / 2;
+            double y = (canvasH - CardH) / 2;
+
+            for (int i = 0; i < _yourHand.Count; i++)
+            {
+                var card = _yourHand[i];
+                double x = startX + i * spacing;
+                var visual = MakeCardVisual(card, isYour: true, isHand: true);
+                Canvas.SetLeft(visual, x);
+                Canvas.SetTop(visual, y);
+                canvas.Children.Add(visual);
+            }
+            UpdateHandCounts();
+        }
+
+        // ================================================================
+        // RENDER COMMANDER — show commander in command zone
+        // ================================================================
+        private void RenderCommander(bool isYour)
+        {
+            var canvas = isYour ? YourCommandCanvas : OppCommandCanvas;
+            var commander = isYour ? _yourCommander : _oppCommander;
+            canvas.Children.Clear();
+            if (commander == null) return;
+
+            var visual = MakeCardVisual(commander, isYour, isHand: false);
+            Canvas.SetLeft(visual, 2);
+            Canvas.SetTop(visual, 2);
+            canvas.Children.Add(visual);
+        }
+
+        // ================================================================
+        // MAKE CARD VISUAL — image if available, card back otherwise
+        // ================================================================
+        private Border MakeCardVisual(DeckCard card, bool isYour,
+            bool isHand, bool faceDown = false)
+        {
+            var border = new Border
+            {
+                Width = CardW,
+                Height = CardH,
+                CornerRadius = new CornerRadius(4),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
+                BorderThickness = new Thickness(1),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = card.Name
+            };
+
+            if (faceDown || string.IsNullOrEmpty(card.LocalImagePath)
+                || !System.IO.File.Exists(card.LocalImagePath))
+            {
+                // Try image_unavailable.png as fallback
+                string fallback = ImageUnavailablePath;
+                if (System.IO.File.Exists(fallback))
+                {
+                    try
+                    {
+                        var bmp = new BitmapImage();
+                        bmp.BeginInit();
+                        bmp.UriSource = new Uri(fallback, UriKind.Absolute);
+                        bmp.CacheOption = BitmapCacheOption.OnLoad;
+                        bmp.DecodePixelWidth = (int)CardW;
+                        bmp.EndInit();
+                        border.Child = new System.Windows.Controls.Image
+                        {
+                            Source = bmp,
+                            Stretch = Stretch.Fill
+                        };
+                    }
+                    catch { border.Child = MakeCardBack(); }
+                }
+                else
+                    border.Child = MakeCardBack();
+            }
+            else
+            {
+                try
+                {
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.UriSource = new Uri(card.LocalImagePath, UriKind.Absolute);
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.DecodePixelWidth = (int)CardW;
+                    bmp.EndInit();
+                    border.Child = new System.Windows.Controls.Image
+                    {
+                        Source = bmp,
+                        Stretch = Stretch.Fill
+                    };
+                }
+                catch
+                {
+                    border.Child = MakeCardBack();
+                }
+            }
+
+            // Cards always display upright regardless of which side
+            return border;
+        }
+
+        // ================================================================
+        // CARD BACK — drawn with WPF shapes, no external image needed
+        // ================================================================
+        private static Grid MakeCardBack()
+        {
+            var grid = new Grid
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x2A, 0x5E))
+            };
+
+            // Outer decorative border
+            grid.Children.Add(new Border
+            {
+                Margin = new Thickness(4),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xC0, 0xA0, 0x30)),
+                BorderThickness = new Thickness(1.5),
+                CornerRadius = new CornerRadius(3)
+            });
+
+            // Inner border
+            grid.Children.Add(new Border
+            {
+                Margin = new Thickness(8),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x80, 0x60, 0x18)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(2),
+                Background = new SolidColorBrush(
+                    Color.FromRgb(0x12, 0x1E, 0x4A))
+            });
+
+            // MTG logo text
+            grid.Children.Add(new TextBlock
+            {
+                Text = "M",
+                Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0xA0, 0x30)),
+                FontSize = 28,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.7
+            });
+
+            return grid;
+        }
+
+        private bool _handExpanded = false;
+        private const double HandCollapsedH = 32;
+        private const double HandExpandedH = 160;
+        private System.Windows.Threading.DispatcherTimer? _handAnimTimer;
+        private double _handAnimTarget;
+        private double _handAnimCurrent;
+
+        private void YourHand_Click(object sender, MouseButtonEventArgs e)
+        {
+            _handExpanded = !_handExpanded;
+            _handAnimTarget = _handExpanded ? HandExpandedH : HandCollapsedH;
+            _handAnimCurrent = YourHandRow.Height.Value;
+
+            HandPeekLabel.Visibility = _handExpanded
+                ? Visibility.Collapsed : Visibility.Visible;
+
+            _handAnimTimer?.Stop();
+            _handAnimTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(16) // ~60fps
+            };
+            _handAnimTimer.Tick += (s, _) =>
+            {
+                double diff = _handAnimTarget - _handAnimCurrent;
+                if (Math.Abs(diff) < 0.5)
+                {
+                    YourHandRow.Height = new GridLength(_handAnimTarget);
+                    _handAnimTimer.Stop();
+                    if (_handExpanded) RenderHand(isYour: true);
+                    return;
+                }
+                _handAnimCurrent += diff * 0.25; // ease out
+                YourHandRow.Height = new GridLength(_handAnimCurrent);
+            };
+            _handAnimTimer.Start();
+        }
+
+        private void UpdateHandCounts()
+        {
+            if (HandCountLabel != null)
+                HandCountLabel.Text = $"({_yourHand.Count})";
+            if (OppHandCountLabel != null)
+                OppHandCountLabel.Text = _oppHand.Count.ToString();
+        }
+
+        private void YourHandCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (e.NewSize.Width > 10) RenderHand(isYour: true);
+        }
+
+        private void OppHandCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // Opponent hand is never rendered — count only shown in info bar
         }
 
         // ================================================================
@@ -452,67 +758,65 @@ namespace BreakersOfE.Windows
         }
 
         // ================================================================
-        // OPPONENT HAND TOGGLE
-        // ================================================================
-        private void BtnToggleOppHand_Click(object sender, RoutedEventArgs e)
-        {
-            _oppHandHidden = !_oppHandHidden;
-            OppHandBlur.Visibility = _oppHandHidden
-                ? Visibility.Visible : Visibility.Collapsed;
-            BtnToggleOppHand.Content = _oppHandHidden ? "👁 Hand" : "🚫 Hand";
-        }
-
         // ================================================================
         // ================================================================
         // SWITCH SEATS
+        // ================================================================
+        // ================================================================
+        // SWITCH SEATS -- swap all data, re-render from data, view stays fixed
         // ================================================================
         private void BtnRotateTable_Click(object sender, RoutedEventArgs e)
         {
             _tableRotated = !_tableRotated;
 
-            // Swap counters
+            // Swap all data lists
+            (_yourLibrary, _oppLibrary) = (_oppLibrary, _yourLibrary);
+            (_yourHand, _oppHand) = (_oppHand, _yourHand);
+            (_yourGrave, _oppGrave) = (_oppGrave, _yourGrave);
+            (_yourExile, _oppExile) = (_oppExile, _yourExile);
+            (_yourBattlefield, _oppBattlefield) = (_oppBattlefield, _yourBattlefield);
+            (_yourCommander, _oppCommander) = (_oppCommander, _yourCommander);
+
+            // Swap all counters
             (_yourLife, _oppLife) = (_oppLife, _yourLife);
             (_yourPoison, _oppPoison) = (_oppPoison, _yourPoison);
             (_yourCmdDmg, _oppCmdDmg) = (_oppCmdDmg, _yourCmdDmg);
+            (_yourCmdTax, _oppCmdTax) = (_oppCmdTax, _yourCmdTax);
 
-            // Swap names and zone counts using tuples
-            (YourNameLabel.Text, OppNameLabel.Text) = (OppNameLabel.Text, YourNameLabel.Text);
-            (YourLibraryCount.Text, OppLibraryCount.Text) = (OppLibraryCount.Text, YourLibraryCount.Text);
-            (YourGraveyardCount.Text, OppGraveyardCount.Text) = (OppGraveyardCount.Text, YourGraveyardCount.Text);
-            (YourExileCount.Text, OppExileCount.Text) = (OppExileCount.Text, YourExileCount.Text);
-            (YourCmdTaxText.Text, OppCmdTaxText.Text) = (OppCmdTaxText.Text, YourCmdTaxText.Text);
+            // Swap player names
+            (_yourPlayerName, _oppPlayerName) = (_oppPlayerName, _yourPlayerName);
 
-            // Swap playmat image sources
-            // YourPlaymatImage always shows at 0 deg (faces seated player)
-            // OppPlaymatImage always shows at 180 deg (faces opp from their seat)
-            // Swapping sources means each mat follows the player, not the position
-            var yourSrc = YourPlaymatImage.Source;
-            YourPlaymatImage.Source = OppPlaymatImage.Source;
-            OppPlaymatImage.Source = yourSrc;
-
-            // Persist swapped paths
+            // Swap playmat paths and reload both images from new paths
             var yourPath = GetSetting(YourPlaymatKey) ?? string.Empty;
             var oppPath = GetSetting(OppPlaymatKey) ?? string.Empty;
             SaveSetting(YourPlaymatKey, oppPath);
             SaveSetting(OppPlaymatKey, yourPath);
+            LoadPlaymats();
 
-            // Swap all card canvases
-            SwapCanvasChildren(YourBattlefieldCanvas, OppBattlefieldCanvas);
-            SwapCanvasChildren(YourHandCanvas, OppHandCanvas);
-            SwapCanvasChildren(YourLandCanvas, OppLandCanvas);
-            SwapCanvasChildren(YourCommandCanvas, OppCommandCanvas);
+            // Update all labels from swapped data
+            YourNameLabel.Text = _yourPlayerName;
+            OppNameLabel.Text = _oppPlayerName;
+            YourCmdTaxText.Text = $"Tax: {_yourCmdTax}";
+            OppCmdTaxText.Text = $"Tax: {_oppCmdTax}";
 
+            // Re-render everything from data -- no canvas swapping
             UpdateLifeDisplays();
-        }
+            UpdateZoneCounts();
+            UpdateHandCounts();
 
-        private static void SwapCanvasChildren(Canvas a, Canvas b)
-        {
-            var aChildren = a.Children.Cast<UIElement>().ToList();
-            var bChildren = b.Children.Cast<UIElement>().ToList();
-            a.Children.Clear();
-            b.Children.Clear();
-            foreach (var child in bChildren) a.Children.Add(child);
-            foreach (var child in aChildren) b.Children.Add(child);
+            // Clear all canvases and re-render from swapped data
+            YourHandCanvas.Children.Clear();
+            OppHandCanvas.Children.Clear();
+            YourCommandCanvas.Children.Clear();
+            OppCommandCanvas.Children.Clear();
+            YourBattlefieldCanvas.Children.Clear();
+            OppBattlefieldCanvas.Children.Clear();
+            YourLandCanvas.Children.Clear();
+            OppLandCanvas.Children.Clear();
+
+            RenderHand(isYour: true);
+            RenderCommander(isYour: true);
+            RenderCommander(isYour: false);
         }
 
         // ================================================================
