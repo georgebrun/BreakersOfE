@@ -350,9 +350,16 @@
                             Margin="4,4,2,4">
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="CMD" Style="{StaticResource ZoneLabelStyle}"/>
-                            <TextBlock Name="OppCmdTaxText" Text="Tax: 0"
-                                       Foreground="#88FFFFFF" FontSize="9"
+                            <TextBlock Name="OppCmdTaxText" Text="Tax: 0 (+0)"
+                                       Foreground="#FFD700" FontSize="9"
+                                       FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
+                            <Button Name="BtnOppCmdReturn"
+                                    Content="↩ Return" FontSize="9"
+                                    Height="20" Margin="2,3,2,0"
+                                    Visibility="Collapsed"
+                                    Style="{StaticResource TableBtnStyle}"
+                                    Click="BtnOppCmdReturn_Click"/>
                             <Canvas Name="OppCommandCanvas" Height="120"/>
                         </StackPanel>
                     </Border>
@@ -363,7 +370,7 @@
                             MouseRightButtonDown="OppPlaymat_RightClick">
                         <Grid>
 
-                            <Canvas Name="OppBattlefieldCanvas"/>
+                            <Canvas Name="OppLandCanvas"/>
                         </Grid>
                     </Border>
 
@@ -423,7 +430,7 @@
                         MouseRightButtonDown="OppPlaymat_RightClick">
                     <Grid>
 
-                        <Canvas Name="OppLandCanvas"
+                        <Canvas Name="OppBattlefieldCanvas"
                                 RenderTransformOrigin="0.5,0.5">
                             <Canvas.RenderTransform>
                                 <RotateTransform Angle="180"/>
@@ -516,7 +523,7 @@
                         MouseRightButtonDown="YourPlaymat_RightClick">
                     <Grid>
 
-                        <Canvas Name="YourLandCanvas"/>
+                        <Canvas Name="YourBattlefieldCanvas"/>
                     </Grid>
                 </Border>
 
@@ -538,9 +545,18 @@
                         <StackPanel VerticalAlignment="Center">
                             <Canvas Name="YourCommandCanvas" Height="120"/>
                             <TextBlock Text="CMD" Style="{StaticResource ZoneLabelStyle}"/>
-                            <TextBlock Name="YourCmdTaxText" Text="Tax: 0"
-                                       Foreground="#88FFFFFF" FontSize="9"
+                            <!-- Tax: always visible, shows cast count and additional cost -->
+                            <TextBlock Name="YourCmdTaxText" Text="Tax: 0 (+0)"
+                                       Foreground="#FFD700" FontSize="9"
+                                       FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
+                            <!-- Return button: only visible when commander not in CMD/Battlefield -->
+                            <Button Name="BtnYourCmdReturn"
+                                    Content="↩ Return" FontSize="9"
+                                    Height="20" Margin="2,3,2,0"
+                                    Visibility="Collapsed"
+                                    Style="{StaticResource TableBtnStyle}"
+                                    Click="BtnYourCmdReturn_Click"/>
                         </StackPanel>
                     </Border>
 
@@ -550,7 +566,7 @@
                             MouseRightButtonDown="YourPlaymat_RightClick">
                         <Grid>
 
-                            <Canvas Name="YourBattlefieldCanvas"/>
+                            <Canvas Name="YourLandCanvas"/>
                         </Grid>
                     </Border>
 
@@ -642,6 +658,8 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
                         <!-- Player name -->
@@ -701,29 +719,39 @@
                             </Border>
                         </StackPanel>
 
+                        <!-- Draw Card -->
+                        <Button Grid.Column="5" Content="🃏 Draw"
+                                Style="{StaticResource TableBtnStyle}"
+                                Margin="4,0" Click="BtnDrawCard_Click"/>
+
+                        <!-- Mulligan -->
+                        <Button Grid.Column="6" Content="↺ Mulligan"
+                                Style="{StaticResource TableBtnStyle}"
+                                Margin="4,0" Click="BtnMulligan_Click"/>
+
                         <!-- Dice -->
-                        <Button Grid.Column="5" Content="🎲 Dice"
+                        <Button Grid.Column="7" Content="🎲 Dice"
                                 Style="{StaticResource TableBtnStyle}"
                                 Margin="4,0" Click="BtnDice_Click"/>
 
                         <!-- Token -->
-                        <Button Grid.Column="6" Content="🃏 Token"
+                        <Button Grid.Column="8" Content="🃏 Token"
                                 Style="{StaticResource TableBtnStyle}"
                                 Margin="4,0" Click="BtnToken_Click"/>
 
                         <!-- Untap All -->
-                        <Button Grid.Column="7" Content="⟳ Untap All"
+                        <Button Grid.Column="9" Content="⟳ Untap All"
                                 Style="{StaticResource TableBtnStyle}"
                                 Margin="4,0" Click="BtnUntapAll_Click"/>
 
                         <!-- Settings -->
-                        <Button Grid.Column="8" Content="⚙"
+                        <Button Grid.Column="10" Content="⚙"
                                 Style="{StaticResource TableBtnStyle}"
                                 Width="28" Margin="4,0" FontSize="14"
                                 Click="BtnTabletopSettings_Click"/>
 
                         <!-- Close -->
-                        <Button Grid.Column="9" Content="✕"
+                        <Button Grid.Column="11" Content="✕"
                                 Style="{StaticResource TableBtnStyle}"
                                 Width="28" Margin="4,0,0,0" FontSize="14"
                                 Click="BtnTabletopClose_Click"/>
