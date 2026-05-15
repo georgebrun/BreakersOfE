@@ -104,6 +104,7 @@ namespace BreakersOfE.Models
             DeckCardCategory.Mainboard;
         public bool IsCommander { get; set; } = false;
         public bool IsFooter { get; set; } = false;
+        public bool IsToken { get; set; } = false;
 
         // ── Computed display ──────────────────────────────────────────────────
         [JsonIgnore]
@@ -192,6 +193,41 @@ namespace BreakersOfE.Models
         public bool IsCreature =>
             TypeLine.Contains("Creature",
                 StringComparison.OrdinalIgnoreCase);
+
+        [JsonIgnore]
+        public bool IsArtifact =>
+            TypeLine.Contains("Artifact",
+                StringComparison.OrdinalIgnoreCase);
+
+        [JsonIgnore]
+        public bool IsEnchantment =>
+            TypeLine.Contains("Enchantment",
+                StringComparison.OrdinalIgnoreCase);
+
+        [JsonIgnore]
+        public bool IsPlaneswalker =>
+            TypeLine.Contains("Planeswalker",
+                StringComparison.OrdinalIgnoreCase);
+
+        [JsonIgnore]
+        public bool IsBattle =>
+            TypeLine.Contains("Battle",
+                StringComparison.OrdinalIgnoreCase);
+
+        [JsonIgnore]
+        public bool IsInstant =>
+            TypeLine.Contains("Instant",
+                StringComparison.OrdinalIgnoreCase);
+
+        [JsonIgnore]
+        public bool IsSorcery =>
+            TypeLine.Contains("Sorcery",
+                StringComparison.OrdinalIgnoreCase);
+
+        [JsonIgnore]
+        public bool IsPermanent =>
+            IsCreature || IsArtifact || IsEnchantment
+            || IsPlaneswalker || IsLand || IsBattle;
 
         [JsonIgnore]
         public bool IsBasicLand =>
