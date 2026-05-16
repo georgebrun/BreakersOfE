@@ -160,7 +160,7 @@
                        FontSize="11" VerticalAlignment="Center"
                        Margin="0,0,8,0"/>
             <ComboBox Name="CmbPreset" Width="220" Height="28"
-                      Background="#2A2A3E" Foreground="White"
+                      Background="#2A2A3E" Foreground="Black"
                       BorderBrush="#4444AA"
                       SelectionChanged="CmbPreset_SelectionChanged">
                 <ComboBoxItem Content="— Select a preset —" IsSelected="True"/>

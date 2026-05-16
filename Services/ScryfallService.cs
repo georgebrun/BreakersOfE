@@ -440,21 +440,16 @@ namespace BreakersOfE.Services
             int startPct, int endPct,
             CancellationToken ct)
         {
-            // Clear all card tables
+            // Safe to delete and re-insert all card pool tables — collection
+            // data is in a completely separate database and is never affected.
             using (var db = new AppDbContext())
             {
-                await db.Database.ExecuteSqlRawAsync(
-                    "DELETE FROM PoolCards", ct);
-                await db.Database.ExecuteSqlRawAsync(
-                    "DELETE FROM TokenCards", ct);
-                await db.Database.ExecuteSqlRawAsync(
-                    "DELETE FROM PlanarCards", ct);
-                await db.Database.ExecuteSqlRawAsync(
-                    "DELETE FROM SchemeCards", ct);
-                await db.Database.ExecuteSqlRawAsync(
-                    "DELETE FROM VanguardCards", ct);
-                await db.Database.ExecuteSqlRawAsync(
-                    "DELETE FROM ArtSeriesCards", ct);
+                await db.Database.ExecuteSqlRawAsync("DELETE FROM PoolCards", ct);
+                await db.Database.ExecuteSqlRawAsync("DELETE FROM TokenCards", ct);
+                await db.Database.ExecuteSqlRawAsync("DELETE FROM PlanarCards", ct);
+                await db.Database.ExecuteSqlRawAsync("DELETE FROM SchemeCards", ct);
+                await db.Database.ExecuteSqlRawAsync("DELETE FROM VanguardCards", ct);
+                await db.Database.ExecuteSqlRawAsync("DELETE FROM ArtSeriesCards", ct);
             }
 
             const int batchSize = 500;
@@ -756,6 +751,7 @@ namespace BreakersOfE.Services
                 Artist = GetString(c, "artist"),
                 ImageSmallUrl = GetImageUri(c, "small"),
                 ImageNormalUrl = GetImageUri(c, "normal"),
+                ImageBackUrl = GetBackFaceImageUri(c, "normal"),
                 Layout = GetString(c, "layout"),
                 IsFoil = GetBool(c, "foil"),
                 IsNonFoil = GetBool(c, "nonfoil"),
@@ -1008,6 +1004,24 @@ namespace BreakersOfE.Services
                 }
             }
 
+            return string.Empty;
+        }
+
+        private static string GetBackFaceImageUri(JsonElement el, string size)
+        {
+            // Returns the second card face image (back face for DFCs)
+            if (el.TryGetProperty("card_faces", out var faces))
+            {
+                int idx = 0;
+                foreach (var face in faces.EnumerateArray())
+                {
+                    if (idx == 1 &&
+                        face.TryGetProperty("image_uris", out var fu) &&
+                        fu.TryGetProperty(size, out var furi))
+                        return furi.GetString() ?? string.Empty;
+                    idx++;
+                }
+            }
             return string.Empty;
         }
 

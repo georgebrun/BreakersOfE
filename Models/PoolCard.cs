@@ -32,6 +32,9 @@ namespace BreakersOfE.Models
         public string Artist { get; set; } = string.Empty;
         public string ImageSmallUrl { get; set; } = string.Empty;
         public string ImageNormalUrl { get; set; } = string.Empty;
+        public string ImageBackUrl { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public string LocalImageBackPath { get; set; } = string.Empty;
         public string Layout { get; set; } = string.Empty;
         public bool IsFoil { get; set; }
         public bool IsNonFoil { get; set; }
@@ -39,7 +42,6 @@ namespace BreakersOfE.Models
         public bool IsMeld { get; set; }
         public string ReleasedAt { get; set; } = string.Empty;
         public string LegalitiesJson { get; set; } = string.Empty;
-        public string LocalImagePath { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
         public string Keywords { get; set; } = string.Empty;
 

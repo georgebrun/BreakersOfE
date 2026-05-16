@@ -19,23 +19,16 @@ namespace BreakersOfE.Windows
         public Deck? Player1Deck { get; private set; }
         public Deck? Player2Deck { get; private set; }
         public int StartingLife { get; private set; } = 20;
-        public bool RestoreSave { get; private set; } = false;
 
         private readonly List<Deck> _openDecks;
-        private readonly bool _hasSavedGame;
-
-        // ================================================================
         // CONSTRUCTOR
         // ================================================================
-        public NewGameDialog(List<Deck> openDecks, bool hasSavedGame = false)
+        public NewGameDialog(List<Deck> openDecks)
         {
             InitializeComponent();
             _openDecks = openDecks;
-            _hasSavedGame = hasSavedGame;
 
             PopulateDeckCombos();
-            RestorePanel.Visibility = hasSavedGame
-                ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // ================================================================
@@ -142,18 +135,6 @@ namespace BreakersOfE.Windows
 
         // ================================================================
         // RESTORE / DISCARD SAVE
-        // ================================================================
-        private void BtnRestoreGame_Click(object sender, RoutedEventArgs e)
-        {
-            RestoreSave = true;
-            DialogResult = true;
-        }
-
-        private void BtnDiscardSave_Click(object sender, RoutedEventArgs e)
-        {
-            RestorePanel.Visibility = Visibility.Collapsed;
-        }
-
         // ================================================================
         // START / CANCEL
         // ================================================================

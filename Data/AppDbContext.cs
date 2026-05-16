@@ -15,13 +15,6 @@ namespace BreakersOfE.Data
         public DbSet<ArtSeriesCard> ArtSeriesCards { get; set; }
 
         // ── Collection Tables ───────────────────────────────────────────────
-        public DbSet<CollectionEntry> CollectionEntries { get; set; }
-        public DbSet<TokenCollectionEntry> TokenCollectionEntries { get; set; }
-        public DbSet<PlanarCollectionEntry> PlanarCollectionEntries { get; set; }
-        public DbSet<SchemeCollectionEntry> SchemeCollectionEntries { get; set; }
-        public DbSet<VanguardCollectionEntry> VanguardCollectionEntries { get; set; }
-        public DbSet<ConspiracyCollectionEntry> ConspiracyCollectionEntries { get; set; }
-        public DbSet<ArtSeriesCollectionEntry> ArtSeriesCollectionEntries { get; set; }
 
         // ── Other Tables ────────────────────────────────────────────────────
         public DbSet<TradeBinderEntry> TradeBinderEntries { get; set; }
@@ -38,13 +31,8 @@ namespace BreakersOfE.Data
         // ── Schema migration for new columns ─────────────────────────────────────
         public void MigrateSchema()
         {
-            var tables = new[]
+            var tables = new (string table, string column)[]
             {
-                ("TokenCollectionEntries",     "UsedCount"),
-                ("PlanarCollectionEntries",    "UsedCount"),
-                ("SchemeCollectionEntries",    "UsedCount"),
-                ("VanguardCollectionEntries",  "UsedCount"),
-                ("ArtSeriesCollectionEntries", "UsedCount"),
             };
 
             foreach (var (table, column) in tables)
@@ -60,14 +48,8 @@ namespace BreakersOfE.Data
             }
 
             // New trading/inventory columns for all collection tables
-            var allCollectionTables = new[]
+            var allCollectionTables = new string[]
             {
-                "CollectionEntries",
-                "TokenCollectionEntries",
-                "PlanarCollectionEntries",
-                "SchemeCollectionEntries",
-                "VanguardCollectionEntries",
-                "ArtSeriesCollectionEntries",
             };
 
             var tradingCols = new (string col, string type, string def)[]
@@ -101,18 +83,11 @@ namespace BreakersOfE.Data
                     catch { /* Column already exists — ignore */ }
                 }
 
-            // (Legacy block kept for CollectionEntries-only migration — now handled above)
-            // New CollectionEntries trading/inventory columns
 
 
             // New fields for special collection tables
-            var specialTables = new[]
+            var specialTables = new string[]
             {
-                "TokenCollectionEntries",
-                "PlanarCollectionEntries",
-                "SchemeCollectionEntries",
-                "VanguardCollectionEntries",
-                "ArtSeriesCollectionEntries"
             };
 
             foreach (var tbl in specialTables)
@@ -145,6 +120,24 @@ namespace BreakersOfE.Data
                     }
                     catch { }
                 }
+            }
+
+            // DFC back face image columns for PoolCards
+            var dfcColumns = new[]
+            {
+                ("PoolCards", "ImageBackUrl",       "TEXT NOT NULL DEFAULT ''"),
+                ("PoolCards", "LocalImageBackPath", "TEXT NOT NULL DEFAULT ''"),
+            };
+            foreach (var (table, col, def) in dfcColumns)
+            {
+                try
+                {
+#pragma warning disable EF1002
+                    Database.ExecuteSqlRaw(
+                        $"ALTER TABLE {table} ADD COLUMN `{col}` {def}");
+#pragma warning restore EF1002
+                }
+                catch { /* Column already exists — ignore */ }
             }
         }
 

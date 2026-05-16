@@ -478,6 +478,8 @@ namespace BreakersOfE.Services
                 IsNonFoil = source.IsNonFoil,
                 ImageNormalUrl = source.ImageNormalUrl,
                 LocalImagePath = source.LocalImagePath,
+                ImageBackUrl = source.ImageBackUrl,
+                LocalImageBackPath = source.LocalImageBackPath,
                 PriceUsd = source.PriceUsd,
                 PriceUsdFoil = source.PriceUsdFoil
             };
@@ -562,6 +564,8 @@ namespace BreakersOfE.Services
                 IsNonFoil = pool.IsNonFoil,
                 ImageNormalUrl = pool.ImageNormalUrl,
                 LocalImagePath = pool.LocalImagePath,
+                ImageBackUrl = pool.ImageBackUrl,
+                LocalImageBackPath = pool.LocalImageBackPath,
                 PriceUsd = pool.PriceUsd,
                 PriceUsdFoil = pool.PriceUsdFoil
             };
@@ -595,6 +599,8 @@ namespace BreakersOfE.Services
                 IsNonFoil = row.IsNonFoil,
                 ImageNormalUrl = row.ImageNormalUrl,
                 LocalImagePath = row.LocalImagePath,
+                ImageBackUrl = row.ImageBackUrl,
+                LocalImageBackPath = row.LocalImageBackPath,
                 PriceUsd = row.PriceUsd,
                 PriceUsdFoil = row.PriceUsdFoil
             };

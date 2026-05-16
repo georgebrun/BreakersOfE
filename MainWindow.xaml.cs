@@ -94,7 +94,7 @@ namespace BreakersOfE
                 "Resources", "Images", "image_unavailable.png");
 
         private static async Task DownloadAndCacheCardImageAsync(
-            string cardName, string imageUrl)
+            string cardName, string imageUrl, string? backImageUrl = null)
         {
             if (string.IsNullOrEmpty(imageUrl)) return;
             try
@@ -102,20 +102,37 @@ namespace BreakersOfE
                 string safeName = string.Concat(
                     cardName.Split(Path.GetInvalidFileNameChars()));
                 string path = Path.Combine(CardImagesFolder, $"{safeName}.jpg");
-                if (File.Exists(path)) return; // already cached
+                string backPath = Path.Combine(CardImagesFolder, $"{safeName}_back.jpg");
 
                 using var http = new System.Net.Http.HttpClient();
                 http.Timeout = TimeSpan.FromSeconds(10);
-                var bytes = await http.GetByteArrayAsync(imageUrl);
-                await File.WriteAllBytesAsync(path, bytes);
+
+                // Download front face
+                if (!File.Exists(path))
+                {
+                    var bytes = await http.GetByteArrayAsync(imageUrl);
+                    await File.WriteAllBytesAsync(path, bytes);
+                }
+
+                // Download back face if DFC
+                if (!string.IsNullOrEmpty(backImageUrl) && !File.Exists(backPath))
+                {
+                    try
+                    {
+                        var backBytes = await http.GetByteArrayAsync(backImageUrl);
+                        await File.WriteAllBytesAsync(backPath, backBytes);
+                    }
+                    catch { /* back face download failed — non-critical */ }
+                }
 
                 // Update LocalImagePath on all matching PoolCards in DB
                 using var db = new Data.AppDbContext();
-                var card = db.PoolCards
-                    .FirstOrDefault(p => p.Name == cardName);
+                var card = db.PoolCards.FirstOrDefault(p => p.Name == cardName);
                 if (card != null)
                 {
                     card.LocalImagePath = path;
+                    if (!string.IsNullOrEmpty(backImageUrl) && File.Exists(backPath))
+                        card.LocalImageBackPath = backPath;
                     db.SaveChanges();
                 }
             }
@@ -1669,7 +1686,7 @@ namespace BreakersOfE
         private void UpdateUsedCount(int poolId, int delta)
         {
             if (poolId <= 0) return;
-            using var db = new Data.AppDbContext();
+            using var db = new Data.CollectionDbContext();
             var entry = db.CollectionEntries
                 .FirstOrDefault(c => c.PoolId == poolId);
             if (entry == null) return;
@@ -2165,9 +2182,14 @@ namespace BreakersOfE
 
         private void EnsureDatabase()
         {
+            // Pool database — card data, prices, legalities
             using var db = new AppDbContext();
             db.Database.EnsureCreated();
             db.MigrateSchema();
+
+            // Collection database — completely separate, never touched by pool updates
+            using var cdb = new Data.CollectionDbContext();
+            cdb.MigrateSchema();
         }
 
         private void LoadCaches()
@@ -2532,8 +2554,9 @@ namespace BreakersOfE
         {
             SetTopExpandColumnVisibility(Visibility.Visible);
             EnsureCollectionColumns(TopDataGrid);
-            using var db = new Data.AppDbContext();
-            var rows = BuildCollectionRows(db);
+            using var cdb = new Data.CollectionDbContext();
+            using var pdb = new Data.AppDbContext();
+            var rows = BuildCollectionRows(cdb, pdb);
             if (!string.IsNullOrWhiteSpace(_lastSearchTerm))
                 rows = rows.Where(c => c.Name.Contains(
                     _lastSearchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -2788,8 +2811,9 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void LoadBottomTable_Collection()
         {
-            using var db = new AppDbContext();
-            var rows = BuildCollectionRows(db);
+            using var cdb = new Data.CollectionDbContext();
+            using var pdb = new AppDbContext();
+            var rows = BuildCollectionRows(cdb, pdb);
 
             // Apply text search
             if (!string.IsNullOrWhiteSpace(_bottomSearch))
@@ -2822,9 +2846,10 @@ namespace BreakersOfE
 
         private void LoadBottomTable_PlanechaseCollection()
         {
-            using var db = new AppDbContext();
-            var rows = db.PlanarCollectionEntries.AsNoTracking()
-                .Join(db.PlanarCards.AsNoTracking(),
+            using var cdb = new CollectionDbContext();
+            using var pdb = new AppDbContext();
+            var rows = cdb.PlanarCollectionEntries.AsNoTracking()
+                .Join(pdb.PlanarCards.AsNoTracking(),
                     ce => ce.PlanarId, pc => pc.PlanarId,
                     (ce, pc) => new CollectionDisplayRow
                     {
@@ -2879,9 +2904,10 @@ namespace BreakersOfE
 
         private void LoadBottomTable_ArchenemyCollection()
         {
-            using var db = new AppDbContext();
-            var rows = db.SchemeCollectionEntries.AsNoTracking()
-                .Join(db.SchemeCards.AsNoTracking(),
+            using var cdb = new CollectionDbContext();
+            using var pdb = new AppDbContext();
+            var rows = cdb.SchemeCollectionEntries.AsNoTracking()
+                .Join(pdb.SchemeCards.AsNoTracking(),
                     ce => ce.SchemeId, sc => sc.SchemeId,
                     (ce, sc) => new CollectionDisplayRow
                     {
@@ -2935,9 +2961,10 @@ namespace BreakersOfE
 
         private void LoadBottomTable_VanguardCollection()
         {
-            using var db = new AppDbContext();
-            var rows = db.VanguardCollectionEntries.AsNoTracking()
-                .Join(db.VanguardCards.AsNoTracking(),
+            using var cdb = new CollectionDbContext();
+            using var pdb = new AppDbContext();
+            var rows = cdb.VanguardCollectionEntries.AsNoTracking()
+                .Join(pdb.VanguardCards.AsNoTracking(),
                     ce => ce.VanguardId, vc => vc.VanguardId,
                     (ce, vc) => new CollectionDisplayRow
                     {
@@ -2992,9 +3019,10 @@ namespace BreakersOfE
 
         private void LoadBottomTable_TokenCollection()
         {
-            using var db = new AppDbContext();
-            var rows = db.TokenCollectionEntries.AsNoTracking()
-                .Join(db.TokenCards.AsNoTracking(),
+            using var cdb = new CollectionDbContext();
+            using var pdb = new AppDbContext();
+            var rows = cdb.TokenCollectionEntries.AsNoTracking()
+                .Join(pdb.TokenCards.AsNoTracking(),
                     ce => ce.TokenId, tc => tc.TokenId,
                     (ce, tc) => new CollectionDisplayRow
                     {
@@ -3048,9 +3076,10 @@ namespace BreakersOfE
 
         private void LoadBottomTable_ArtSeriesCollection()
         {
-            using var db = new AppDbContext();
-            var rows = db.ArtSeriesCollectionEntries.AsNoTracking()
-                .Join(db.ArtSeriesCards.AsNoTracking(),
+            using var cdb = new CollectionDbContext();
+            using var pdb = new AppDbContext();
+            var rows = cdb.ArtSeriesCollectionEntries.AsNoTracking()
+                .Join(pdb.ArtSeriesCards.AsNoTracking(),
                     ce => ce.ArtSeriesId, ac => ac.ArtSeriesId,
                     (ce, ac) => new CollectionDisplayRow
                     {
@@ -3103,70 +3132,88 @@ namespace BreakersOfE
         }
 
         // ── Shared collection row builder ────────────────────────────────────
+        // EF Core cannot join across two database contexts in a single LINQ query,
+        // so we load each side into memory first, then join in-process.
         private static List<CollectionDisplayRow> BuildCollectionRows(
-    AppDbContext db)
+    Data.CollectionDbContext cdb, AppDbContext pdb)
         {
-            return db.CollectionEntries.AsNoTracking()
-                .Join(db.PoolCards.AsNoTracking(),
-                    ce => ce.PoolId, pc => pc.PoolId,
-                    (ce, pc) => new CollectionDisplayRow
-                    {
-                        CollectionEntryId = ce.CollectionEntryId,
-                        PoolId = pc.PoolId,
-                        Name = pc.Name,
-                        SetCode = pc.SetCode,
-                        SetName = pc.SetName,
-                        CollectorNumber = pc.CollectorNumber,
-                        ColorIdentity = pc.ColorIdentity,
-                        Colors = pc.Colors,
-                        TypeLine = pc.TypeLine,
-                        ManaCost = pc.ManaCost,
-                        ManaValue = pc.ManaValue,
-                        Power = pc.Power,
-                        Toughness = pc.Toughness,
-                        OracleText = pc.OracleText,
-                        FlavorText = pc.FlavorText,
-                        Artist = pc.Artist,
-                        Rarity = pc.Rarity,
-                        IsFoil = pc.IsFoil,
-                        IsNonFoil = pc.IsNonFoil,
-                        ImageNormalUrl = pc.ImageNormalUrl,
-                        LocalImagePath = pc.LocalImagePath,
-                        Quantity = ce.Quantity,
-                        FoilQuantity = ce.FoilQuantity,
-                        UsedCount = ce.UsedCount,
-                        Condition = ce.Condition,
-                        Language = ce.Language,
-                        StorageLocation = ce.StorageLocation,
-                        Notes = ce.Notes,
-                        BuyAt = ce.BuyAt,
-                        SellAt = ce.SellAt,
-                        SellAtValue = ce.SellAtValue,
-                        PriceHigh = ce.PriceHigh,
-                        MarketValue = ce.MarketValue,
-                        PriceLow = ce.PriceLow,
-                        Needed = ce.Needed,
-                        Excess = ce.Excess,
-                        Target = ce.Target,
-                        Desired = ce.Desired,
-                        CardGroup = ce.CardGroup,
-                        PrintType = ce.PrintType,
-                        BuyStatus = ce.BuyStatus,
-                        SellStatus = ce.SellStatus,
-                        IsLegalStandard = pc.IsLegalStandard,
-                        IsLegalModern = pc.IsLegalModern,
-                        IsLegalPioneer = pc.IsLegalPioneer,
-                        IsLegalLegacy = pc.IsLegalLegacy,
-                        IsLegalVintage = pc.IsLegalVintage,
-                        LegalitiesJson = pc.LegalitiesJson,
-                        DateAdded = ce.DateAdded,
-                        DateModified = ce.DateModified,
-                        // ── Pricing ──────────────────────────────────────────────
-                        PriceUsd = pc.PriceUsd,
-                        PriceUsdFoil = pc.PriceUsdFoil
-                    })
-                .OrderBy(x => x.Name)
-                .ToList();
+            // Load collection entries into memory
+            var entries = cdb.CollectionEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) return new List<CollectionDisplayRow>();
+
+            // Load only the pool cards we actually need
+            var poolIds = entries.Select(e => e.PoolId).Distinct().ToHashSet();
+            var poolCards = pdb.PoolCards.AsNoTracking()
+                .Where(pc => poolIds.Contains(pc.PoolId))
+                .ToList()
+                .ToDictionary(pc => pc.PoolId);
+
+            // Join in memory
+            var rows = new List<CollectionDisplayRow>(entries.Count);
+            foreach (var ce in entries)
+            {
+                if (!poolCards.TryGetValue(ce.PoolId, out var pc)) continue;
+                rows.Add(new CollectionDisplayRow
+                {
+                    CollectionEntryId = ce.CollectionEntryId,
+                    PoolId = pc.PoolId,
+                    Name = pc.Name,
+                    SetCode = pc.SetCode,
+                    SetName = pc.SetName,
+                    CollectorNumber = pc.CollectorNumber,
+                    ColorIdentity = pc.ColorIdentity,
+                    Colors = pc.Colors,
+                    TypeLine = pc.TypeLine,
+                    ManaCost = pc.ManaCost,
+                    ManaValue = pc.ManaValue,
+                    Power = pc.Power,
+                    Toughness = pc.Toughness,
+                    OracleText = pc.OracleText,
+                    FlavorText = pc.FlavorText,
+                    Artist = pc.Artist,
+                    Rarity = pc.Rarity,
+                    IsFoil = pc.IsFoil,
+                    IsNonFoil = pc.IsNonFoil,
+                    ImageNormalUrl = pc.ImageNormalUrl,
+                    LocalImagePath = pc.LocalImagePath,
+                    ImageBackUrl = pc.ImageBackUrl,
+                    LocalImageBackPath = pc.LocalImageBackPath,
+                    Quantity = ce.Quantity,
+                    FoilQuantity = ce.FoilQuantity,
+                    UsedCount = ce.UsedCount,
+                    Condition = ce.Condition,
+                    Language = ce.Language,
+                    StorageLocation = ce.StorageLocation,
+                    Notes = ce.Notes,
+                    BuyAt = ce.BuyAt,
+                    SellAt = ce.SellAt,
+                    SellAtValue = ce.SellAtValue,
+                    PriceHigh = ce.PriceHigh,
+                    MarketValue = ce.MarketValue,
+                    PriceLow = ce.PriceLow,
+                    Needed = ce.Needed,
+                    Excess = ce.Excess,
+                    Target = ce.Target,
+                    Desired = ce.Desired,
+                    CardGroup = ce.CardGroup,
+                    PrintType = ce.PrintType,
+                    BuyStatus = ce.BuyStatus,
+                    SellStatus = ce.SellStatus,
+                    IsLegalStandard = pc.IsLegalStandard,
+                    IsLegalModern = pc.IsLegalModern,
+                    IsLegalPioneer = pc.IsLegalPioneer,
+                    IsLegalLegacy = pc.IsLegalLegacy,
+                    IsLegalVintage = pc.IsLegalVintage,
+                    LegalitiesJson = pc.LegalitiesJson,
+                    DateAdded = ce.DateAdded,
+                    DateModified = ce.DateModified,
+                    PriceUsd = pc.PriceUsd,
+                    PriceUsdFoil = pc.PriceUsdFoil
+                });
+            }
+
+            rows.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            return rows;
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -3572,7 +3619,7 @@ namespace BreakersOfE
             {
                 try
                 {
-                    using var db = new Data.AppDbContext();
+                    using var db = new Data.CollectionDbContext();
                     var entry = db.CollectionEntries
                         .FirstOrDefault(c => c.CollectionEntryId == row.CollectionEntryId);
                     if (entry == null) return;
@@ -3623,7 +3670,7 @@ namespace BreakersOfE
             {
                 try
                 {
-                    using var db = new Data.AppDbContext();
+                    using var db = new Data.CollectionDbContext();
                     var entry = db.CollectionEntries
                         .FirstOrDefault(c => c.CollectionEntryId == row.CollectionEntryId);
                     if (entry == null) return;
@@ -3749,7 +3796,8 @@ namespace BreakersOfE
             {
                 case PoolCard pc:
                     ShowPoolCardDetail(pc);
-                    await LoadCardImageAsync(pc.LocalImagePath, pc.ImageNormalUrl);
+                    await LoadCardImageAsync(pc.LocalImagePath, pc.ImageNormalUrl,
+                        pc.LocalImageBackPath, pc.ImageBackUrl);
                     break;
                 case TokenCard tc:
                     ShowTokenCardDetail(tc);
@@ -3773,11 +3821,13 @@ namespace BreakersOfE
                     break;
                 case CollectionDisplayRow cr:
                     ShowCollectionRowDetail(cr);
-                    await LoadCardImageAsync(cr.LocalImagePath, cr.ImageNormalUrl);
+                    await LoadCardImageAsync(cr.LocalImagePath, cr.ImageNormalUrl,
+                        cr.LocalImageBackPath, cr.ImageBackUrl);
                     break;
                 case DeckCard dc:
                     ShowDeckCardDetail(dc);
-                    await LoadCardImageAsync(dc.LocalImagePath, dc.ImageNormalUrl);
+                    await LoadCardImageAsync(dc.LocalImagePath, dc.ImageNormalUrl,
+                        dc.LocalImageBackPath, dc.ImageBackUrl);
                     break;
                 default:
                     ClearDetailPanel();
@@ -4418,7 +4468,7 @@ namespace BreakersOfE
         {
             var report = new List<DeckImportReportRow>();
 
-            using var db = new AppDbContext();
+            using var db = new Data.CollectionDbContext();
 
             foreach (var card in cards)
             {
@@ -4474,7 +4524,7 @@ namespace BreakersOfE
         private void AddToPoolCollection(int poolId, string name,
     int qty, bool foil)
         {
-            using var db = new AppDbContext();
+            using var db = new CollectionDbContext();
             var existing = db.CollectionEntries
                 .FirstOrDefault(c => c.PoolId == poolId);
 
@@ -4524,15 +4574,16 @@ namespace BreakersOfE
             RefreshBottom();
 
             // Download card image in background if not already cached
-            var poolCard = db.PoolCards.FirstOrDefault(p => p.PoolId == poolId);
+            using var pdb = new Data.AppDbContext();
+            var poolCard = pdb.PoolCards.FirstOrDefault(p => p.PoolId == poolId);
             if (poolCard != null && !string.IsNullOrEmpty(poolCard.ImageNormalUrl))
-                _ = DownloadAndCacheCardImageAsync(poolCard.Name, poolCard.ImageNormalUrl);
+                _ = DownloadAndCacheCardImageAsync(poolCard.Name, poolCard.ImageNormalUrl, poolCard.ImageBackUrl);
         }
 
         private void AddToSpecialCollection(string type, int cardId,
             string name, int qty, bool foil)
         {
-            using var db = new AppDbContext();
+            using var db = new Data.CollectionDbContext();
 
             switch (type)
             {
@@ -4655,7 +4706,7 @@ namespace BreakersOfE
         private void RemoveFromCollection(
             CollectionDisplayRow row, int qty, bool all)
         {
-            using var db = new AppDbContext();
+            using var db = new Data.CollectionDbContext();
 
             switch (_currentMode)
             {
@@ -4760,7 +4811,7 @@ namespace BreakersOfE
         private void AdjustCollectionQty(
             CollectionDisplayRow row, int delta, bool foil)
         {
-            using var db = new AppDbContext();
+            using var db = new Data.CollectionDbContext();
 
             switch (_currentMode)
             {
@@ -4847,7 +4898,7 @@ namespace BreakersOfE
             CollectionDisplayRow row, int qty, bool foil)
         {
             if (qty < 0) return;
-            using var db = new AppDbContext();
+            using var db = new Data.CollectionDbContext();
 
             switch (_currentMode)
             {
@@ -5375,11 +5426,28 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         // CARD IMAGE
         // ════════════════════════════════════════════════════════════════════
-        private async Task LoadCardImageAsync(string localPath,
-            string remoteUrl)
+
+        // Stored back face info for current detail card — for flip button
+        private string _currentBackLocalPath = string.Empty;
+        private string _currentBackUrl = string.Empty;
+        private bool _showingBackFace = false;
+
+        private async Task LoadCardImageAsync(string localPath, string remoteUrl,
+            string backLocalPath = "", string backUrl = "")
         {
-            if (!string.IsNullOrWhiteSpace(localPath) &&
-                File.Exists(localPath))
+            // Reset flip state
+            _showingBackFace = false;
+            _currentBackLocalPath = backLocalPath;
+            _currentBackUrl = backUrl;
+
+            bool hasDfc = !string.IsNullOrEmpty(backLocalPath)
+                          || !string.IsNullOrEmpty(backUrl);
+
+            BtnFlipCard.Visibility = hasDfc
+                ? Visibility.Visible : Visibility.Collapsed;
+            BtnFlipCard.Content = "🔄 Show Back Face";
+
+            if (!string.IsNullOrWhiteSpace(localPath) && File.Exists(localPath))
             { SetCardImage(localPath); return; }
 
             if (!string.IsNullOrWhiteSpace(remoteUrl))
@@ -5389,6 +5457,41 @@ namespace BreakersOfE
             }
 
             SetPlaceholderImage();
+        }
+
+        private void BtnFlipCard_Click(object sender, RoutedEventArgs e)
+        {
+            _showingBackFace = !_showingBackFace;
+
+            if (_showingBackFace)
+            {
+                BtnFlipCard.Content = "🔄 Show Front Face";
+                if (!string.IsNullOrEmpty(_currentBackLocalPath)
+                    && File.Exists(_currentBackLocalPath))
+                    SetCardImage(_currentBackLocalPath);
+                else if (!string.IsNullOrEmpty(_currentBackUrl))
+                    _ = SetCardImageFromUrlAsync(_currentBackUrl);
+                else
+                {
+                    // No back face image yet — flip back
+                    _showingBackFace = false;
+                    BtnFlipCard.Content = "🔄 Show Back Face";
+                    MessageBox.Show(
+                        "Back face image not yet downloaded.\n" +
+                        "Add this card to your collection or pool to cache it.",
+                        "Back Face Unavailable",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            else
+            {
+                BtnFlipCard.Content = "🔄 Show Back Face";
+                // Reload the front face — find it from DetailName
+                // Just re-select the current row to reload
+                var selected = TopDataGrid.SelectedItem ?? BottomDataGrid.SelectedItem;
+                if (selected != null)
+                    _ = HandleSelectionAsync(selected);
+            }
         }
 
         private void SetCardImage(string path)
@@ -5452,8 +5555,26 @@ namespace BreakersOfE
             }
 
             string name = DetailName.Text;
+
+            // Load back face image if available
+            System.Windows.Media.ImageSource? backSource = null;
+            if (!string.IsNullOrEmpty(_currentBackLocalPath)
+                && File.Exists(_currentBackLocalPath))
+            {
+                try
+                {
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.UriSource = new Uri(_currentBackLocalPath, UriKind.Absolute);
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.EndInit();
+                    backSource = bmp;
+                }
+                catch { }
+            }
+
             _cardImageWindow = new BreakersOfE.Windows.CardImageWindow(
-                CardImage.Source, name)
+                CardImage.Source, name, backSource)
             { Owner = this };
             _cardImageWindow.Closed += (s, ev) => _cardImageWindow = null;
             _cardImageWindow.Show();
@@ -6122,10 +6243,11 @@ namespace BreakersOfE
             // Gather all cards from all 6 collection types
             var cards = new List<(string Name, string ImageUrl, Action<string> SetPath)>();
 
+            using var cdb = new Data.CollectionDbContext();
             using var db = new Data.AppDbContext();
 
             // Standard collection — join to PoolCards
-            var poolIds = db.CollectionEntries.Select(c => c.PoolId).Distinct().ToList();
+            var poolIds = cdb.CollectionEntries.Select(c => c.PoolId).Distinct().ToList();
             foreach (var id in poolIds)
             {
                 var card = db.PoolCards.FirstOrDefault(p => p.PoolId == id);
@@ -6141,7 +6263,7 @@ namespace BreakersOfE
             }
 
             // Token collection
-            var tokenIds = db.TokenCollectionEntries.Select(c => c.TokenId).Distinct().ToList();
+            var tokenIds = cdb.TokenCollectionEntries.Select(c => c.TokenId).Distinct().ToList();
             foreach (var id in tokenIds)
             {
                 var card = db.TokenCards.FirstOrDefault(p => p.TokenId == id);
@@ -6157,7 +6279,7 @@ namespace BreakersOfE
             }
 
             // Planar collection
-            var planarIds = db.PlanarCollectionEntries.Select(c => c.PlanarId).Distinct().ToList();
+            var planarIds = cdb.PlanarCollectionEntries.Select(c => c.PlanarId).Distinct().ToList();
             foreach (var id in planarIds)
             {
                 var card = db.PlanarCards.FirstOrDefault(p => p.PlanarId == id);
@@ -6173,7 +6295,7 @@ namespace BreakersOfE
             }
 
             // Scheme collection
-            var schemeIds = db.SchemeCollectionEntries.Select(c => c.SchemeId).Distinct().ToList();
+            var schemeIds = cdb.SchemeCollectionEntries.Select(c => c.SchemeId).Distinct().ToList();
             foreach (var id in schemeIds)
             {
                 var card = db.SchemeCards.FirstOrDefault(p => p.SchemeId == id);
@@ -6189,7 +6311,7 @@ namespace BreakersOfE
             }
 
             // Vanguard collection
-            var vanguardIds = db.VanguardCollectionEntries.Select(c => c.VanguardId).Distinct().ToList();
+            var vanguardIds = cdb.VanguardCollectionEntries.Select(c => c.VanguardId).Distinct().ToList();
             foreach (var id in vanguardIds)
             {
                 var card = db.VanguardCards.FirstOrDefault(p => p.VanguardId == id);
@@ -6205,7 +6327,7 @@ namespace BreakersOfE
             }
 
             // Art Series collection
-            var artIds = db.ArtSeriesCollectionEntries.Select(c => c.ArtSeriesId).Distinct().ToList();
+            var artIds = cdb.ArtSeriesCollectionEntries.Select(c => c.ArtSeriesId).Distinct().ToList();
             foreach (var id in artIds)
             {
                 var card = db.ArtSeriesCards.FirstOrDefault(p => p.ArtSeriesId == id);

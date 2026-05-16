@@ -93,7 +93,9 @@ namespace BreakersOfE.Models
         public bool IsFoil { get; set; }
         public bool IsNonFoil { get; set; }
         public string ImageNormalUrl { get; set; } = string.Empty;
+        public string ImageBackUrl { get; set; } = string.Empty; // DFC back face
         public string LocalImagePath { get; set; } = string.Empty;
+        public string LocalImageBackPath { get; set; } = string.Empty; // DFC back face cached
         public decimal? PriceUsd { get; set; }
         public decimal? PriceUsdFoil { get; set; }
 

@@ -161,6 +161,36 @@
             </Style.Triggers>
         </Style>
 
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="#2A2A3E"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="6,3"/>
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#4444AA"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#333388"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsSelected" Value="True"/>
+                        <Condition Property="IsHighlighted" Value="False"/>
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="#2A2A3E"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </MultiTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#2A2A3E"/>
+            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="BorderBrush" Value="#555577"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -327,6 +357,15 @@
                             <Image Name="CardImage" Stretch="Uniform"
                                    MouseLeftButtonDown="CardImage_MouseDoubleClick"/>
                         </Border>
+                        <!-- DFC flip button — hidden unless card has a back face -->
+                        <Button Name="BtnFlipCard"
+                                Content="🔄 Show Back Face"
+                                Visibility="Collapsed"
+                                Margin="0,-6,0,8"
+                                Padding="6,3"
+                                HorizontalAlignment="Center"
+                                FontSize="11"
+                                Click="BtnFlipCard_Click"/>
                         <TextBlock Text="NAME"             Style="{DynamicResource DetailLabelStyle}"/>
                         <TextBlock Name="DetailName"       Style="{DynamicResource DetailValueStyle}" FontSize="15" FontWeight="Bold"/>
                         <TextBlock Text="MANA COST"        Style="{DynamicResource DetailLabelStyle}"/>

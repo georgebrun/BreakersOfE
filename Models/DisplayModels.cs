@@ -56,6 +56,8 @@ namespace BreakersOfE.Models
         public bool IsNonFoil { get; set; }
         public string ImageNormalUrl { get; set; } = string.Empty;
         public string LocalImagePath { get; set; } = string.Empty;
+        public string ImageBackUrl { get; set; } = string.Empty;
+        public string LocalImageBackPath { get; set; } = string.Empty;
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public int UsedCount { get; set; }

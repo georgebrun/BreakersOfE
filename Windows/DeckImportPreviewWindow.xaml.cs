@@ -61,7 +61,7 @@ namespace BreakersOfE.Windows
 
         private void LoadRows()
         {
-            using var db = new AppDbContext();
+            using var db = new CollectionDbContext();
 
             // Build a lookup of current collection quantities by PoolId
             var collLookup = db.CollectionEntries

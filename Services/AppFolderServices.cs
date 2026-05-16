@@ -46,6 +46,20 @@ namespace BreakersOfE.Services
         public static string DatabasePath =>
             Path.Combine(RootFolder, "breakersofe.db");
 
+        // ── Tabletop image folders ─────────────────────────────────────────────
+        public static string PlaymatImagesFolder =>
+            EnsureFolder(Path.Combine(RootFolder, "Tabletop", "Playmats"));
+
+        public static string SleeveImagesFolder =>
+            EnsureFolder(Path.Combine(RootFolder, "Tabletop", "Sleeves"));
+
+        // ── Collection database (separate from card pool) ──────────────────────
+        public static string CollectionFolder =>
+            EnsureFolder(Path.Combine(RootFolder, "Collection"));
+
+        public static string CollectionDatabasePath =>
+            Path.Combine(CollectionFolder, "collection.db");
+
         // ── Helper ────────────────────────────────────────────────────────────
         private static string EnsureFolder(string path)
         {
