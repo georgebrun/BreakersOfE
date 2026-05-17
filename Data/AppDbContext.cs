@@ -13,11 +13,11 @@ namespace BreakersOfE.Data
         public DbSet<SchemeCard> SchemeCards { get; set; }
         public DbSet<VanguardCard> VanguardCards { get; set; }
         public DbSet<ArtSeriesCard> ArtSeriesCards { get; set; }
+        public DbSet<ConspiracyCard> ConspiracyCards { get; set; }
 
         // ── Collection Tables ───────────────────────────────────────────────
 
         // ── Other Tables ────────────────────────────────────────────────────
-        public DbSet<TradeBinderEntry> TradeBinderEntries { get; set; }
         public DbSet<AppSetting> AppSettings { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -31,96 +31,45 @@ namespace BreakersOfE.Data
         // ── Schema migration for new columns ─────────────────────────────────────
         public void MigrateSchema()
         {
-            var tables = new (string table, string column)[]
+            // Create ConspiracyCards table if it doesn't exist yet
+            try
             {
-            };
-
-            foreach (var (table, column) in tables)
-            {
-                try
-                {
 #pragma warning disable EF1002
-                    Database.ExecuteSqlRaw(
-                        $"ALTER TABLE {table} ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0");
+                Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ConspiracyCards (
+                        ConspiracyId        INTEGER PRIMARY KEY AUTOINCREMENT,
+                        ScryfallId          TEXT NOT NULL DEFAULT '',
+                        OracleId            TEXT NOT NULL DEFAULT '',
+                        Name                TEXT NOT NULL DEFAULT '',
+                        TypeLine            TEXT NOT NULL DEFAULT '',
+                        OracleText          TEXT NOT NULL DEFAULT '',
+                        FlavorText          TEXT NOT NULL DEFAULT '',
+                        SetCode             TEXT NOT NULL DEFAULT '',
+                        SetName             TEXT NOT NULL DEFAULT '',
+                        SetType             TEXT NOT NULL DEFAULT '',
+                        CollectorNumber     TEXT NOT NULL DEFAULT '',
+                        Rarity              TEXT NOT NULL DEFAULT '',
+                        Artist              TEXT NOT NULL DEFAULT '',
+                        ManaCost            TEXT NOT NULL DEFAULT '',
+                        ManaValue           REAL NOT NULL DEFAULT 0,
+                        ColorIdentity       TEXT NOT NULL DEFAULT '',
+                        Colors              TEXT NOT NULL DEFAULT '',
+                        ImageSmallUrl       TEXT NOT NULL DEFAULT '',
+                        ImageNormalUrl      TEXT NOT NULL DEFAULT '',
+                        Layout              TEXT NOT NULL DEFAULT '',
+                        IsFoil              INTEGER NOT NULL DEFAULT 0,
+                        IsNonFoil           INTEGER NOT NULL DEFAULT 1,
+                        ReleasedAt          TEXT NOT NULL DEFAULT '',
+                        LocalImagePath      TEXT NOT NULL DEFAULT '',
+                        IsFavorite          INTEGER NOT NULL DEFAULT 0
+                    )");
+                Database.ExecuteSqlRaw(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS IX_ConspiracyCards_ScryfallId ON ConspiracyCards (ScryfallId)");
+                Database.ExecuteSqlRaw(
+                    "CREATE INDEX IF NOT EXISTS IX_ConspiracyCards_Name ON ConspiracyCards (Name)");
 #pragma warning restore EF1002
-                }
-                catch { /* Column already exists — ignore */ }
             }
-
-            // New trading/inventory columns for all collection tables
-            var allCollectionTables = new string[]
-            {
-            };
-
-            var tradingCols = new (string col, string type, string def)[]
-            {
-                ("BuyAt",       "REAL",    ""),
-                ("SellAt",      "REAL",    ""),
-                ("SellAtValue", "REAL",    ""),
-                ("PriceHigh",   "REAL",    ""),
-                ("MarketValue", "REAL",    ""),
-                ("PriceLow",    "REAL",    ""),
-                ("Needed",      "INTEGER", "NOT NULL DEFAULT 0"),
-                ("Excess",      "INTEGER", "NOT NULL DEFAULT 0"),
-                ("Target",      "INTEGER", "NOT NULL DEFAULT 0"),
-                ("Desired",     "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
-                ("CardGroup",       "TEXT",    "NOT NULL DEFAULT ''"),
-                ("PrintType",   "TEXT",    "NOT NULL DEFAULT 'Unknown'"),
-                ("BuyStatus",   "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
-                ("SellStatus",  "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
-            };
-
-            foreach (var table in allCollectionTables)
-                foreach (var (col, type, def) in tradingCols)
-                {
-                    try
-                    {
-#pragma warning disable EF1002
-                        Database.ExecuteSqlRaw(
-                            $"ALTER TABLE {table} ADD COLUMN `{col}` {type} {def}");
-#pragma warning restore EF1002
-                    }
-                    catch { /* Column already exists — ignore */ }
-                }
-
-
-
-            // New fields for special collection tables
-            var specialTables = new string[]
-            {
-            };
-
-            foreach (var tbl in specialTables)
-            {
-                var specialCols = new (string col, string type, string def)[]
-                {
-                    ("BuyAt",       "REAL",    ""),
-                    ("SellAt",      "REAL",    ""),
-                    ("SellAtValue", "REAL",    ""),
-                    ("PriceHigh",   "REAL",    ""),
-                    ("MarketValue", "REAL",    ""),
-                    ("PriceLow",    "REAL",    ""),
-                    ("Needed",      "INTEGER", "NOT NULL DEFAULT 0"),
-                    ("Excess",      "INTEGER", "NOT NULL DEFAULT 0"),
-                    ("Target",      "INTEGER", "NOT NULL DEFAULT 0"),
-                    ("Desired",     "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
-                    ("CardGroup",       "TEXT",    "NOT NULL DEFAULT ''"),
-                    ("PrintType",   "TEXT",    "NOT NULL DEFAULT 'Unknown'"),
-                    ("BuyStatus",   "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
-                    ("SellStatus",  "TEXT",    "NOT NULL DEFAULT 'Unassigned'"),
-                };
-                foreach (var (col, type, def) in specialCols)
-                {
-                    try
-                    {
-#pragma warning disable EF1002
-                        Database.ExecuteSqlRaw(
-                            $"ALTER TABLE {tbl} ADD COLUMN {col} {type} {def}");
-#pragma warning restore EF1002
-                    }
-                    catch { }
-                }
-            }
+            catch { }
 
             // DFC back face image columns for PoolCards
             var dfcColumns = new[]
@@ -193,6 +142,14 @@ namespace BreakersOfE.Data
             modelBuilder.Entity<ArtSeriesCard>()
                 .HasIndex(c => c.ScryfallId)
                 .IsUnique();
+
+            // ConspiracyCards
+            modelBuilder.Entity<ConspiracyCard>()
+                .HasIndex(c => c.ScryfallId)
+                .IsUnique();
+
+            modelBuilder.Entity<ConspiracyCard>()
+                .HasIndex(c => c.Name);
 
             // ── AppSettings key is already the primary key ───────────────────
             modelBuilder.Entity<AppSetting>()

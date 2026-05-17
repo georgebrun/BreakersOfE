@@ -206,19 +206,29 @@ namespace BreakersOfE.Models
     }
 
     // ── Trade Binder ────────────────────────────────────────────────────────
+    // ── Trade Binder — Have list (cards you own and want to trade away) ────────
     public class TradeBinderEntry
     {
         [Key]
         public int TradeBinderEntryId { get; set; }
         public int PoolId { get; set; }
-        public int Quantity { get; set; }
-        public int FoilQuantity { get; set; }
-        public string Condition { get; set; } = string.Empty;
-        public string Language { get; set; } = "English";
-        public string Notes { get; set; } = string.Empty;
-        public string StorageLocation { get; set; } = string.Empty;
+        public int Quantity { get; set; } = 1;
+        public bool IsFoil { get; set; } = false;
+        public string Condition { get; set; } = "Near Mint";
+        public decimal? AskingPrice { get; set; }  // null = use market value
         public DateTime DateAdded { get; set; } = DateTime.Now;
-        public DateTime DateModified { get; set; } = DateTime.Now;
+    }
+
+    // ── Want List — Want list (cards you are looking to acquire) ──────────────
+    public class WantListEntry
+    {
+        [Key]
+        public int WantListEntryId { get; set; }
+        public int PoolId { get; set; }
+        public int Quantity { get; set; } = 1;
+        public bool IsFoil { get; set; } = false;
+        public decimal? OfferPrice { get; set; }  // null = use market value
+        public DateTime DateAdded { get; set; } = DateTime.Now;
     }
 
     // ── App Settings ─────────────────────────────────────────────────────────

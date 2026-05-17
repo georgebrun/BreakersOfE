@@ -226,6 +226,8 @@
                 <Separator/>
                 <MenuItem Header="🂠 _Tabletop Simulator" Name="MenuTabletop"
                           Click="MenuTabletop_Click"/>
+                <MenuItem Header="📒 _Trade Binder" Name="MenuTradeBinder"
+                          Click="MenuTradeBinder_Click"/>
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="_Theme">
@@ -322,11 +324,14 @@
                         <ComboBoxItem Content="Pool → Planechase"  Tag="PoolToPlanechase"/>
                         <ComboBoxItem Content="Pool → Archenemy"   Tag="PoolToArchenemy"/>
                         <ComboBoxItem Content="Pool → Vanguard"    Tag="PoolToVanguard"/>
+                        <ComboBoxItem Content="Pool → Conspiracy"  Tag="PoolToConspiracy"/>
                         <ComboBoxItem Content="Pool → Tokens"      Tag="PoolToTokens"/>
                         <ComboBoxItem Content="Pool → Art Series"  Tag="PoolToArtSeries"/>
                         <ComboBoxItem Content="Pool → Deck"        Tag="PoolToDeck"/>
                         <ComboBoxItem Content="Collection → Deck"  Tag="CollectionToDeck"/>
                         <ComboBoxItem Content="Deck → Collection"  Tag="DeckToCollection"/>
+                        <ComboBoxItem Content="Collection → Trade Binder" Tag="CollectionToTradeBinder"/>
+                        <ComboBoxItem Content="Pool → Want List"   Tag="PoolToWantList"/>
                     </ComboBox>
                 </StackPanel>
 

@@ -44,6 +44,7 @@ namespace BreakersOfE.Models
         Vanguard,
         Tokens,
         ArtSeries,
+        Conspiracy,
         Collection,
         Deck
     }

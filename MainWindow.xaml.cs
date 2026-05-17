@@ -35,6 +35,7 @@ namespace BreakersOfE
         private List<SchemeCard>? _schemeCache = null;
         private List<VanguardCard>? _vanguardCache = null;
         private List<ArtSeriesCard>? _artSeriesCache = null;
+        private List<ConspiracyCard>? _conspiracyCache = null;
 
         // ── Filter state ─────────────────────────────────────────────────────
         private FilterState _topFilter = new();
@@ -420,10 +421,12 @@ namespace BreakersOfE
                     break;
                 case CollectionDisplayRow cr:
                     // Auto-switch to foil if non-foil requested but unavailable
-                    if (!foil && cr.Quantity == 0 && cr.FoilQuantity > 0) foil = true;
+                    int nfAvail = Math.Max(0, cr.Quantity - cr.UsedCount);
+                    int fAvail = cr.FoilQuantity;
+                    if (!foil && nfAvail == 0 && fAvail > 0) foil = true;
 
-                    // Block if no copies available
-                    if (_currentMode == "CollectionToDeck" && cr.AvailableCount <= 0)
+                    // Block if no copies available (foil or non-foil)
+                    if (_currentMode == "CollectionToDeck" && nfAvail <= 0 && fAvail <= 0)
                     {
                         errorMessage =
                             $"No available copies of '{cr.Name}' left in your collection.\n" +
@@ -1501,11 +1504,13 @@ namespace BreakersOfE
                 return;
             }
 
-            // Auto-foil if only foil available
-            bool foil = row.Quantity == 0 && row.FoilQuantity > 0;
+            // Auto-foil if only foil copies available (non-foil used up)
+            int nonFoilAvail = Math.Max(0, row.Quantity - row.UsedCount);
+            int foilAvail = row.FoilQuantity; // foil copies aren't tracked via UsedCount
+            bool foil = nonFoilAvail == 0 && foilAvail > 0;
 
-            // Block if no copies available
-            if (_currentMode == "CollectionToDeck" && row.AvailableCount <= 0)
+            // Block if no copies available (neither foil nor non-foil)
+            if (_currentMode == "CollectionToDeck" && nonFoilAvail <= 0 && foilAvail <= 0)
             {
                 MessageBox.Show(
                     $"You have no available copies of '{row.Name}' left in your collection.\n" +
@@ -2008,6 +2013,9 @@ namespace BreakersOfE
                     "PoolToVanguard" => "Vanguard",
                     "PoolToTokens" => "Tokens",
                     "PoolToArtSeries" => "ArtSeries",
+                    "PoolToConspiracy" => "Conspiracy",
+                    "CollectionToTradeBinder" => "TradeBinder",
+                    "PoolToWantList" => "WantList",
                     "DeckToCollection" => "Collection",
                     _ => "Collection"
                 };
@@ -2157,7 +2165,20 @@ namespace BreakersOfE
             // Auto-size columns after first full render
             Loaded += MainWindow_Loaded;
 
-            ViewModeComboBox.SelectedIndex = 0;
+            // Apply saved startup view from preferences
+            string startupView = GetSetting(Windows.PreferencesWindow.KeyStartupView)
+                                 ?? "PoolToCollection";
+            bool viewSet = false;
+            foreach (ComboBoxItem item in ViewModeComboBox.Items)
+            {
+                if (item.Tag?.ToString() == startupView)
+                {
+                    ViewModeComboBox.SelectedItem = item;
+                    viewSet = true;
+                    break;
+                }
+            }
+            if (!viewSet) ViewModeComboBox.SelectedIndex = 0;
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -2200,6 +2221,27 @@ namespace BreakersOfE
                                 .OrderBy(c => c.Name)
                                 .ThenBy(c => c.SetCode)
                                 .ToList();
+
+            // First-run guidance — pool is empty
+            if (_poolCache.Count == 0)
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    MessageBox.Show(
+                        "Welcome to Breakers of E!\n\n" +
+                        "Your card pool is currently empty.\n\n" +
+                        "To get started:\n" +
+                        "  1. Go to Tools → Update Card Database\n" +
+                        "  2. Click Download to fetch all cards from Scryfall\n" +
+                        "  3. This only needs to be done once (~80,000 cards)\n\n" +
+                        "After downloading, the full card pool will be available\n" +
+                        "in all views and you can start building your collection.",
+                        "Welcome — First Time Setup",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }), System.Windows.Threading.DispatcherPriority.Background);
+            }
+
             _tokenCache = db.TokenCards.AsNoTracking()
                                 .OrderBy(c => c.Name).ToList();
             _planarCache = db.PlanarCards.AsNoTracking()
@@ -2209,6 +2251,8 @@ namespace BreakersOfE
             _vanguardCache = db.VanguardCards.AsNoTracking()
                                 .OrderBy(c => c.Name).ToList();
             _artSeriesCache = db.ArtSeriesCards.AsNoTracking()
+                                .OrderBy(c => c.Name).ToList();
+            _conspiracyCache = db.ConspiracyCards.AsNoTracking()
                                 .OrderBy(c => c.Name).ToList();
         }
 
@@ -2343,6 +2387,27 @@ namespace BreakersOfE
                     LoadBottomTable_ArtSeriesCollection();
                     TopSearchLabel.Text = "Art Series  (read only)";
                     BottomTableLabel.Text = "My Art Series";
+                    break;
+
+                case "PoolToConspiracy":
+                    LoadTopTable_Conspiracy();
+                    LoadBottomTable_ConspiracyCollection();
+                    TopSearchLabel.Text = "Conspiracy  (read only)";
+                    BottomTableLabel.Text = "My Conspiracy";
+                    break;
+
+                case "CollectionToTradeBinder":
+                    LoadTopTable_CollectionForDeck(); // reuse — shows your collection
+                    LoadBottomTable_TradeBinder();
+                    TopSearchLabel.Text = "Collection";
+                    BottomTableLabel.Text = "Trade Binder — Have List";
+                    break;
+
+                case "PoolToWantList":
+                    LoadTopTable_Pool();
+                    LoadBottomTable_WantList();
+                    TopSearchLabel.Text = "Pool  (read only)";
+                    BottomTableLabel.Text = "Want List";
                     break;
 
                 case "PoolToDeck":
@@ -2492,6 +2557,152 @@ namespace BreakersOfE
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
             UpdateTopSummary("Art Series", filtered.Count);
+        }
+
+        private void LoadTopTable_Conspiracy()
+        {
+            RemoveCollectionColumns(TopDataGrid);
+            var all = _conspiracyCache ?? new List<ConspiracyCard>();
+            var filtered = string.IsNullOrWhiteSpace(_searchText)
+                ? all
+                : all.Where(c => c.Name.Contains(
+                    _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+            for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
+            TopDataGrid.ItemsSource = filtered;
+            UpdateTopSummary("Conspiracy", filtered.Count);
+        }
+
+        private void LoadBottomTable_ConspiracyCollection()
+        {
+            using var cdb = new CollectionDbContext();
+            using var pdb = new AppDbContext();
+            var entries = cdb.ConspiracyCollectionEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
+            var ids = entries.Select(e => e.ConspiracyId).ToHashSet();
+            var cards = pdb.ConspiracyCards.AsNoTracking()
+                .Where(c => ids.Contains(c.ConspiracyId))
+                .ToList().ToDictionary(c => c.ConspiracyId);
+            var rows = new List<CollectionDisplayRow>(entries.Count);
+            foreach (var ce in entries)
+            {
+                if (!cards.TryGetValue(ce.ConspiracyId, out var cc)) continue;
+                rows.Add(new CollectionDisplayRow
+                {
+                    CollectionEntryId = ce.ConspiracyCollectionEntryId,
+                    Name = cc.Name,
+                    SetCode = cc.SetCode,
+                    SetName = cc.SetName,
+                    CollectorNumber = cc.CollectorNumber,
+                    TypeLine = cc.TypeLine,
+                    ManaCost = cc.ManaCost,
+                    ManaValue = cc.ManaValue,
+                    ColorIdentity = cc.ColorIdentity,
+                    Colors = cc.Colors,
+                    OracleText = cc.OracleText,
+                    FlavorText = cc.FlavorText,
+                    Artist = cc.Artist,
+                    Rarity = cc.Rarity,
+                    IsFoil = cc.IsFoil,
+                    IsNonFoil = cc.IsNonFoil,
+                    ImageNormalUrl = cc.ImageNormalUrl,
+                    LocalImagePath = cc.LocalImagePath,
+                    Quantity = ce.Quantity,
+                    FoilQuantity = ce.FoilQuantity,
+                    Condition = ce.Condition,
+                    Language = ce.Language,
+                    StorageLocation = ce.StorageLocation,
+                    Notes = ce.Notes,
+                    DateAdded = ce.DateAdded,
+                    DateModified = ce.DateModified
+                });
+            }
+            rows.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
+            BottomDataGrid.ItemsSource = rows;
+            UpdateSummaryRow(rows);
+        }
+
+        private void LoadBottomTable_TradeBinder()
+        {
+            using var cdb = new Data.CollectionDbContext();
+            using var pdb = new AppDbContext();
+            var entries = cdb.TradeBinderEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
+            var ids = entries.Select(e => e.PoolId).ToHashSet();
+            var cards = pdb.PoolCards.AsNoTracking()
+                .Where(c => ids.Contains(c.PoolId))
+                .ToList().ToDictionary(c => c.PoolId);
+            var rows = new List<TradeBinderDisplayRow>(entries.Count);
+            foreach (var e in entries)
+            {
+                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
+                rows.Add(new TradeBinderDisplayRow
+                {
+                    EntryId = e.TradeBinderEntryId,
+                    PoolId = pc.PoolId,
+                    Name = pc.Name,
+                    SetCode = pc.SetCode,
+                    SetName = pc.SetName,
+                    CollectorNumber = pc.CollectorNumber,
+                    TypeLine = pc.TypeLine,
+                    ManaCost = pc.ManaCost,
+                    ManaValue = pc.ManaValue,
+                    ColorIdentity = pc.ColorIdentity,
+                    Rarity = pc.Rarity,
+                    Quantity = e.Quantity,
+                    IsFoil = e.IsFoil,
+                    Condition = e.Condition,
+                    AskingPrice = e.AskingPrice,
+                    MarketPrice = e.IsFoil ? pc.PriceUsdFoil : pc.PriceUsd,
+                    LocalImagePath = pc.LocalImagePath,
+                    ImageNormalUrl = pc.ImageNormalUrl,
+                    DateAdded = e.DateAdded
+                });
+            }
+            rows.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
+            BottomDataGrid.ItemsSource = rows;
+        }
+
+        private void LoadBottomTable_WantList()
+        {
+            using var cdb = new Data.CollectionDbContext();
+            using var pdb = new AppDbContext();
+            var entries = cdb.WantListEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
+            var ids = entries.Select(e => e.PoolId).ToHashSet();
+            var cards = pdb.PoolCards.AsNoTracking()
+                .Where(c => ids.Contains(c.PoolId))
+                .ToList().ToDictionary(c => c.PoolId);
+            var rows = new List<WantListDisplayRow>(entries.Count);
+            foreach (var e in entries)
+            {
+                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
+                rows.Add(new WantListDisplayRow
+                {
+                    EntryId = e.WantListEntryId,
+                    PoolId = pc.PoolId,
+                    Name = pc.Name,
+                    SetCode = pc.SetCode,
+                    SetName = pc.SetName,
+                    CollectorNumber = pc.CollectorNumber,
+                    TypeLine = pc.TypeLine,
+                    ManaCost = pc.ManaCost,
+                    ManaValue = pc.ManaValue,
+                    ColorIdentity = pc.ColorIdentity,
+                    Rarity = pc.Rarity,
+                    Quantity = e.Quantity,
+                    IsFoil = e.IsFoil,
+                    OfferPrice = e.OfferPrice,
+                    MarketPrice = e.IsFoil ? pc.PriceUsdFoil : pc.PriceUsd,
+                    LocalImagePath = pc.LocalImagePath,
+                    ImageNormalUrl = pc.ImageNormalUrl,
+                    DateAdded = e.DateAdded
+                });
+            }
+            rows.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
+            BottomDataGrid.ItemsSource = rows;
         }
 
         private void LoadTopTable_DeckForCollection()
@@ -3252,6 +3463,9 @@ namespace BreakersOfE
                 case "PoolToVanguard": LoadBottomTable_VanguardCollection(); break;
                 case "PoolToTokens": LoadBottomTable_TokenCollection(); break;
                 case "PoolToArtSeries": LoadBottomTable_ArtSeriesCollection(); break;
+                case "PoolToConspiracy": LoadBottomTable_ConspiracyCollection(); break;
+                case "CollectionToTradeBinder": LoadBottomTable_TradeBinder(); break;
+                case "PoolToWantList": LoadBottomTable_WantList(); break;
             }
 
             // Restore bottom selection
@@ -3538,6 +3752,8 @@ namespace BreakersOfE
             bool isDeckMode = _currentMode == "PoolToDeck" ||
                               _currentMode == "CollectionToDeck" ||
                               _currentMode == "DeckToCollection";
+            bool isBinderMode = _currentMode == "CollectionToTradeBinder" ||
+                                _currentMode == "PoolToWantList";
             bool hasDeck = _activeDeck != null;
             bool anyDecks = _openDecks.Any();
             bool hasTopSel = TopDataGrid?.SelectedItem != null;
@@ -3588,11 +3804,10 @@ namespace BreakersOfE
 
             // ── Group 3: Collection buttons ───────────────────────────────────────
             bool isDeckToCollection = _currentMode == "DeckToCollection";
-            BtnAddToCollection.IsEnabled = hasTopSel && canNonFoil &&
-                (!isDeckMode || isDeckToCollection);
-            BtnAddFoilToCollection.IsEnabled = hasTopSel && canFoil &&
-                (!isDeckMode || isDeckToCollection);
-            BtnRemoveFromCollection.IsEnabled = hasBottomSel && !isDeckMode;
+            bool canAddToBottom = !isDeckMode || isDeckToCollection || isBinderMode;
+            BtnAddToCollection.IsEnabled = hasTopSel && canNonFoil && canAddToBottom;
+            BtnAddFoilToCollection.IsEnabled = hasTopSel && canFoil && canAddToBottom;
+            BtnRemoveFromCollection.IsEnabled = hasBottomSel && (!isDeckMode || isBinderMode);
             BtnImportDeckToCollection.IsEnabled = isDeckToCollection && hasDeck;
 
             // ── Menu items ────────────────────────────────────────────────────────
@@ -3819,6 +4034,18 @@ namespace BreakersOfE
                     ShowArtSeriesCardDetail(ac);
                     await LoadCardImageAsync(ac.LocalImagePath, ac.ImageNormalUrl);
                     break;
+                case ConspiracyCard cc:
+                    ShowConspiracyCardDetail(cc);
+                    await LoadCardImageAsync(cc.LocalImagePath, cc.ImageNormalUrl);
+                    break;
+                case TradeBinderDisplayRow tb:
+                    ShowPoolCardDetailById(tb.PoolId);
+                    await LoadCardImageAsync(tb.LocalImagePath, tb.ImageNormalUrl);
+                    break;
+                case WantListDisplayRow wl:
+                    ShowPoolCardDetailById(wl.PoolId);
+                    await LoadCardImageAsync(wl.LocalImagePath, wl.ImageNormalUrl);
+                    break;
                 case CollectionDisplayRow cr:
                     ShowCollectionRowDetail(cr);
                     await LoadCardImageAsync(cr.LocalImagePath, cr.ImageNormalUrl,
@@ -3909,6 +4136,11 @@ namespace BreakersOfE
                 case ArtSeriesCard ac:
                     AddToSpecialCollection("ArtSeries", ac.ArtSeriesId,
                         ac.Name, 1, shift && ac.IsFoil);
+                    handled = true;
+                    break;
+                case ConspiracyCard cc:
+                    AddToSpecialCollection("Conspiracy", cc.ConspiracyId,
+                        cc.Name, 1, shift && cc.IsFoil);
                     handled = true;
                     break;
             }
@@ -4132,6 +4364,7 @@ namespace BreakersOfE
                 "PoolToVanguard" => FilterContext.Vanguard,
                 "PoolToTokens" => FilterContext.Tokens,
                 "PoolToArtSeries" => FilterContext.ArtSeries,
+                "PoolToConspiracy" => FilterContext.Conspiracy,
                 _ => FilterContext.Pool
             };
         }
@@ -4308,6 +4541,27 @@ namespace BreakersOfE
 
         private void BtnRemoveFromCollection_Click(object sender, RoutedEventArgs e)
         {
+            // Trade Binder remove
+            if (BottomDataGrid.SelectedItem is TradeBinderDisplayRow tbRow)
+            {
+                if (MessageBox.Show($"Remove '{tbRow.Name}' from your Trade Binder?",
+                    "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Question)
+                    == MessageBoxResult.Yes)
+                    RemoveFromTradeBinder(tbRow);
+                return;
+            }
+
+            // Want List remove
+            if (BottomDataGrid.SelectedItem is WantListDisplayRow wlRow)
+            {
+                if (MessageBox.Show($"Remove '{wlRow.Name}' from your Want List?",
+                    "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Question)
+                    == MessageBoxResult.Yes)
+                    RemoveFromWantList(wlRow);
+                return;
+            }
+
+            // Standard collection remove
             if (BottomDataGrid.SelectedItem is not CollectionDisplayRow row) return;
 
             var result = MessageBox.Show(
@@ -4344,6 +4598,8 @@ namespace BreakersOfE
                     canFoil = sc.IsFoil; canNonFoil = sc.IsNonFoil; break;
                 case ArtSeriesCard ac:
                     canFoil = ac.IsFoil; canNonFoil = ac.IsNonFoil; break;
+                case ConspiracyCard cc:
+                    canFoil = cc.IsFoil; canNonFoil = cc.IsNonFoil; break;
             }
 
             TopCtxAddToCollNonFoil.IsEnabled = hasCard && isCollMode && canNonFoil;
@@ -4421,6 +4677,37 @@ namespace BreakersOfE
                     AddToSpecialCollection("ArtSeries", ac.ArtSeriesId,
                         ac.Name, qty, foil);
                     break;
+                case ConspiracyCard cc:
+                    if (foil && !cc.IsFoil) return;
+                    AddToSpecialCollection("Conspiracy", cc.ConspiracyId,
+                        cc.Name, qty, foil);
+                    break;
+            }
+
+            // Trade Binder — top table is Collection, bottom is binder
+            if (_currentMode == "CollectionToTradeBinder")
+            {
+                int poolId = 0;
+                string name = "";
+                if (TopDataGrid.SelectedItem is PoolCard pp)
+                { poolId = pp.PoolId; name = pp.Name; }
+                else if (TopDataGrid.SelectedItem is CollectionDisplayRow cr2)
+                { poolId = cr2.PoolId; name = cr2.Name; }
+                if (poolId > 0)
+                {
+                    using var pdb2 = new AppDbContext();
+                    var pc2 = pdb2.PoolCards.FirstOrDefault(c => c.PoolId == poolId);
+                    if (pc2 != null) AddToTradeBinder(pc2, foil, qty);
+                }
+                return;
+            }
+
+            // Want List — pool card only
+            if (_currentMode == "PoolToWantList" &&
+                TopDataGrid.SelectedItem is PoolCard poolCard2)
+            {
+                AddToWantList(poolCard2, foil, qty);
+                return;
             }
         }
 
@@ -4697,8 +4984,94 @@ namespace BreakersOfE
                         ae.DateModified = DateTime.Now;
                     }
                     break;
+
+                case "Conspiracy":
+                    var cone = db.ConspiracyCollectionEntries
+                        .FirstOrDefault(c => c.ConspiracyId == cardId);
+                    if (cone == null)
+                        db.ConspiracyCollectionEntries.Add(
+                            new ConspiracyCollectionEntry
+                            {
+                                ConspiracyId = cardId,
+                                Quantity = foil ? 0 : qty,
+                                FoilQuantity = foil ? qty : 0,
+                                Condition = "Near Mint",
+                                Language = "English",
+                                DateAdded = DateTime.Now,
+                                DateModified = DateTime.Now
+                            });
+                    else
+                    {
+                        if (foil) cone.FoilQuantity += qty;
+                        else cone.Quantity += qty;
+                        cone.DateModified = DateTime.Now;
+                    }
+                    break;
             }
 
+            db.SaveChanges();
+            RefreshBottom();
+        }
+
+        // ── Trade Binder — Have List operations ───────────────────────────────
+        private void AddToTradeBinder(PoolCard pc, bool foil, int qty)
+        {
+            using var db = new Data.CollectionDbContext();
+            var existing = db.TradeBinderEntries
+                .FirstOrDefault(e => e.PoolId == pc.PoolId && e.IsFoil == foil);
+            if (existing == null)
+                db.TradeBinderEntries.Add(new Models.TradeBinderEntry
+                {
+                    PoolId = pc.PoolId,
+                    Quantity = qty,
+                    IsFoil = foil,
+                    Condition = "Near Mint",
+                    DateAdded = DateTime.Now
+                });
+            else
+                existing.Quantity += qty;
+            db.SaveChanges();
+            RefreshBottom();
+        }
+
+        private void RemoveFromTradeBinder(TradeBinderDisplayRow row)
+        {
+            using var db = new Data.CollectionDbContext();
+            var e = db.TradeBinderEntries
+                .FirstOrDefault(x => x.TradeBinderEntryId == row.EntryId);
+            if (e == null) return;
+            db.TradeBinderEntries.Remove(e);
+            db.SaveChanges();
+            RefreshBottom();
+        }
+
+        // ── Want List operations ──────────────────────────────────────────────
+        private void AddToWantList(PoolCard pc, bool foil, int qty)
+        {
+            using var db = new Data.CollectionDbContext();
+            var existing = db.WantListEntries
+                .FirstOrDefault(e => e.PoolId == pc.PoolId && e.IsFoil == foil);
+            if (existing == null)
+                db.WantListEntries.Add(new Models.WantListEntry
+                {
+                    PoolId = pc.PoolId,
+                    Quantity = qty,
+                    IsFoil = foil,
+                    DateAdded = DateTime.Now
+                });
+            else
+                existing.Quantity += qty;
+            db.SaveChanges();
+            RefreshBottom();
+        }
+
+        private void RemoveFromWantList(WantListDisplayRow row)
+        {
+            using var db = new Data.CollectionDbContext();
+            var e = db.WantListEntries
+                .FirstOrDefault(x => x.WantListEntryId == row.EntryId);
+            if (e == null) return;
+            db.WantListEntries.Remove(e);
             db.SaveChanges();
             RefreshBottom();
         }
@@ -4800,6 +5173,21 @@ namespace BreakersOfE
                         }
                         break;
                     }
+                case "PoolToConspiracy":
+                    {
+                        var e = db.ConspiracyCollectionEntries.FirstOrDefault(
+                            c => c.ConspiracyCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (all) db.ConspiracyCollectionEntries.Remove(e);
+                        else
+                        {
+                            e.Quantity = Math.Max(0, e.Quantity - qty);
+                            e.DateModified = DateTime.Now;
+                            if (e.Quantity == 0 && e.FoilQuantity == 0)
+                                db.ConspiracyCollectionEntries.Remove(e);
+                        }
+                        break;
+                    }
                 default: return;
             }
 
@@ -4887,6 +5275,18 @@ namespace BreakersOfE
                             db.ArtSeriesCollectionEntries.Remove(e);
                         break;
                     }
+                case "PoolToConspiracy":
+                    {
+                        var e = db.ConspiracyCollectionEntries.FirstOrDefault(
+                            c => c.ConspiracyCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = Math.Max(0, e.FoilQuantity + delta);
+                        else e.Quantity = Math.Max(0, e.Quantity + delta);
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.ConspiracyCollectionEntries.Remove(e);
+                        break;
+                    }
                 default: return;
             }
 
@@ -4966,6 +5366,17 @@ namespace BreakersOfE
                         e.DateModified = DateTime.Now;
                         if (e.Quantity == 0 && e.FoilQuantity == 0)
                             db.ArtSeriesCollectionEntries.Remove(e);
+                        break;
+                    }
+                case "PoolToConspiracy":
+                    {
+                        var e = db.ConspiracyCollectionEntries.FirstOrDefault(
+                            c => c.ConspiracyCollectionEntryId == row.CollectionEntryId);
+                        if (e == null) return;
+                        if (foil) e.FoilQuantity = qty; else e.Quantity = qty;
+                        e.DateModified = DateTime.Now;
+                        if (e.Quantity == 0 && e.FoilQuantity == 0)
+                            db.ConspiracyCollectionEntries.Remove(e);
                         break;
                     }
                 default: return;
@@ -5238,6 +5649,38 @@ namespace BreakersOfE
             DetailManaCostPanel.Children.Clear();
             DetailLegalityPanel.Children.Clear();
             LoadSetSymbol(c.SetCode);
+        }
+
+        private void ShowConspiracyCardDetail(ConspiracyCard c)
+        {
+            DetailName.Text = c.Name;
+            DetailType.Text = c.TypeLine;
+            DetailSet.Text = $"{c.SetName} ({c.SetCode})";
+            DetailCollectorNumber.Text = c.CollectorNumber;
+            DetailRarity.Text = CapFirst(c.Rarity);
+            DetailOracle.Text = c.OracleText;
+            DetailFlavor.Text = c.FlavorText;
+            DetailArtist.Text = c.Artist;
+            DetailPT.Text = string.Empty;
+            DetailPTLabel.Text = string.Empty;
+            DetailFoilNonFoil.Text = BuildFoilStr(c.IsFoil, c.IsNonFoil);
+            DetailPrices.Text = string.Empty;
+            RenderManaCost(c.ManaCost);
+            DetailLegalityPanel.Children.Clear();
+            LoadSetSymbol(c.SetCode);
+        }
+
+        // Shows pool card detail by looking it up from cache by PoolId
+        private void ShowPoolCardDetailById(int poolId)
+        {
+            var pc = _poolCache?.FirstOrDefault(c => c.PoolId == poolId);
+            if (pc != null) ShowPoolCardDetail(pc);
+        }
+
+        private void MenuTradeBinder_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new Windows.BinderWindow { Owner = this };
+            win.Show();
         }
 
         private void ShowCollectionRowDetail(CollectionDisplayRow c)
@@ -5696,9 +6139,11 @@ namespace BreakersOfE
         private void MenuExit_Click(object sender, RoutedEventArgs e) =>
             Application.Current.Shutdown();
 
-        private void MenuPreferences_Click(object sender, RoutedEventArgs e) =>
-            MessageBox.Show("Preferences coming soon!", "Preferences",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+        private void MenuPreferences_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Windows.PreferencesWindow { Owner = this };
+            dlg.ShowDialog();
+        }
 
         private void MenuThemeLight_Click(object sender, RoutedEventArgs e)
         {
@@ -6183,9 +6628,8 @@ namespace BreakersOfE
             DetailLegalityPanel.Children.Clear();
         }
 
-        private void MenuSettings_Click(object sender, RoutedEventArgs e) =>
-            MessageBox.Show("Settings coming soon.", "Settings",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+        private void MenuSettings_Click(object sender, RoutedEventArgs e)
+            => MenuPreferences_Click(sender, e);
 
         // ================================================================
         // DOWNLOAD MISSING CARD IMAGES
@@ -6394,10 +6838,10 @@ namespace BreakersOfE
             StatusProgressBar.Value = progress;
         }
 
-        private void MenuAbout_Click(object sender, RoutedEventArgs e) =>
-            MessageBox.Show(
-                "Breakers of E\nVersion 0.3\n\n" +
-                "A Magic: The Gathering collection manager.",
-                "About", MessageBoxButton.OK, MessageBoxImage.Information);
+        private void MenuAbout_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Windows.AboutWindow { Owner = this };
+            dlg.ShowDialog();
+        }
     }
 }

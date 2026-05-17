@@ -33,6 +33,7 @@ namespace BreakersOfE.Services
         public int SchemeCardsImported { get; set; }
         public int VanguardCardsImported { get; set; }
         public int ArtSeriesCardsImported { get; set; }
+        public int ConspiracyCardsImported { get; set; }
         public int SkippedCount { get; set; }
 
         // Symbol counts
@@ -71,7 +72,8 @@ namespace BreakersOfE.Services
         public int TotalImported =>
             PoolCardsImported + TokenCardsImported +
             PlanarCardsImported + SchemeCardsImported +
-            VanguardCardsImported + ArtSeriesCardsImported;
+            VanguardCardsImported + ArtSeriesCardsImported +
+            ConspiracyCardsImported;
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -450,6 +452,7 @@ namespace BreakersOfE.Services
                 await db.Database.ExecuteSqlRawAsync("DELETE FROM SchemeCards", ct);
                 await db.Database.ExecuteSqlRawAsync("DELETE FROM VanguardCards", ct);
                 await db.Database.ExecuteSqlRawAsync("DELETE FROM ArtSeriesCards", ct);
+                await db.Database.ExecuteSqlRawAsync("DELETE FROM ConspiracyCards", ct);
             }
 
             const int batchSize = 500;
@@ -459,6 +462,7 @@ namespace BreakersOfE.Services
             var schemes = new List<SchemeCard>(batchSize);
             var vanguard = new List<VanguardCard>(batchSize);
             var artSeries = new List<ArtSeriesCard>(batchSize);
+            var conspiracy = new List<ConspiracyCard>(batchSize);
 
             await using var fs = File.OpenRead(jsonFile);
             using var doc = await JsonDocument.ParseAsync(fs,
@@ -483,7 +487,7 @@ namespace BreakersOfE.Services
 
                 RouteCard(cardEl, GetString(cardEl, "layout"),
                     pool, tokens, planar, schemes,
-                    vanguard, artSeries, result);
+                    vanguard, artSeries, conspiracy, result);
 
                 if (pool.Count >= batchSize)
                 { await FlushBatchAsync(pool, ct); pool.Clear(); }
@@ -497,6 +501,8 @@ namespace BreakersOfE.Services
                 { await FlushBatchAsync(vanguard, ct); vanguard.Clear(); }
                 if (artSeries.Count >= batchSize)
                 { await FlushBatchAsync(artSeries, ct); artSeries.Clear(); }
+                if (conspiracy.Count >= batchSize)
+                { await FlushBatchAsync(conspiracy, ct); conspiracy.Clear(); }
 
                 if (i % 1000 == 0)
                 {
@@ -514,15 +520,18 @@ namespace BreakersOfE.Services
             if (schemes.Count > 0) await FlushBatchAsync(schemes, ct);
             if (vanguard.Count > 0) await FlushBatchAsync(vanguard, ct);
             if (artSeries.Count > 0) await FlushBatchAsync(artSeries, ct);
+            if (conspiracy.Count > 0) await FlushBatchAsync(conspiracy, ct);
         }
 
-        // ── Route card to correct table — Conspiracy goes to Pool ────────────
+        // ── Route card to correct table ───────────────────────────────────────
         private static void RouteCard(
             JsonElement card, string layout,
             List<PoolCard> pool, List<TokenCard> tokens,
             List<PlanarCard> planar, List<SchemeCard> schemes,
             List<VanguardCard> vanguard,
-            List<ArtSeriesCard> artSeries, ImportResult result)
+            List<ArtSeriesCard> artSeries,
+            List<ConspiracyCard> conspiracy,
+            ImportResult result)
         {
             switch (layout)
             {
@@ -552,8 +561,11 @@ namespace BreakersOfE.Services
                     result.ArtSeriesCardsImported++;
                     break;
 
-                // Conspiracy cards go into Pool — they are playable cards
                 case "conspiracy":
+                    conspiracy.Add(ParseConspiracyCard(card));
+                    result.ConspiracyCardsImported++;
+                    break;
+
                 default:
                     var pc = ParsePoolCard(card);
                     pc.IsMeld = layout == "meld";
@@ -881,6 +893,33 @@ namespace BreakersOfE.Services
             CollectorNumber = GetString(c, "collector_number"),
             Rarity = GetString(c, "rarity"),
             Artist = GetString(c, "artist"),
+            ImageSmallUrl = GetImageUri(c, "small"),
+            ImageNormalUrl = GetImageUri(c, "normal"),
+            Layout = GetString(c, "layout"),
+            IsFoil = GetBool(c, "foil"),
+            IsNonFoil = GetBool(c, "nonfoil"),
+            ReleasedAt = GetString(c, "released_at"),
+            LocalImagePath = string.Empty
+        };
+
+        private static ConspiracyCard ParseConspiracyCard(JsonElement c) => new()
+        {
+            ScryfallId = GetString(c, "id"),
+            OracleId = GetString(c, "oracle_id"),
+            Name = GetString(c, "name"),
+            TypeLine = GetString(c, "type_line"),
+            OracleText = GetString(c, "oracle_text"),
+            FlavorText = GetString(c, "flavor_text"),
+            SetCode = GetString(c, "set").ToUpper(),
+            SetName = GetString(c, "set_name"),
+            SetType = GetString(c, "set_type"),
+            CollectorNumber = GetString(c, "collector_number"),
+            Rarity = GetString(c, "rarity"),
+            Artist = GetString(c, "artist"),
+            ManaCost = GetString(c, "mana_cost"),
+            ManaValue = GetDouble(c, "cmc"),
+            ColorIdentity = GetStringArray(c, "color_identity"),
+            Colors = GetStringArray(c, "colors"),
             ImageSmallUrl = GetImageUri(c, "small"),
             ImageNormalUrl = GetImageUri(c, "normal"),
             Layout = GetString(c, "layout"),

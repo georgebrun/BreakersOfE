@@ -310,4 +310,52 @@ namespace BreakersOfE.Models
         public Brush CellBorderBrush =>
             CardColorService.GetCellBorderBrush();
     }
+
+    // ── Conspiracy Card ────────────────────────────────────────────────────────
+    // Conspiracy cards are stored separately (not in PoolCards) because they
+    // are only playable in Conspiracy draft formats.
+    public class ConspiracyCard
+    {
+        [Key] public int ConspiracyId { get; set; }
+
+        public string ScryfallId { get; set; } = string.Empty;
+        public string OracleId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string TypeLine { get; set; } = string.Empty;
+        public string OracleText { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
+        public string CollectorNumber { get; set; } = string.Empty;
+        public string Rarity { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string ManaCost { get; set; } = string.Empty;
+        public double ManaValue { get; set; }
+        public string ColorIdentity { get; set; } = string.Empty;
+        public string Colors { get; set; } = string.Empty;
+        public string ImageSmallUrl { get; set; } = string.Empty;
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public string Layout { get; set; } = string.Empty;
+        public bool IsFoil { get; set; }
+        public bool IsNonFoil { get; set; }
+        public string ReleasedAt { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public bool IsFavorite { get; set; }
+
+        [NotMapped] public int RowIndex { get; set; }
+        [NotMapped] public string Power => string.Empty;
+        [NotMapped] public string Toughness => string.Empty;
+        [NotMapped] public string PowerToughness => string.Empty;
+        [NotMapped] public bool IsLand => false;
+        [NotMapped] public bool IsCreature => false;
+
+        [NotMapped]
+        public Brush RowBackgroundBrush =>
+            CardColorService.GetBackground(IsFoil, RowIndex);
+
+        [NotMapped]
+        public Brush CellBorderBrush =>
+            CardColorService.GetCellBorderBrush();
+    }
 }

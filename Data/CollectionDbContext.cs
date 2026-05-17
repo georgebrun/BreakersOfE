@@ -19,6 +19,8 @@ namespace BreakersOfE.Data
         public DbSet<VanguardCollectionEntry> VanguardCollectionEntries { get; set; }
         public DbSet<ConspiracyCollectionEntry> ConspiracyCollectionEntries { get; set; }
         public DbSet<ArtSeriesCollectionEntry> ArtSeriesCollectionEntries { get; set; }
+        public DbSet<TradeBinderEntry> TradeBinderEntries { get; set; }
+        public DbSet<WantListEntry> WantListEntries { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)
             => options.UseSqlite($"Data Source={AppFolderService.CollectionDatabasePath}");
@@ -34,6 +36,66 @@ namespace BreakersOfE.Data
         public void MigrateSchema()
         {
             Database.EnsureCreated();
+
+            // Create ConspiracyCollectionEntries table if it doesn't exist
+            try
+            {
+#pragma warning disable EF1002
+                Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ConspiracyCollectionEntries (
+                        ConspiracyCollectionEntryId  INTEGER PRIMARY KEY AUTOINCREMENT,
+                        ConspiracyId                 INTEGER NOT NULL DEFAULT 0,
+                        Quantity                     INTEGER NOT NULL DEFAULT 0,
+                        FoilQuantity                 INTEGER NOT NULL DEFAULT 0,
+                        Condition                    TEXT NOT NULL DEFAULT 'Unknown',
+                        Language                     TEXT NOT NULL DEFAULT 'English',
+                        Notes                        TEXT NOT NULL DEFAULT '',
+                        StorageLocation              TEXT NOT NULL DEFAULT '',
+                        DateAdded                    TEXT NOT NULL DEFAULT '',
+                        DateModified                 TEXT NOT NULL DEFAULT ''
+                    )");
+#pragma warning restore EF1002
+            }
+            catch { }
+
+            // Create TradeBinderEntries table if it doesn't exist
+            try
+            {
+#pragma warning disable EF1002
+                Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS TradeBinderEntries (
+                        TradeBinderEntryId  INTEGER PRIMARY KEY AUTOINCREMENT,
+                        PoolId              INTEGER NOT NULL DEFAULT 0,
+                        Quantity            INTEGER NOT NULL DEFAULT 1,
+                        IsFoil              INTEGER NOT NULL DEFAULT 0,
+                        Condition           TEXT NOT NULL DEFAULT 'Near Mint',
+                        AskingPrice         REAL,
+                        DateAdded           TEXT NOT NULL DEFAULT ''
+                    )");
+                Database.ExecuteSqlRaw(
+                    "CREATE INDEX IF NOT EXISTS IX_TradeBinderEntries_PoolId ON TradeBinderEntries (PoolId)");
+#pragma warning restore EF1002
+            }
+            catch { }
+
+            // Create WantListEntries table if it doesn't exist
+            try
+            {
+#pragma warning disable EF1002
+                Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS WantListEntries (
+                        WantListEntryId  INTEGER PRIMARY KEY AUTOINCREMENT,
+                        PoolId           INTEGER NOT NULL DEFAULT 0,
+                        Quantity         INTEGER NOT NULL DEFAULT 1,
+                        IsFoil           INTEGER NOT NULL DEFAULT 0,
+                        OfferPrice       REAL,
+                        DateAdded        TEXT NOT NULL DEFAULT ''
+                    )");
+                Database.ExecuteSqlRaw(
+                    "CREATE INDEX IF NOT EXISTS IX_WantListEntries_PoolId ON WantListEntries (PoolId)");
+#pragma warning restore EF1002
+            }
+            catch { }
 
             // Add any new columns safely
             var columns = new[]

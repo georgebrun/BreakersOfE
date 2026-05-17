@@ -23,6 +23,7 @@ namespace BreakersOfE.Windows
             AddRow("Scheme Cards", result.SchemeCardsImported);
             AddRow("Vanguard Cards", result.VanguardCardsImported);
             AddRow("Art Series Cards", result.ArtSeriesCardsImported);
+            AddRow("Conspiracy Cards", result.ConspiracyCardsImported);
             AddRow("Skipped", result.SkippedCount);
             AddDivider();
             AddRow("Total Imported", result.TotalImported, bold: true);
