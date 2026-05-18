@@ -6,7 +6,8 @@
         mc:Ignorable="d"
         Title="Breakers of E"
         WindowState="Maximized"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        KeyDown="MainWindow_KeyDown">
 
     <Window.Resources>
 
@@ -213,21 +214,37 @@
                 </Style>
             </Menu.Resources>
             <MenuItem Header="_File">
+                <!-- Deck operations -->
                 <MenuItem Header="_New Deck..."      Name="MenuNewDeck"      IsEnabled="False" Click="MenuNewDeck_Click"/>
                 <MenuItem Header="_Open Deck..."     Name="MenuOpenDeck"     IsEnabled="False" Click="MenuOpenDeck_Click"/>
+                <MenuItem Header="_Recent Decks"     Name="MenuRecentDecks">
+                    <MenuItem Header="(no recent decks)" Name="MenuNoRecentDecks" IsEnabled="False"/>
+                </MenuItem>
+                <Separator/>
                 <MenuItem Header="_Save Deck"        Name="MenuSaveDeck"      IsEnabled="False" Click="MenuSaveDeck_Click"/>
                 <MenuItem Header="Save _All Decks"   Name="MenuSaveAllDecks"  IsEnabled="False" Click="MenuSaveAllDecks_Click"/>
-                <MenuItem Header="_Close Deck"        Name="MenuCloseDeck"     IsEnabled="False" Click="BtnCloseDeck_Click"/>
+                <Separator/>
+                <MenuItem Header="_Close Deck"       Name="MenuCloseDeck"     IsEnabled="False" Click="BtnCloseDeck_Click"/>
                 <MenuItem Header="Close _All Decks"  Name="MenuCloseAllDecks" IsEnabled="False" Click="MenuCloseAllDecks_Click"/>
+                <Separator/>
+                <!-- Import / Export -->
+                <MenuItem Header="⬇ _Import Collection / Deck..." Click="MenuImport_Click"/>
+                <MenuItem Header="⬆ _Export Collection / Deck..." Click="MenuExport_Click"/>
+                <Separator/>
+                <!-- App -->
+                <MenuItem Header="📂 Open App Data Folder" Click="MenuOpenAppFolder_Click"/>
                 <Separator/>
                 <MenuItem Header="_Preferences"      Click="MenuPreferences_Click"/>
                 <Separator/>
                 <MenuItem Header="E_xit"             Click="MenuExit_Click"/>
                 <Separator/>
+                <!-- Tools -->
                 <MenuItem Header="🂠 _Tabletop Simulator" Name="MenuTabletop"
                           Click="MenuTabletop_Click"/>
                 <MenuItem Header="📒 _Trade Binder" Name="MenuTradeBinder"
                           Click="MenuTradeBinder_Click"/>
+                <MenuItem Header="🔍 _Keyword Search" Name="MenuKeywordSearch"
+                          Click="MenuKeywordSearch_Click"/>
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="_Theme">
@@ -236,6 +253,9 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="_Tools">
+                <MenuItem Header="⬇ _Import Collection / Deck..." Click="MenuImport_Click"/>
+                <MenuItem Header="⬆ _Export Collection / Deck..." Click="MenuExport_Click"/>
+                <Separator/>
                 <MenuItem Header="_Update Card Database" Click="MenuUpdateDatabase_Click"/>
                 <MenuItem Header="_Update Prices Only"   Click="MenuUpdatePrices_Click"/>
                 <Separator/>
@@ -246,6 +266,10 @@
                 <MenuItem Header="_Settings"             Click="MenuSettings_Click"/>
             </MenuItem>
             <MenuItem Header="_Help">
+                <MenuItem Header="❓ _Help..." Click="MenuHelp_Click"/>
+                <Separator/>
+                <MenuItem Header="📖 _Keyword Dictionary" Click="MenuKeywordDictionary_Click"/>
+                <Separator/>
                 <MenuItem Header="_About" Click="MenuAbout_Click"/>
             </MenuItem>
         </Menu>
@@ -262,10 +286,10 @@
                 <Button Name="BtnOpenDeck"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1A5;" ToolTip="Open Deck"             IsEnabled="False" Click="BtnOpenDeck_Click"        Margin="2,2"/>
                 <Button Name="BtnSaveDeck"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE105;" ToolTip="Save Deck"             IsEnabled="False" Click="BtnSaveDeck_Click"        Margin="2,2"/>
                 <Button Name="BtnSaveAllDecks"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE116;" ToolTip="Save All Decks"        IsEnabled="False" Click="BtnSaveAllDecks_Click"    Margin="2,2"/>
-                <Button Name="BtnCloseDeck"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE10A;" ToolTip="Close Deck"            IsEnabled="False" Click="BtnCloseDeck_Click"       Margin="2,2"/>
-                <Button Name="BtnCloseAllDecks"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE711;" ToolTip="Close All Decks"       IsEnabled="False" Click="BtnCloseAllDecks_Click"   Margin="2,2"/>
-                <Button Name="BtnDeckProperties"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE946;" ToolTip="Deck Properties"       IsEnabled="False" Click="BtnDeckProperties_Click"  Margin="2,2"/>
-                <Button Name="BtnDeckLegality"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1C6;" ToolTip="Deck Legality"         IsEnabled="False" Click="BtnDeckLegality_Click"    Margin="2,2"/>
+                <Button Name="BtnCloseDeck"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE8BB;" ToolTip="Close Deck"            IsEnabled="False" Click="BtnCloseDeck_Click"       Margin="2,2"/>
+                <Button Name="BtnCloseAllDecks"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE8BA;" ToolTip="Close All Decks"       IsEnabled="False" Click="BtnCloseAllDecks_Click"   Margin="2,2"/>
+                <Button Name="BtnDeckProperties"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE90A;" ToolTip="Deck Properties"       IsEnabled="False" Click="BtnDeckProperties_Click"  Margin="2,2"/>
+                <Button Name="BtnDeckLegality"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE73E;" ToolTip="Deck Legality"         IsEnabled="False" Click="BtnDeckLegality_Click"    Margin="2,2"/>
                 <Button Name="BtnDeckStats"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE9F9;" ToolTip="Deck Statistics"       IsEnabled="False" Click="BtnDeckStats_Click"       Margin="2,2"/>
 
                 <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
@@ -273,7 +297,7 @@
                 <!-- GROUP 2: DECK CARDS -->
                 <Button Name="BtnAddToDeck"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE109;" ToolTip="Add 1 Card to Deck"              IsEnabled="False" Click="BtnAddToDeck_Click"       Margin="2,2"/>
                 <Button Name="BtnAdd4ToDeck"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1FE;" ToolTip="Add 4 Cards to Deck (Standard)"  IsEnabled="False" Click="BtnAdd4ToDeck_Click"      Margin="2,2"/>
-                <Button Name="BtnAddFoilToDeck"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1D9;" ToolTip="Add 1 Foil Card to Deck"         IsEnabled="False" Click="BtnAddFoilToDeck_Click"   Margin="2,2"/>
+                <Button Name="BtnAddFoilToDeck"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE8D6;" ToolTip="Add 1 Foil Card to Deck"         IsEnabled="False" Click="BtnAddFoilToDeck_Click"   Margin="2,2"/>
                 <Button Name="BtnRemoveFromDeck"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE108;" ToolTip="Remove Card from Deck"           IsEnabled="False" Click="BtnRemoveFromDeck_Click"  Margin="2,2"/>
                 <Button Name="BtnDeckQtyIncrease"  Style="{DynamicResource ToolbarButtonStyle}" ToolTip="Increase Qty in Deck"  IsEnabled="False" Click="BtnDeckQtyIncrease_Click" Margin="2,2">
                     <Button.Content>
@@ -290,7 +314,7 @@
 
                 <!-- GROUP 3: COLLECTION -->
                 <Button Name="BtnAddToCollection"      Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE109;" ToolTip="Add 1 Card to Collection"      IsEnabled="False" Click="BtnAddToCollection_Click"      Margin="2,2"/>
-                <Button Name="BtnAddFoilToCollection"  Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1D9;" ToolTip="Add 1 Foil Card to Collection"  IsEnabled="False" Click="BtnAddFoilToCollection_Click"  Margin="2,2"/>
+                <Button Name="BtnAddFoilToCollection"  Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE8D6;" ToolTip="Add 1 Foil Card to Collection"  IsEnabled="False" Click="BtnAddFoilToCollection_Click"  Margin="2,2"/>
                 <Button Name="BtnImportDeckToCollection" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1A3;" ToolTip="Import Entire Deck to Collection" IsEnabled="False" Click="BtnImportDeckToCollection_Click" Margin="2,2"/>
                 <Button Name="BtnRemoveFromCollection" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE108;" ToolTip="Remove Card from Collection"    IsEnabled="False" Click="BtnRemoveFromCollection_Click" Margin="2,2"/>
 
@@ -303,14 +327,15 @@
                 <Button Name="BtnFindNext"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE111;" ToolTip="Find Next"                     Click="BtnFindNext_Click"       Margin="2,2"/>
                 <Button Name="BtnFindPrev"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE112;" ToolTip="Find Previous"                 Click="BtnFindPrev_Click"       Margin="2,2"/>
                 <Button Name="BtnClearSearch"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE10A;" ToolTip="Cancel Incremental Search"     Click="BtnClearSearch_Click"    Margin="2,2"/>
-                <Button Name="BtnToggleLegality" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE14C;" ToolTip="Toggle Legality Columns"       Click="BtnLegality_Click"       Margin="2,2"/>
+                <Button Name="BtnToggleLegality" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE73E;" ToolTip="Toggle Legality Columns"       Click="BtnLegality_Click"       Margin="2,2"/>
                 <Button Name="BtnColumnChooser"  Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE179;" ToolTip="Show/Hide Columns"             Click="BtnColumnChooser_Click"  Margin="2,2"/>
+                <Button Name="BtnKeywordSearch"  Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE11B;" ToolTip="Keyword Search"                  Click="BtnKeywordSearch_Click"  Margin="2,2"/>
 
                 <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
 
                 <!-- GROUP 5: VIEW -->
                 <Button Name="BtnUpdateDb" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE117;" ToolTip="Update Card Database" Click="BtnUpdateDb_Click" Margin="2,2"/>
-                <Button Name="BtnTheme"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE706;" ToolTip="Toggle Light/Dark Mode" Click="BtnTheme_Click"  Margin="2,2"/>
+                <Button Name="BtnTheme"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE771;" ToolTip="Toggle Light/Dark Mode" Click="BtnTheme_Click"  Margin="2,2"/>
 
                 <!-- Mode dropdown -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,2,4,2">

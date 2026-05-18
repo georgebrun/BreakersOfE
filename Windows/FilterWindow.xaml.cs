@@ -29,6 +29,30 @@ namespace BreakersOfE.Windows
         public bool IncludeUnpriced => ChkIncludeUnpriced.IsChecked == true;
         public bool UseNonFoilPrice => RadioPriceNonFoil.IsChecked == true;
 
+        // ── Color quick-filter results ────────────────────────────────────────
+        public bool QuickColorActive =>
+            FwBtnW.IsChecked == true || FwBtnU.IsChecked == true ||
+            FwBtnB.IsChecked == true || FwBtnR.IsChecked == true ||
+            FwBtnG.IsChecked == true || FwBtnC.IsChecked == true;
+
+        public ColorMatchMode QuickColorMode =>
+            FwRbExact.IsChecked == true ? ColorMatchMode.ExactlyTheSelected :
+            FwRbIncludes.IsChecked == true ? ColorMatchMode.AllSelected :
+            FwRbAny.IsChecked == true ? ColorMatchMode.AnyOfSelected :
+            ColorMatchMode.AtMost;  // default = At Most (Commander)
+
+        public bool QuickFilterW => FwBtnW.IsChecked == true;
+        public bool QuickFilterU => FwBtnU.IsChecked == true;
+        public bool QuickFilterB => FwBtnB.IsChecked == true;
+        public bool QuickFilterR => FwBtnR.IsChecked == true;
+        public bool QuickFilterG => FwBtnG.IsChecked == true;
+        public bool QuickFilterC => FwBtnC.IsChecked == true;
+
+        private void ColorQuick_Changed(object sender, RoutedEventArgs e)
+        {
+            // No live preview needed — applied on OK
+        }
+
         // ── Selected sets/editions from Tab 1 ────────────────────────────────
         public List<string> SelectedSetCodes { get; private set; } = new();
 

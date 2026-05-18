@@ -196,49 +196,120 @@
                  TAB 3 — OPTIONS
             ══════════════════════════════════════════════════════════════ -->
             <TabItem Header="Options">
-                <StackPanel Margin="16">
-                    <TextBlock Text="Search Options"
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+                        <TextBlock Text="Search Options"
                                FontWeight="Bold"
                                FontSize="14"
                                Margin="0,0,0,12"/>
 
-                    <CheckBox Name="ChkCaseInsensitive"
+                        <CheckBox Name="ChkCaseInsensitive"
                               Content="Case insensitive"
                               IsChecked="True"
                               FontSize="13"
                               Margin="0,0,0,8"/>
 
-                    <CheckBox Name="ChkIncludeUnpriced"
+                        <CheckBox Name="ChkIncludeUnpriced"
                               Content="Include cards with no price when filtering by price"
                               IsChecked="True"
                               FontSize="13"
                               Margin="0,0,0,8"/>
 
-                    <CheckBox Name="ChkMatchPartialWords"
+                        <CheckBox Name="ChkMatchPartialWords"
                               Content="Match partial words (e.g. 'fire' matches 'fireball')"
                               IsChecked="True"
                               FontSize="13"
                               Margin="0,0,0,8"/>
 
-                    <Separator Margin="0,12"/>
+                        <Separator Margin="0,12"/>
 
-                    <TextBlock Text="Price Filter"
+                        <!-- Color Identity Quick Filter -->
+                        <TextBlock Text="Color Identity Filter"
+                               FontWeight="Bold" FontSize="14"
+                               Margin="0,0,0,8"/>
+                        <TextBlock Text="Quick color filter applied on top of any Card conditions."
+                               FontSize="11" Foreground="Gray" Margin="0,0,0,8"
+                               TextWrapping="Wrap"/>
+
+                        <!-- Color buttons -->
+                        <WrapPanel Margin="0,0,0,8">
+                            <ToggleButton Name="FwBtnW" Content="W" Width="30" Height="30"
+                                      FontWeight="Bold" Margin="2,0"
+                                      Background="#F9FAF1" Foreground="#444"
+                                      BorderBrush="#C8B87A" BorderThickness="2"
+                                      Checked="ColorQuick_Changed" Unchecked="ColorQuick_Changed"/>
+                            <ToggleButton Name="FwBtnU" Content="U" Width="30" Height="30"
+                                      FontWeight="Bold" Margin="2,0"
+                                      Background="#B3CEEA" Foreground="#003"
+                                      BorderBrush="#5588AA" BorderThickness="2"
+                                      Checked="ColorQuick_Changed" Unchecked="ColorQuick_Changed"/>
+                            <ToggleButton Name="FwBtnB" Content="B" Width="30" Height="30"
+                                      FontWeight="Bold" Margin="2,0"
+                                      Background="#3A3A3A" Foreground="#EEE"
+                                      BorderBrush="#888" BorderThickness="2"
+                                      Checked="ColorQuick_Changed" Unchecked="ColorQuick_Changed"/>
+                            <ToggleButton Name="FwBtnR" Content="R" Width="30" Height="30"
+                                      FontWeight="Bold" Margin="2,0"
+                                      Background="#E87040" Foreground="#FFF"
+                                      BorderBrush="#AA3310" BorderThickness="2"
+                                      Checked="ColorQuick_Changed" Unchecked="ColorQuick_Changed"/>
+                            <ToggleButton Name="FwBtnG" Content="G" Width="30" Height="30"
+                                      FontWeight="Bold" Margin="2,0"
+                                      Background="#4A8A4A" Foreground="#FFF"
+                                      BorderBrush="#226622" BorderThickness="2"
+                                      Checked="ColorQuick_Changed" Unchecked="ColorQuick_Changed"/>
+                            <ToggleButton Name="FwBtnC" Content="C" Width="30" Height="30"
+                                      FontWeight="Bold" Margin="2,0"
+                                      Background="#999" Foreground="#FFF"
+                                      BorderBrush="#555" BorderThickness="2"
+                                      ToolTip="Colorless"
+                                      Checked="ColorQuick_Changed" Unchecked="ColorQuick_Changed"/>
+                        </WrapPanel>
+
+                        <!-- Color mode -->
+                        <StackPanel Margin="0,0,0,8">
+                            <RadioButton Name="FwRbAtMost"
+                                     Content="At most these colors (Commander)"
+                                     IsChecked="True" FontSize="12" Margin="0,2"
+                                     Checked="ColorQuick_Changed"
+                                     ToolTip="Cards whose color identity fits within the selected colors — best for Commander deck building"/>
+                            <RadioButton Name="FwRbIncludes"
+                                     Content="Includes these colors"
+                                     FontSize="12" Margin="0,2"
+                                     Checked="ColorQuick_Changed"
+                                     ToolTip="Cards that contain at least these colors"/>
+                            <RadioButton Name="FwRbExact"
+                                     Content="Exactly these colors"
+                                     FontSize="12" Margin="0,2"
+                                     Checked="ColorQuick_Changed"
+                                     ToolTip="Cards that are exactly these colors, no more"/>
+                            <RadioButton Name="FwRbAny"
+                                     Content="Any of these colors"
+                                     FontSize="12" Margin="0,2"
+                                     Checked="ColorQuick_Changed"
+                                     ToolTip="Cards that contain any of the selected colors"/>
+                        </StackPanel>
+
+                        <Separator Margin="0,12"/>
+
+                        <TextBlock Text="Price Filter"
                                FontWeight="Bold"
                                FontSize="14"
                                Margin="0,0,0,12"/>
 
-                    <StackPanel Orientation="Horizontal"
+                        <StackPanel Orientation="Horizontal"
                                 Margin="0,0,0,8">
-                        <RadioButton Name="RadioPriceNonFoil"
+                            <RadioButton Name="RadioPriceNonFoil"
                                      Content="Filter on Non-Foil (USD) price"
                                      IsChecked="True"
                                      FontSize="13"
                                      Margin="0,0,16,0"/>
-                        <RadioButton Name="RadioPriceFoil"
+                            <RadioButton Name="RadioPriceFoil"
                                      Content="Filter on Foil (USD Foil) price"
                                      FontSize="13"/>
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
 

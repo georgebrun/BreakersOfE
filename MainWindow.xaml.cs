@@ -51,6 +51,8 @@ namespace BreakersOfE
         private const string LockKeyPrefix = "Lock_";
         private const string ColVisPrefix = "ColVis_";
         private const string ColOrderPrefix = "ColOrder_";
+        private const string RecentDecksKey = "RecentDecks";
+        private const int MaxRecentDecks = 8;
 
         // ── AppSettings helpers ───────────────────────────────────────────────
         private static string? GetSetting(string key)
@@ -772,6 +774,7 @@ namespace BreakersOfE
 
                 _openDecks.Add(deck);
                 AddDeckTab(deck);
+                AddToRecentDecks(dlg.FileName);
             }
             catch (Exception ex)
             {
@@ -2152,9 +2155,16 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         public MainWindow()
         {
+            App.Splash?.SetStatus("Initializing database...", 10);
             InitializeComponent();
+
+            App.Splash?.SetStatus("Checking database schema...", 20);
             EnsureDatabase();
+
+            App.Splash?.SetStatus("Loading card pool...", 40);
             LoadCaches();
+
+            App.Splash?.SetStatus("Applying preferences...", 80);
             BtnTheme.Content = ThemeService.ThemeToggleIcon;
             BtnTheme.ToolTip = ThemeService.ThemeToggleTooltip;
 
@@ -2183,6 +2193,16 @@ namespace BreakersOfE
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            LoadRecentDecks();
+
+            // Close splash screen — minimum display time enforced inside CloseWhenReady
+            if (App.Splash != null)
+            {
+                App.Splash.SetStatus("Ready!", 100);
+                _ = App.Splash.CloseWhenReady();
+                App.Splash = null;
+            }
+
             // Dispatcher at Render priority ensures the grid has laid out
             // and ActualWidth values are valid
             Dispatcher.BeginInvoke(new Action(() =>
@@ -3416,6 +3436,7 @@ namespace BreakersOfE
                     IsLegalLegacy = pc.IsLegalLegacy,
                     IsLegalVintage = pc.IsLegalVintage,
                     LegalitiesJson = pc.LegalitiesJson,
+                    Keywords = pc.Keywords,
                     DateAdded = ce.DateAdded,
                     DateModified = ce.DateModified,
                     PriceUsd = pc.PriceUsd,
@@ -4327,29 +4348,67 @@ namespace BreakersOfE
                 {
                     _topFilterNode = win.ResultNode;
                     _topSelectedSetCodes = win.SelectedSetCodes;
+
+                    // Apply color quick-filter
+                    ApplyColorQuickFilter(_topFilter, win);
+
                     TopFilterSummary.Text = FilterExpressionService
                         .Summarize(_topFilterNode);
                     if (string.IsNullOrEmpty(TopFilterSummary.Text) &&
-                        _topSelectedSetCodes.Count == 0)
+                        _topSelectedSetCodes.Count == 0 &&
+                        !win.QuickColorActive)
                         TopFilterSummary.Text = "No filter active";
                     else if (_topSelectedSetCodes.Count > 0)
                         TopFilterSummary.Text =
                             $"Editions: {_topSelectedSetCodes.Count} selected  " +
                             TopFilterSummary.Text;
+                    if (win.QuickColorActive)
+                        TopFilterSummary.Text =
+                            (TopFilterSummary.Text == "No filter active" ? "" :
+                             TopFilterSummary.Text + "  ") + "🎨 Color filter active";
                     LoadCurrentMode();
                 }
                 else
                 {
                     _bottomFilterNode = win.ResultNode;
                     _bottomSelectedSetCodes = win.SelectedSetCodes;
+
+                    // Apply color quick-filter
+                    ApplyColorQuickFilter(_bottomFilter, win);
+
                     BottomFilterSummary.Text = FilterExpressionService
                         .Summarize(_bottomFilterNode);
                     if (string.IsNullOrEmpty(BottomFilterSummary.Text) &&
-                        _bottomSelectedSetCodes.Count == 0)
+                        _bottomSelectedSetCodes.Count == 0 &&
+                        !win.QuickColorActive)
                         BottomFilterSummary.Text = "No filter active";
+                    if (win.QuickColorActive)
+                        BottomFilterSummary.Text =
+                            (BottomFilterSummary.Text == "No filter active" ? "" :
+                             BottomFilterSummary.Text + "  ") + "🎨 Color filter active";
                     RefreshBottom();
                 }
             }
+        }
+
+        private static void ApplyColorQuickFilter(
+            FilterState state, Windows.FilterWindow win)
+        {
+            if (!win.QuickColorActive)
+            {
+                // Clear color fields only
+                state.FilterWhite = state.FilterBlue = state.FilterBlack =
+                state.FilterRed = state.FilterGreen = state.FilterColorless = false;
+                state.ColorMatch = ColorMatchMode.AtMost;
+                return;
+            }
+            state.FilterWhite = win.QuickFilterW;
+            state.FilterBlue = win.QuickFilterU;
+            state.FilterBlack = win.QuickFilterB;
+            state.FilterRed = win.QuickFilterR;
+            state.FilterGreen = win.QuickFilterG;
+            state.FilterColorless = win.QuickFilterC;
+            state.ColorMatch = win.QuickColorMode;
         }
 
         private static FilterContext ModeToFilterContext(
@@ -5683,6 +5742,37 @@ namespace BreakersOfE
             win.Show();
         }
 
+        private void MenuKeywordSearch_Click(object sender, RoutedEventArgs e)
+            => OpenKeywordSearch();
+
+        private void BtnKeywordSearch_Click(object sender, RoutedEventArgs e)
+            => OpenKeywordSearch();
+
+        private void OpenKeywordSearch()
+        {
+            var win = new Windows.KeywordSearchWindow { Owner = this };
+            win.Show();
+        }
+
+        /// <summary>
+        /// Called by KeywordSearchWindow to add a card directly to the active deck.
+        /// </summary>
+        public void AddPoolCardToActiveDeck(PoolCard pc)
+        {
+            if (_activeDeck == null)
+            {
+                MessageBox.Show("No deck is open. Create or open a deck first.",
+                    "No Deck Open", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var deckCard = DeckService.FromPoolCard(pc);
+            if (deckCard == null) return;
+            _activeDeck.Cards.Add(deckCard);
+            AutoSaveDeck(_activeDeck);
+            UpdateDeckSummary(_activeDeck);
+            RefreshBottom();
+        }
+
         private void ShowCollectionRowDetail(CollectionDisplayRow c)
         {
             DetailName.Text = c.Name;
@@ -6838,10 +6928,123 @@ namespace BreakersOfE
             StatusProgressBar.Value = progress;
         }
 
+        private void MainWindow_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.F1)
+            {
+                OpenHelp();
+                e.Handled = true;
+            }
+        }
+
+        private void MenuHelp_Click(object sender, RoutedEventArgs e)
+            => OpenHelp();
+
+        private void OpenHelp(string? topic = null)
+        {
+            var win = new Windows.HelpWindow(topic) { Owner = this };
+            win.Show();
+        }
+
+        private void MenuKeywordDictionary_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new Windows.KeywordDictionaryWindow { Owner = this };
+            win.Show();
+        }
+
+        private void MenuImport_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new Windows.ImportExportWindow(_activeDeck) { Owner = this };
+            win.ShowDialog();
+            // Refresh collection view after import
+            if (_currentMode.Contains("Collection") || _currentMode == "PoolToCollection")
+                LoadCurrentMode();
+        }
+
+        private void MenuExport_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new Windows.ImportExportWindow(_activeDeck) { Owner = this };
+            // Switch to Export tab
+            win.Show();
+        }
+
         private void MenuAbout_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new Windows.AboutWindow { Owner = this };
             dlg.ShowDialog();
+        }
+
+        private void MenuOpenAppFolder_Click(object sender, RoutedEventArgs e)
+            => System.Diagnostics.Process.Start("explorer.exe",
+                Services.AppFolderService.RootFolder);
+
+        // ── Recent Decks ──────────────────────────────────────────────────────
+        private void LoadRecentDecks()
+        {
+            string raw = GetSetting(RecentDecksKey) ?? string.Empty;
+            if (string.IsNullOrEmpty(raw)) return;
+
+            var paths = raw.Split('|', StringSplitOptions.RemoveEmptyEntries)
+                           .Where(System.IO.File.Exists)
+                           .ToList();
+
+            MenuNoRecentDecks.Visibility = paths.Count == 0
+                ? Visibility.Visible : Visibility.Collapsed;
+
+            // Remove old dynamic items (keep the placeholder)
+            var toRemove = MenuRecentDecks.Items
+                .OfType<MenuItem>()
+                .Where(m => m.Name != "MenuNoRecentDecks")
+                .ToList();
+            foreach (var m in toRemove)
+                MenuRecentDecks.Items.Remove(m);
+
+            foreach (var path in paths)
+            {
+                string label = System.IO.Path.GetFileNameWithoutExtension(path);
+                var item = new MenuItem { Header = label, ToolTip = path };
+                item.Click += (s, e) => OpenDeckFromPath(path);
+                MenuRecentDecks.Items.Add(item);
+            }
+        }
+
+        private void AddToRecentDecks(string filePath)
+        {
+            string raw = GetSetting(RecentDecksKey) ?? string.Empty;
+            var paths = raw.Split('|', StringSplitOptions.RemoveEmptyEntries)
+                           .Where(p => !p.Equals(filePath,
+                               StringComparison.OrdinalIgnoreCase))
+                           .Prepend(filePath)
+                           .Take(MaxRecentDecks)
+                           .ToList();
+            SaveSetting(RecentDecksKey, string.Join("|", paths));
+            LoadRecentDecks();
+        }
+
+        private void OpenDeckFromPath(string path)
+        {
+            if (!System.IO.File.Exists(path))
+            {
+                MessageBox.Show($"Deck file not found:\n{path}",
+                    "File Not Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                LoadRecentDecks(); // refresh list to remove missing file
+                return;
+            }
+            var existing = _openDecks.FirstOrDefault(d => d.FilePath == path);
+            if (existing != null) { SelectDeckTab(existing); return; }
+            try
+            {
+                var deck = DeckService.Load(path);
+                if (deck == null) return;
+                _openDecks.Add(deck);
+                AddDeckTab(deck);
+                AddToRecentDecks(path);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not open deck:\n{ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 }

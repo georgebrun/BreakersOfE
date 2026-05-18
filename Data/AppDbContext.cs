@@ -76,6 +76,7 @@ namespace BreakersOfE.Data
             {
                 ("PoolCards", "ImageBackUrl",       "TEXT NOT NULL DEFAULT ''"),
                 ("PoolCards", "LocalImageBackPath", "TEXT NOT NULL DEFAULT ''"),
+                ("PoolCards", "Keywords",           "TEXT NOT NULL DEFAULT ''"),
             };
             foreach (var (table, col, def) in dfcColumns)
             {

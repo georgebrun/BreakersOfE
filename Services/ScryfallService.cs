@@ -771,7 +771,7 @@ namespace BreakersOfE.Services
                 ReleasedAt = GetString(c, "released_at"),
                 PricesJson = GetRawJson(c, "prices"),
                 LegalitiesJson = GetRawJson(c, "legalities"),
-                Keywords = GetStringArray(c, "keywords"),
+                Keywords = GetStringArray(c, "keywords", "|"),
                 LocalImagePath = string.Empty,
                 PriceUsd = prices.usd,
                 PriceUsdFoil = prices.usdFoil,
@@ -1005,7 +1005,8 @@ namespace BreakersOfE.Services
             return false;
         }
 
-        private static string GetStringArray(JsonElement el, string prop)
+        private static string GetStringArray(JsonElement el, string prop,
+            string separator = "")
         {
             if (!el.TryGetProperty(prop, out var arr) ||
                 arr.ValueKind != JsonValueKind.Array)
@@ -1016,7 +1017,7 @@ namespace BreakersOfE.Services
                 if (item.ValueKind == JsonValueKind.String)
                     parts.Add(item.GetString() ?? string.Empty);
 
-            return string.Join("", parts);
+            return string.Join(separator, parts);
         }
 
         private static string GetRawJson(JsonElement el, string prop)

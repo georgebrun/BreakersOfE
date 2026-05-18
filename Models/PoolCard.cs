@@ -59,6 +59,14 @@ namespace BreakersOfE.Models
         // ── Row index for alternating colors ─────────────────────────────────
         [NotMapped] public int RowIndex { get; set; }
 
+        /// <summary>Returns Keywords as a split list for easy searching.</summary>
+        [NotMapped]
+        public IReadOnlyList<string> KeywordList =>
+            string.IsNullOrEmpty(Keywords)
+                ? Array.Empty<string>()
+                : Keywords.Split('|',
+                    System.StringSplitOptions.RemoveEmptyEntries);
+
         // ── Computed display ─────────────────────────────────────────────────
         [NotMapped]
         public string PowerToughness =>

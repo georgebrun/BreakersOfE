@@ -26,9 +26,10 @@ namespace BreakersOfE.Models
     // ── Color match mode ──────────────────────────────────────────────────────
     public enum ColorMatchMode
     {
-        AllSelected,
-        AnyOfSelected,
-        ExactlyTheSelected
+        AllSelected,       // Card must contain ALL selected colors (Includes)
+        AnyOfSelected,     // Card must contain ANY selected color
+        ExactlyTheSelected,// Card's colors == selected colors exactly
+        AtMost             // Card's colors are a subset of selected (Commander)
     }
 
     // ── Text search entry ─────────────────────────────────────────────────────

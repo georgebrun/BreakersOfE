@@ -313,6 +313,23 @@ namespace BreakersOfE.Services
             if (filter.FilterColorless && isColorless) return true;
             if (filter.FilterMulticolor && isMulticolor) return true;
 
+            // AtMost (Commander): card's colors must ALL be within selected set
+            // Colorless cards always pass since they have no color requirements
+            if (filter.ColorMatch == ColorMatchMode.AtMost)
+            {
+                if (isColorless) return filter.FilterColorless || true;
+                // Every color in the card must be in the selected set
+                foreach (char c in colorIdentity.ToUpper())
+                {
+                    if (c == 'W' && !filter.FilterWhite) return false;
+                    if (c == 'U' && !filter.FilterBlue) return false;
+                    if (c == 'B' && !filter.FilterBlack) return false;
+                    if (c == 'R' && !filter.FilterRed) return false;
+                    if (c == 'G' && !filter.FilterGreen) return false;
+                }
+                return true;
+            }
+
             if (isColorless || isMulticolor)
             {
                 // Multicolor — check match mode

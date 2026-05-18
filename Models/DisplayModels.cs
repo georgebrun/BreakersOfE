@@ -97,6 +97,7 @@ namespace BreakersOfE.Models
         public bool IsLegalLegacy { get; set; }
         public bool IsLegalVintage { get; set; }
         public string LegalitiesJson { get; set; } = string.Empty;
+        public string Keywords { get; set; } = string.Empty;
 
         public bool IsExpanded { get; set; } = false;
         public bool IsFooter { get; set; } = false;

@@ -1,0 +1,176 @@
+﻿<Window x:Class="BreakersOfE.Windows.ImportExportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Import / Export"
+        Width="620" Height="560"
+        MinWidth="540" MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <Window.Resources>
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Margin" Value="0,14,0,6"/>
+        </Style>
+        <Style x:Key="FormatBtn" TargetType="RadioButton">
+            <Setter Property="Margin" Value="0,3"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Mode tabs -->
+        <TabControl Grid.Row="0" Name="ModeTab"
+                    SelectionChanged="ModeTab_Changed">
+            <TabItem Header="⬇  Import">
+                <StackPanel Margin="8,10">
+                    <TextBlock Style="{StaticResource SectionLabel}" Text="WHAT TO IMPORT"/>
+                    <RadioButton Name="RbImportCollection" Content="Collection"
+                                 IsChecked="True" Style="{StaticResource FormatBtn}"
+                                 Checked="ImportTarget_Changed"/>
+                    <RadioButton Name="RbImportDeck" Content="Deck (MTG Studio .deck only)"
+                                 Style="{StaticResource FormatBtn}"
+                                 Checked="ImportTarget_Changed"/>
+                    <RadioButton Name="RbImportWantList" Content="Want List"
+                                 Style="{StaticResource FormatBtn}"
+                                 Checked="ImportTarget_Changed"/>
+
+                    <TextBlock Style="{StaticResource SectionLabel}" Text="FORMAT"/>
+                    <RadioButton Name="RbFmtAutoDetect" Content="Auto-detect from file"
+                                 IsChecked="True" Style="{StaticResource FormatBtn}"
+                                 GroupName="ImportFmt"/>
+                    <RadioButton Name="RbFmtMtgStudioCsv" Content="MTG Studio (.csv)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ImportFmt"/>
+                    <RadioButton Name="RbFmtMtgStudioDeck" Content="MTG Studio (.deck XML)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ImportFmt"
+                                 IsEnabled="False"/>
+                    <RadioButton Name="RbFmtMoxfield" Content="Moxfield (.csv)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ImportFmt"/>
+                    <RadioButton Name="RbFmtTcgPlayer" Content="TCGPlayer (.csv)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ImportFmt"/>
+                    <RadioButton Name="RbFmtDeckbox" Content="Deckbox (.csv)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ImportFmt"/>
+                    <RadioButton Name="RbFmtDragonShield" Content="Dragon Shield (.csv)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ImportFmt"/>
+
+                    <TextBlock Style="{StaticResource SectionLabel}"
+                               Text="CONFLICT HANDLING (Collection only)"/>
+                    <RadioButton Name="RbMerge" Content="Merge — add quantities to existing entries"
+                                 IsChecked="True" Style="{StaticResource FormatBtn}"
+                                 GroupName="Conflict"/>
+                    <RadioButton Name="RbReplace" Content="Replace — overwrite existing quantities"
+                                 Style="{StaticResource FormatBtn}"
+                                 GroupName="Conflict"/>
+
+                    <TextBlock Style="{StaticResource SectionLabel}" Text="FILE"/>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" Name="TxtImportPath"
+                                 Height="26" Padding="4,0"
+                                 VerticalContentAlignment="Center"
+                                 IsReadOnly="True"/>
+                        <Button Grid.Column="1" Content="Browse..."
+                                Margin="6,0,0,0" Padding="10,4"
+                                Click="BtnBrowseImport_Click"/>
+                    </Grid>
+                </StackPanel>
+            </TabItem>
+
+            <TabItem Header="⬆  Export">
+                <StackPanel Margin="8,10">
+                    <TextBlock Style="{StaticResource SectionLabel}" Text="WHAT TO EXPORT"/>
+                    <RadioButton Name="RbExportCollection" Content="Collection"
+                                 IsChecked="True" Style="{StaticResource FormatBtn}"
+                                 GroupName="ExportTarget"/>
+                    <RadioButton Name="RbExportDeck" Content="Active Deck (MTG Studio .deck only)"
+                                 Style="{StaticResource FormatBtn}"
+                                 GroupName="ExportTarget"/>
+                    <RadioButton Name="RbExportWantList" Content="Want List"
+                                 Style="{StaticResource FormatBtn}"
+                                 GroupName="ExportTarget"/>
+                    <RadioButton Name="RbExportTradeBinder" Content="Trade Binder"
+                                 Style="{StaticResource FormatBtn}"
+                                 GroupName="ExportTarget"/>
+
+                    <TextBlock Style="{StaticResource SectionLabel}" Text="FORMAT"/>
+                    <RadioButton Name="RbExpMtgStudio" Content="MTG Studio (.csv)"
+                                 IsChecked="True" Style="{StaticResource FormatBtn}"
+                                 GroupName="ExportFmt"/>
+                    <RadioButton Name="RbExpMtgStudioDeck" Content="MTG Studio (.deck XML)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                    <RadioButton Name="RbExpMoxfield" Content="Moxfield (.csv)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                    <RadioButton Name="RbExpTcgPlayer" Content="TCGPlayer (.csv)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                    <RadioButton Name="RbExpDeckbox" Content="Deckbox (.csv)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                    <RadioButton Name="RbExpDragonShield" Content="Dragon Shield (.csv)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                    <RadioButton Name="RbExpNative" Content="Breakers of E (.json)"
+                                 Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+
+                    <TextBlock Style="{StaticResource SectionLabel}" Text="SAVE TO"/>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" Name="TxtExportPath"
+                                 Height="26" Padding="4,0"
+                                 VerticalContentAlignment="Center"
+                                 IsReadOnly="True"/>
+                        <Button Grid.Column="1" Content="Browse..."
+                                Margin="6,0,0,0" Padding="10,4"
+                                Click="BtnBrowseExport_Click"/>
+                    </Grid>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+
+        <!-- Results log -->
+        <Border Grid.Row="1" BorderThickness="1"
+                BorderBrush="{DynamicResource BorderBrush}"
+                Margin="0,8,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBox Name="LogBox" IsReadOnly="True"
+                         TextWrapping="Wrap" BorderThickness="0"
+                         FontFamily="Consolas" FontSize="11"
+                         AcceptsReturn="True"
+                         Padding="6"
+                         Text="Ready. Select a file and click Import or Export."/>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Bottom buttons -->
+        <Grid Grid.Row="2" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Name="StatusText"
+                       VerticalAlignment="Center" FontSize="11"
+                       Foreground="Gray"/>
+            <Button Grid.Column="1" Name="BtnAction"
+                    Content="⬇  Import"
+                    Width="120" Height="32" FontSize="12"
+                    FontWeight="SemiBold"
+                    Click="BtnAction_Click"/>
+            <Button Grid.Column="3" Content="Close"
+                    Width="80" Height="32" FontSize="12"
+                    IsCancel="True" Click="BtnClose_Click"/>
+        </Grid>
+    </Grid>
+</Window>
