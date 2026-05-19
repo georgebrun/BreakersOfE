@@ -31,7 +31,12 @@ namespace BreakersOfE.Windows
             _priceOnly = priceOnly;
 
             if (_priceOnly)
+            {
                 Title = "Update Card Prices";
+                WindowTitleLabel.Text = "Update Card Prices";
+                WindowSubtitleLabel.Text = "Downloads the latest prices from Scryfall and updates your card pool. No card data is changed.";
+                StartButton.Content = "Start Price Update";
+            }
 
             _dot1 = (Storyboard)Resources["PulseDot1"];
             _dot2 = (Storyboard)Resources["PulseDot2"];

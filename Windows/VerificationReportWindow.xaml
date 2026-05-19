@@ -5,8 +5,8 @@
         Width="480" Height="640"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
-        Background="#1E1E1E"
-        Foreground="White">
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource PrimaryTextBrush}">
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -38,7 +38,7 @@
                 Width="100" Height="32"
                 HorizontalAlignment="Right"
                 Margin="0,16,0,0"
-                Background="#007ACC"
+                Background="{DynamicResource AccentBrush}"
                 Foreground="White"
                 BorderThickness="0"
                 FontSize="13"

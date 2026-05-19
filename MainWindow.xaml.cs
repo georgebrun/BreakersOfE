@@ -2483,23 +2483,50 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         // TOP TABLE LOADERS
         // ════════════════════════════════════════════════════════════════════
+        /// <summary>Apply default ascending Name sort to a DataGrid.</summary>
+        private static void ApplyDefaultSort(DataGrid grid,
+            string columnPath = "Name")
+        {
+            var view = System.Windows.Data.CollectionViewSource
+                .GetDefaultView(grid.ItemsSource);
+            if (view == null) return;
+            if (view.SortDescriptions.Count == 0 ||
+                view.SortDescriptions[0].PropertyName != columnPath ||
+                view.SortDescriptions[0].Direction !=
+                    System.ComponentModel.ListSortDirection.Ascending)
+            {
+                view.SortDescriptions.Clear();
+                view.SortDescriptions.Add(new System.ComponentModel.SortDescription(
+                    columnPath,
+                    System.ComponentModel.ListSortDirection.Ascending));
+            }
+        }
+
+        private bool TopFilterActive => ChkTopFilter?.IsChecked == true;
+        private bool BottomFilterActive => ChkBottomFilter?.IsChecked == true;
+
         private void LoadTopTable_Pool()
         {
             SetTopExpandColumnVisibility(Visibility.Collapsed);
             RemoveCollectionColumns(TopDataGrid);
             var all = _poolCache ?? new List<PoolCard>();
 
-            var filtered = FilterService.Apply(all, _topFilter, _searchText);
+            var filtered = TopFilterActive
+                ? FilterService.Apply(all, _topFilter, _searchText)
+                : FilterService.Apply(all, new FilterState(), _searchText);
 
-            if (_topFilterNode != null &&
-                FilterExpressionService.HasConditions(_topFilterNode))
-                filtered = FilterExpressionService.Apply(
-                    filtered, _topFilterNode, true);
+            if (TopFilterActive)
+            {
+                if (_topFilterNode != null &&
+                    FilterExpressionService.HasConditions(_topFilterNode))
+                    filtered = FilterExpressionService.Apply(
+                        filtered, _topFilterNode, true);
 
-            if (_topSelectedSetCodes.Count > 0)
-                filtered = filtered
-                    .Where(c => _topSelectedSetCodes.Contains(c.SetCode))
-                    .ToList();
+                if (_topSelectedSetCodes.Count > 0)
+                    filtered = filtered
+                        .Where(c => _topSelectedSetCodes.Contains(c.SetCode))
+                        .ToList();
+            }
 
             if (_topColumnFilters.HasActiveFilters)
                 filtered = _topColumnFilters.Apply(filtered);
@@ -2508,6 +2535,8 @@ namespace BreakersOfE
                 filtered[i].RowIndex = i;
 
             TopDataGrid.ItemsSource = filtered;
+            ApplyDefaultSort(TopDataGrid);
+            SetStatus($"{filtered.Count:N0} cards in pool");
             UpdateTopSummary("Pool",
                 nonFoil: filtered.Cast<PoolCard>().Count(c => c.IsNonFoil),
                 foil: filtered.Cast<PoolCard>().Count(c => c.IsFoil),
@@ -2520,10 +2549,13 @@ namespace BreakersOfE
         {
             RemoveCollectionColumns(TopDataGrid);
             var all = _tokenCache ?? new List<TokenCard>();
-            var filtered = FilterService.Apply(all, _topFilter, _searchText);
+            var filtered = TopFilterActive
+                ? FilterService.Apply(all, _topFilter, _searchText)
+                : FilterService.Apply(all, new FilterState(), _searchText);
             for (int i = 0; i < filtered.Count; i++)
                 filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
+            ApplyDefaultSort(TopDataGrid);
             UpdateTopSummary("Tokens", filtered.Count);
         }
 
@@ -2537,6 +2569,7 @@ namespace BreakersOfE
                     _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
+            ApplyDefaultSort(TopDataGrid);
             UpdateTopSummary("Planechase", filtered.Count);
         }
 
@@ -2550,6 +2583,7 @@ namespace BreakersOfE
                     _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
+            ApplyDefaultSort(TopDataGrid);
             UpdateTopSummary("Archenemy", filtered.Count);
         }
 
@@ -2563,6 +2597,7 @@ namespace BreakersOfE
                     _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
+            ApplyDefaultSort(TopDataGrid);
             UpdateTopSummary("Vanguard", filtered.Count);
         }
 
@@ -2576,6 +2611,7 @@ namespace BreakersOfE
                     _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
+            ApplyDefaultSort(TopDataGrid);
             UpdateTopSummary("Art Series", filtered.Count);
         }
 
@@ -2589,6 +2625,7 @@ namespace BreakersOfE
                     _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
+            ApplyDefaultSort(TopDataGrid);
             UpdateTopSummary("Conspiracy", filtered.Count);
         }
 
@@ -2763,6 +2800,7 @@ namespace BreakersOfE
                 .ToList();
 
             TopDataGrid.ItemsSource = rows;
+            ApplyDefaultSort(TopDataGrid);
 
             // In DeckToCollection mode populate TopSummaryGrid with deck totals
             if (_currentMode == "DeckToCollection" && _activeDeck != null)
@@ -2796,6 +2834,7 @@ namespace BreakersOfE
             for (int i = 0; i < rows.Count; i++)
                 rows[i].RowIndex = i;
             TopDataGrid.ItemsSource = rows;
+            ApplyDefaultSort(TopDataGrid);
             UpdateTopSummary("Collection",
                 nonFoil: rows.Sum(r => r.Quantity),
                 foil: rows.Sum(r => r.FoilQuantity),
@@ -3052,17 +3091,20 @@ namespace BreakersOfE
                     _bottomSearch, StringComparison.OrdinalIgnoreCase)).ToList();
 
             // Apply set code filter from Tab 1
-            if (_bottomSelectedSetCodes.Count > 0)
-                rows = rows
-                    .Where(c => _bottomSelectedSetCodes.Contains(c.SetCode))
-                    .ToList();
-
-            // Apply expression filter from Filter Window
-            if (_bottomFilterNode != null &&
-    FilterExpressionService.HasConditions(_bottomFilterNode))
+            if (BottomFilterActive)
             {
-                rows = FilterExpressionService.Apply(
-                    rows, _bottomFilterNode, true);
+                if (_bottomSelectedSetCodes.Count > 0)
+                    rows = rows
+                        .Where(c => _bottomSelectedSetCodes.Contains(c.SetCode))
+                        .ToList();
+
+                // Apply expression filter from Filter Window
+                if (_bottomFilterNode != null &&
+                    FilterExpressionService.HasConditions(_bottomFilterNode))
+                {
+                    rows = FilterExpressionService.Apply(
+                        rows, _bottomFilterNode, true);
+                }
             }
 
             if (_bottomColumnFilters.HasActiveFilters)
@@ -3079,10 +3121,16 @@ namespace BreakersOfE
         {
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
-            var rows = cdb.PlanarCollectionEntries.AsNoTracking()
-                .Join(pdb.PlanarCards.AsNoTracking(),
-                    ce => ce.PlanarId, pc => pc.PlanarId,
-                    (ce, pc) => new CollectionDisplayRow
+            var entries = cdb.PlanarCollectionEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
+            var ids = entries.Select(e => e.PlanarId).ToHashSet();
+            var cards = pdb.PlanarCards.AsNoTracking()
+                .Where(c => ids.Contains(c.PlanarId))
+                .ToList().ToDictionary(c => c.PlanarId);
+            var rows = entries
+                .Where(ce => cards.ContainsKey(ce.PlanarId))
+                .Select(ce => {
+                    var pc = cards[ce.PlanarId]; return new CollectionDisplayRow
                     {
                         CollectionEntryId = ce.PlanarCollectionEntryId,
                         Name = pc.Name,
@@ -3119,14 +3167,10 @@ namespace BreakersOfE
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
-                        IsLegalStandard = false,
-                        IsLegalModern = false,
-                        IsLegalPioneer = false,
-                        IsLegalLegacy = false,
-                        IsLegalVintage = false,
                         DateAdded = ce.DateAdded,
                         DateModified = ce.DateModified
-                    })
+                    };
+                })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
@@ -3137,10 +3181,16 @@ namespace BreakersOfE
         {
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
-            var rows = cdb.SchemeCollectionEntries.AsNoTracking()
-                .Join(pdb.SchemeCards.AsNoTracking(),
-                    ce => ce.SchemeId, sc => sc.SchemeId,
-                    (ce, sc) => new CollectionDisplayRow
+            var entries = cdb.SchemeCollectionEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
+            var ids = entries.Select(e => e.SchemeId).ToHashSet();
+            var cards = pdb.SchemeCards.AsNoTracking()
+                .Where(c => ids.Contains(c.SchemeId))
+                .ToList().ToDictionary(c => c.SchemeId);
+            var rows = entries
+                .Where(ce => cards.ContainsKey(ce.SchemeId))
+                .Select(ce => {
+                    var sc = cards[ce.SchemeId]; return new CollectionDisplayRow
                     {
                         CollectionEntryId = ce.SchemeCollectionEntryId,
                         Name = sc.Name,
@@ -3176,14 +3226,10 @@ namespace BreakersOfE
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
-                        IsLegalStandard = false,
-                        IsLegalModern = false,
-                        IsLegalPioneer = false,
-                        IsLegalLegacy = false,
-                        IsLegalVintage = false,
                         DateAdded = ce.DateAdded,
                         DateModified = ce.DateModified
-                    })
+                    };
+                })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
@@ -3194,10 +3240,16 @@ namespace BreakersOfE
         {
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
-            var rows = cdb.VanguardCollectionEntries.AsNoTracking()
-                .Join(pdb.VanguardCards.AsNoTracking(),
-                    ce => ce.VanguardId, vc => vc.VanguardId,
-                    (ce, vc) => new CollectionDisplayRow
+            var entries = cdb.VanguardCollectionEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
+            var ids = entries.Select(e => e.VanguardId).ToHashSet();
+            var cards = pdb.VanguardCards.AsNoTracking()
+                .Where(c => ids.Contains(c.VanguardId))
+                .ToList().ToDictionary(c => c.VanguardId);
+            var rows = entries
+                .Where(ce => cards.ContainsKey(ce.VanguardId))
+                .Select(ce => {
+                    var vc = cards[ce.VanguardId]; return new CollectionDisplayRow
                     {
                         CollectionEntryId = ce.VanguardCollectionEntryId,
                         Name = vc.Name,
@@ -3234,14 +3286,10 @@ namespace BreakersOfE
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
-                        IsLegalStandard = false,
-                        IsLegalModern = false,
-                        IsLegalPioneer = false,
-                        IsLegalLegacy = false,
-                        IsLegalVintage = false,
                         DateAdded = ce.DateAdded,
                         DateModified = ce.DateModified
-                    })
+                    };
+                })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
@@ -3252,10 +3300,16 @@ namespace BreakersOfE
         {
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
-            var rows = cdb.TokenCollectionEntries.AsNoTracking()
-                .Join(pdb.TokenCards.AsNoTracking(),
-                    ce => ce.TokenId, tc => tc.TokenId,
-                    (ce, tc) => new CollectionDisplayRow
+            var entries = cdb.TokenCollectionEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
+            var ids = entries.Select(e => e.TokenId).ToHashSet();
+            var cards = pdb.TokenCards.AsNoTracking()
+                .Where(c => ids.Contains(c.TokenId))
+                .ToList().ToDictionary(c => c.TokenId);
+            var rows = entries
+                .Where(ce => cards.ContainsKey(ce.TokenId))
+                .Select(ce => {
+                    var tc = cards[ce.TokenId]; return new CollectionDisplayRow
                     {
                         CollectionEntryId = ce.TokenCollectionEntryId,
                         Name = tc.Name,
@@ -3291,14 +3345,10 @@ namespace BreakersOfE
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
-                        IsLegalStandard = false,
-                        IsLegalModern = false,
-                        IsLegalPioneer = false,
-                        IsLegalLegacy = false,
-                        IsLegalVintage = false,
                         DateAdded = ce.DateAdded,
                         DateModified = ce.DateModified
-                    })
+                    };
+                })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
@@ -3309,10 +3359,16 @@ namespace BreakersOfE
         {
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
-            var rows = cdb.ArtSeriesCollectionEntries.AsNoTracking()
-                .Join(pdb.ArtSeriesCards.AsNoTracking(),
-                    ce => ce.ArtSeriesId, ac => ac.ArtSeriesId,
-                    (ce, ac) => new CollectionDisplayRow
+            var entries = cdb.ArtSeriesCollectionEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
+            var ids = entries.Select(e => e.ArtSeriesId).ToHashSet();
+            var cards = pdb.ArtSeriesCards.AsNoTracking()
+                .Where(c => ids.Contains(c.ArtSeriesId))
+                .ToList().ToDictionary(c => c.ArtSeriesId);
+            var rows = entries
+                .Where(ce => cards.ContainsKey(ce.ArtSeriesId))
+                .Select(ce => {
+                    var ac = cards[ce.ArtSeriesId]; return new CollectionDisplayRow
                     {
                         CollectionEntryId = ce.ArtSeriesCollectionEntryId,
                         Name = ac.Name,
@@ -3348,14 +3404,10 @@ namespace BreakersOfE
                         PrintType = ce.PrintType,
                         BuyStatus = ce.BuyStatus,
                         SellStatus = ce.SellStatus,
-                        IsLegalStandard = false,
-                        IsLegalModern = false,
-                        IsLegalPioneer = false,
-                        IsLegalLegacy = false,
-                        IsLegalVintage = false,
                         DateAdded = ce.DateAdded,
                         DateModified = ce.DateModified
-                    })
+                    };
+                })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
@@ -4218,18 +4270,32 @@ namespace BreakersOfE
                     _searchMatchIndex = -1;
 
                     // Build match list from top table WITHOUT filtering
+                    // Sort: exact match first, then StartsWith, then Contains
                     if (!string.IsNullOrEmpty(_lastSearchTerm) &&
                         TopDataGrid.ItemsSource is
                             System.Collections.IEnumerable topItems)
                     {
+                        var exact = new List<object>();
+                        var startsWith = new List<object>();
+                        var contains = new List<object>();
                         foreach (var item in topItems)
                         {
                             string? name = item.GetType()
                                 .GetProperty("Name")?.GetValue(item)?.ToString();
-                            if (name != null && name.Contains(_lastSearchTerm,
+                            if (name == null) continue;
+                            if (name.Equals(_lastSearchTerm,
                                     StringComparison.OrdinalIgnoreCase))
-                                _searchMatches.Add(item);
+                                exact.Add(item);
+                            else if (name.StartsWith(_lastSearchTerm,
+                                    StringComparison.OrdinalIgnoreCase))
+                                startsWith.Add(item);
+                            else if (name.Contains(_lastSearchTerm,
+                                    StringComparison.OrdinalIgnoreCase))
+                                contains.Add(item);
                         }
+                        _searchMatches.AddRange(exact);
+                        _searchMatches.AddRange(startsWith);
+                        _searchMatches.AddRange(contains);
                     }
 
                     // Scroll to first match — position at top of visible area
@@ -4262,28 +4328,14 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void ChkTopFilter_Changed(object sender, RoutedEventArgs e)
         {
-            if (ChkTopFilter.IsChecked == false)
-            {
-                _topFilter.Clear();
-                _topFilterNode = null;
-                _topSelectedSetCodes.Clear();
-                _topColumnFilters.ClearAll();
-                TopFilterSummary.Text = "No filter active";
-                LoadCurrentMode();
-            }
+            // Checked = filter active, Unchecked = suspended (filter preserved)
+            LoadCurrentMode();
         }
 
         private void ChkBottomFilter_Changed(object sender, RoutedEventArgs e)
         {
-            if (ChkBottomFilter.IsChecked == false)
-            {
-                _bottomFilter.Clear();
-                _bottomFilterNode = null;
-                _bottomSelectedSetCodes.Clear();
-                _bottomColumnFilters.ClearAll();
-                BottomFilterSummary.Text = "No filter active";
-                RefreshBottom();
-            }
+            // Checked = filter active, Unchecked = suspended (filter preserved)
+            RefreshBottom();
         }
 
         private void BtnTopFilterClear_Click(object sender, RoutedEventArgs e)
@@ -4541,6 +4593,9 @@ namespace BreakersOfE
             _searchMatches.Clear();
             _searchMatchIndex = -1;
             _lastSearchTerm = string.Empty;
+            _searchText = string.Empty;
+            if (SearchBox != null) SearchBox.Text = string.Empty;
+            LoadCurrentMode();
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -6165,9 +6220,12 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         // STATUS / ROW COUNT
         // ════════════════════════════════════════════════════════════════════
-        private void SetStatus(string msg) { } // status bar removed
+        private void SetStatus(string msg)
+        {
+            if (StatusText != null) StatusText.Text = msg;
+        }
 
-        private void UpdateRowCount(int count, string label) { } // footer grid handles this
+        private void UpdateRowCount(int count, string label) { }
 
         // ════════════════════════════════════════════════════════════════════
         // STRING HELPERS
@@ -6935,6 +6993,21 @@ namespace BreakersOfE
                 OpenHelp();
                 e.Handled = true;
             }
+            else if (e.Key == Key.F3)
+            {
+                if (Keyboard.Modifiers == ModifierKeys.Shift)
+                    NavigateMatch(forward: false);
+                else
+                    NavigateMatch(forward: true);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape &&
+                     !string.IsNullOrEmpty(SearchBox.Text))
+            {
+                BtnClearSearch_Click(this,
+                    new RoutedEventArgs());
+                e.Handled = true;
+            }
         }
 
         private void MenuHelp_Click(object sender, RoutedEventArgs e)
@@ -6966,6 +7039,15 @@ namespace BreakersOfE
             var win = new Windows.ImportExportWindow(_activeDeck) { Owner = this };
             // Switch to Export tab
             win.Show();
+        }
+
+        private void MenuShowSplash_Click(object sender, RoutedEventArgs e)
+        {
+            var splash = new Windows.SplashWindow();
+            splash.MouseLeftButtonDown += (s, ev) => splash.Close();
+            splash.KeyDown += (s, ev) => { if (ev.Key == Key.Escape) splash.Close(); };
+            splash.SetStatus("Click anywhere or press Escape to close", 100);
+            splash.Show();
         }
 
         private void MenuAbout_Click(object sender, RoutedEventArgs e)

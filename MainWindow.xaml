@@ -163,34 +163,30 @@
         </Style>
 
         <Style TargetType="ComboBoxItem">
-            <Setter Property="Background" Value="#2A2A3E"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="6,3"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#1A1A1A"/>
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="Padding"    Value="6,3"/>
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#4444AA"/>
-                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Background" Value="#0078D4"/>
+                    <Setter Property="Foreground" Value="#1A1A1A"/>
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#333388"/>
-                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Background" Value="#0078D4"/>
+                    <Setter Property="Foreground" Value="#1A1A1A"/>
                 </Trigger>
-                <MultiTrigger>
-                    <MultiTrigger.Conditions>
-                        <Condition Property="IsSelected" Value="True"/>
-                        <Condition Property="IsHighlighted" Value="False"/>
-                    </MultiTrigger.Conditions>
-                    <Setter Property="Background" Value="#2A2A3E"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </MultiTrigger>
             </Style.Triggers>
         </Style>
         <Style TargetType="ComboBox">
-            <Setter Property="Background" Value="#2A2A3E"/>
-            <Setter Property="Foreground" Value="Black"/>
-            <Setter Property="BorderBrush" Value="#555577"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background"               Value="#FFFFFF"/>
+            <Setter Property="Foreground"               Value="#1A1A1A"/>
+            <Setter Property="BorderBrush"              Value="#CCCCCC"/>
+            <Setter Property="BorderThickness"          Value="1"/>
+            <Setter Property="FontFamily"               Value="Segoe UI"/>
+            <Setter Property="FontSize"                 Value="13"/>
+            <Setter Property="Height"                   Value="28"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
     </Window.Resources>
 
@@ -253,9 +249,6 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="_Tools">
-                <MenuItem Header="⬇ _Import Collection / Deck..." Click="MenuImport_Click"/>
-                <MenuItem Header="⬆ _Export Collection / Deck..." Click="MenuExport_Click"/>
-                <Separator/>
                 <MenuItem Header="_Update Card Database" Click="MenuUpdateDatabase_Click"/>
                 <MenuItem Header="_Update Prices Only"   Click="MenuUpdatePrices_Click"/>
                 <Separator/>
@@ -269,6 +262,8 @@
                 <MenuItem Header="❓ _Help..." Click="MenuHelp_Click"/>
                 <Separator/>
                 <MenuItem Header="📖 _Keyword Dictionary" Click="MenuKeywordDictionary_Click"/>
+                <Separator/>
+                <MenuItem Header="🎬 Show _Splash Screen" Click="MenuShowSplash_Click"/>
                 <Separator/>
                 <MenuItem Header="_About" Click="MenuAbout_Click"/>
             </MenuItem>
@@ -286,9 +281,9 @@
                 <Button Name="BtnOpenDeck"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1A5;" ToolTip="Open Deck"             IsEnabled="False" Click="BtnOpenDeck_Click"        Margin="2,2"/>
                 <Button Name="BtnSaveDeck"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE105;" ToolTip="Save Deck"             IsEnabled="False" Click="BtnSaveDeck_Click"        Margin="2,2"/>
                 <Button Name="BtnSaveAllDecks"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE116;" ToolTip="Save All Decks"        IsEnabled="False" Click="BtnSaveAllDecks_Click"    Margin="2,2"/>
-                <Button Name="BtnCloseDeck"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE8BB;" ToolTip="Close Deck"            IsEnabled="False" Click="BtnCloseDeck_Click"       Margin="2,2"/>
-                <Button Name="BtnCloseAllDecks"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE8BA;" ToolTip="Close All Decks"       IsEnabled="False" Click="BtnCloseAllDecks_Click"   Margin="2,2"/>
-                <Button Name="BtnDeckProperties"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE90A;" ToolTip="Deck Properties"       IsEnabled="False" Click="BtnDeckProperties_Click"  Margin="2,2"/>
+                <Button Name="BtnCloseDeck"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE106;" ToolTip="Close Deck"            IsEnabled="False" Click="BtnCloseDeck_Click"       Margin="2,2"/>
+                <Button Name="BtnCloseAllDecks"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE107;" ToolTip="Close All Decks"       IsEnabled="False" Click="BtnCloseAllDecks_Click"   Margin="2,2"/>
+                <Button Name="BtnDeckProperties"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE946;" ToolTip="Deck Properties"       IsEnabled="False" Click="BtnDeckProperties_Click"  Margin="2,2"/>
                 <Button Name="BtnDeckLegality"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE73E;" ToolTip="Deck Legality"         IsEnabled="False" Click="BtnDeckLegality_Click"    Margin="2,2"/>
                 <Button Name="BtnDeckStats"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE9F9;" ToolTip="Deck Statistics"       IsEnabled="False" Click="BtnDeckStats_Click"       Margin="2,2"/>
 
@@ -297,7 +292,7 @@
                 <!-- GROUP 2: DECK CARDS -->
                 <Button Name="BtnAddToDeck"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE109;" ToolTip="Add 1 Card to Deck"              IsEnabled="False" Click="BtnAddToDeck_Click"       Margin="2,2"/>
                 <Button Name="BtnAdd4ToDeck"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1FE;" ToolTip="Add 4 Cards to Deck (Standard)"  IsEnabled="False" Click="BtnAdd4ToDeck_Click"      Margin="2,2"/>
-                <Button Name="BtnAddFoilToDeck"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE8D6;" ToolTip="Add 1 Foil Card to Deck"         IsEnabled="False" Click="BtnAddFoilToDeck_Click"   Margin="2,2"/>
+                <Button Name="BtnAddFoilToDeck"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE734;" ToolTip="Add 1 Foil Card to Deck"         IsEnabled="False" Click="BtnAddFoilToDeck_Click"   Margin="2,2"/>
                 <Button Name="BtnRemoveFromDeck"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE108;" ToolTip="Remove Card from Deck"           IsEnabled="False" Click="BtnRemoveFromDeck_Click"  Margin="2,2"/>
                 <Button Name="BtnDeckQtyIncrease"  Style="{DynamicResource ToolbarButtonStyle}" ToolTip="Increase Qty in Deck"  IsEnabled="False" Click="BtnDeckQtyIncrease_Click" Margin="2,2">
                     <Button.Content>
@@ -314,7 +309,7 @@
 
                 <!-- GROUP 3: COLLECTION -->
                 <Button Name="BtnAddToCollection"      Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE109;" ToolTip="Add 1 Card to Collection"      IsEnabled="False" Click="BtnAddToCollection_Click"      Margin="2,2"/>
-                <Button Name="BtnAddFoilToCollection"  Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE8D6;" ToolTip="Add 1 Foil Card to Collection"  IsEnabled="False" Click="BtnAddFoilToCollection_Click"  Margin="2,2"/>
+                <Button Name="BtnAddFoilToCollection"  Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE734;" ToolTip="Add 1 Foil Card to Collection"  IsEnabled="False" Click="BtnAddFoilToCollection_Click"  Margin="2,2"/>
                 <Button Name="BtnImportDeckToCollection" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1A3;" ToolTip="Import Entire Deck to Collection" IsEnabled="False" Click="BtnImportDeckToCollection_Click" Margin="2,2"/>
                 <Button Name="BtnRemoveFromCollection" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE108;" ToolTip="Remove Card from Collection"    IsEnabled="False" Click="BtnRemoveFromCollection_Click" Margin="2,2"/>
 
@@ -324,8 +319,8 @@
                 <Button Name="BtnFilter"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE16E;" ToolTip="Filter Cards"                  Click="BtnFilter_Click"         Margin="2,2"/>
                 <Button Name="BtnAdvancedFilter" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE16F;" ToolTip="Advanced Filter"               Click="BtnAdvancedFilter_Click" Margin="2,2"/>
                 <Button Name="BtnSearch"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE11A;" ToolTip="Search for Card"               Click="BtnSearch_Click"         Margin="2,2"/>
-                <Button Name="BtnFindNext"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE111;" ToolTip="Find Next"                     Click="BtnFindNext_Click"       Margin="2,2"/>
-                <Button Name="BtnFindPrev"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE112;" ToolTip="Find Previous"                 Click="BtnFindPrev_Click"       Margin="2,2"/>
+                <Button Name="BtnFindNext"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE70D;" ToolTip="Find Next"                     Click="BtnFindNext_Click"       Margin="2,2"/>
+                <Button Name="BtnFindPrev"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE70E;" ToolTip="Find Previous"                 Click="BtnFindPrev_Click"       Margin="2,2"/>
                 <Button Name="BtnClearSearch"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE10A;" ToolTip="Cancel Incremental Search"     Click="BtnClearSearch_Click"    Margin="2,2"/>
                 <Button Name="BtnToggleLegality" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE73E;" ToolTip="Toggle Legality Columns"       Click="BtnLegality_Click"       Margin="2,2"/>
                 <Button Name="BtnColumnChooser"  Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE179;" ToolTip="Show/Hide Columns"             Click="BtnColumnChooser_Click"  Margin="2,2"/>
@@ -335,7 +330,7 @@
 
                 <!-- GROUP 5: VIEW -->
                 <Button Name="BtnUpdateDb" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE117;" ToolTip="Update Card Database" Click="BtnUpdateDb_Click" Margin="2,2"/>
-                <Button Name="BtnTheme"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE771;" ToolTip="Toggle Light/Dark Mode" Click="BtnTheme_Click"  Margin="2,2"/>
+                <Button Name="BtnTheme"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE793;" ToolTip="Toggle Light/Dark Mode" Click="BtnTheme_Click"  Margin="2,2"/>
 
                 <!-- Mode dropdown -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,2,4,2">

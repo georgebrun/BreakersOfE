@@ -129,7 +129,7 @@ namespace BreakersOfE.Services
                     await DownloadManaSymbolsAsync(progress, 41, 50, ct);
 
                 // Step 4 — Parse and import cards
-                Report(progress, "Importing cards into database...", 51);
+                Report(progress, "Importing cards into breakersofe.db...", 51);
                 ct.ThrowIfCancellationRequested();
                 await ImportCardsAsync(tempFile, result, progress, 51, 80, ct);
 
@@ -508,8 +508,13 @@ namespace BreakersOfE.Services
                 {
                     int pct = startPct +
                         (int)((double)i / total * (endPct - startPct));
-                    Report(progress, "Importing cards...", pct,
-                        $"{i:N0} of {total:N0} cards processed");
+                    string detail = $"{i:N0} of {total:N0} processed — " +
+                        $"Pool: {result.PoolCardsImported:N0}  " +
+                        $"Tokens: {result.TokenCardsImported:N0}  " +
+                        $"Planar: {result.PlanarCardsImported:N0}  " +
+                        $"Schemes: {result.SchemeCardsImported:N0}  " +
+                        $"Conspiracy: {result.ConspiracyCardsImported:N0}";
+                    Report(progress, "Importing to card pool database (breakersofe.db)...", pct, detail);
                 }
             }
 
@@ -533,6 +538,16 @@ namespace BreakersOfE.Services
             List<ConspiracyCard> conspiracy,
             ImportResult result)
         {
+            // Check type_line for Conspiracy before checking layout,
+            // since Scryfall uses layout="normal" for Conspiracy cards
+            string typeLine = GetString(card, "type_line");
+            if (typeLine.Contains("Conspiracy", StringComparison.OrdinalIgnoreCase))
+            {
+                conspiracy.Add(ParseConspiracyCard(card));
+                result.ConspiracyCardsImported++;
+                return;
+            }
+
             switch (layout)
             {
                 case "token":
@@ -559,11 +574,6 @@ namespace BreakersOfE.Services
                 case "art_series":
                     artSeries.Add(ParseArtSeriesCard(card));
                     result.ArtSeriesCardsImported++;
-                    break;
-
-                case "conspiracy":
-                    conspiracy.Add(ParseConspiracyCard(card));
-                    result.ConspiracyCardsImported++;
                     break;
 
                 default:

@@ -161,11 +161,11 @@
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- OUTER WOOD BORDER                                               -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <Border Background="{StaticResource WoodBrush}" Padding="12">
+    <Border Background="{DynamicResource WoodBrush}" Padding="12">
 
         <!-- INNER FELT TABLE -->
         <Border Name="TableFeltBorder"
-                Background="{StaticResource FeltBrush}"
+                Background="{DynamicResource FeltBrush}"
                 CornerRadius="8">
             <Grid>
                 <Grid.RowDefinitions>
@@ -470,11 +470,11 @@
                 <!-- ══════════════════════════════════════════════════ -->
                 <Grid Grid.Row="4" Panel.ZIndex="3">
                     <!-- Shadow above rail -->
-                    <Border Background="{StaticResource ShadowTopBrush}"
+                    <Border Background="{DynamicResource ShadowTopBrush}"
                             Height="8" VerticalAlignment="Top" Margin="0,-8,0,0"/>
 
                     <!-- The rail itself -->
-                    <Border Background="{StaticResource RailBrush}">
+                    <Border Background="{DynamicResource RailBrush}">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -521,7 +521,7 @@
                                         Click="Phase_Click" Tag="End"/>
                             </StackPanel>
 
-                            <!-- Stack toggle --> \n
+                            <!-- Stack toggle -->
                             <Button Grid.Column="2" Name="BtnToggleStack"
                                     Content="STACK ▼" Style="{StaticResource TableBtnStyle}"
                                     VerticalAlignment="Center" Margin="4,0"
@@ -598,7 +598,7 @@
                     </Border>
 
                     <!-- Shadow below rail -->
-                    <Border Background="{StaticResource ShadowBottomBrush}"
+                    <Border Background="{DynamicResource ShadowBottomBrush}"
                             Height="8" VerticalAlignment="Bottom" Margin="0,0,0,-8"/>
                 </Grid>
 

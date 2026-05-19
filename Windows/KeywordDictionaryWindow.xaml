@@ -40,9 +40,7 @@
                   SelectionChanged="DictGrid_SelectionChanged">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Keyword"
-                    Binding="{Binding Name}" Width="160"/>
-                <DataGridTextColumn Header="Category"
-                    Binding="{Binding CategoryName}" Width="120"/>
+                    Binding="{Binding Name}" Width="180"/>
                 <DataGridTextColumn Header="Definition"
                     Binding="{Binding Definition}" Width="*">
                     <DataGridTextColumn.ElementStyle>

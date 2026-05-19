@@ -343,6 +343,14 @@ namespace BreakersOfE.Windows
         private void DrawColorsTab()
         {
             if (ColorsPieCanvas == null || ColorsLegendPanel == null) return;
+            // Defer until canvas has been laid out and has real dimensions
+            if (ColorsPieCanvas.ActualWidth < 10)
+            {
+                ColorsPieCanvas.Dispatcher.BeginInvoke(
+                    new Action(DrawColorsTab),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+                return;
+            }
             var cards = GetMainCards();
             var data = new Dictionary<string, int>();
             foreach (var card in cards)

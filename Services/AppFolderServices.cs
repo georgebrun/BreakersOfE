@@ -60,6 +60,20 @@ namespace BreakersOfE.Services
         public static string CollectionDatabasePath =>
             Path.Combine(CollectionFolder, "collection.db");
 
+        /// <summary>Call once on startup to ensure all folders exist.</summary>
+        public static void EnsureAllFolders()
+        {
+            _ = RootFolder;
+            _ = DecksFolder;
+            _ = FiltersFolder;
+            _ = ExportsFolder;
+            _ = ImportsFolder;
+            _ = CardImagesFolder;
+            _ = PlaymatImagesFolder;
+            _ = SleeveImagesFolder;
+            _ = CollectionFolder;
+        }
+
         // ── Helper ────────────────────────────────────────────────────────────
         private static string EnsureFolder(string path)
         {

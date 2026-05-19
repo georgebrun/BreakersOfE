@@ -15,6 +15,9 @@ namespace BreakersOfE
             // Apply saved theme before any window opens
             ThemeService.ApplySavedTheme();
 
+            // Ensure all app folders exist
+            Services.AppFolderService.EnsureAllFolders();
+
             // Show splash screen
             Splash = new SplashWindow();
             Splash.Show();

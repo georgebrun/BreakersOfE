@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Shapes;
 
 namespace BreakersOfE.Windows
 {
@@ -30,14 +31,14 @@ namespace BreakersOfE.Windows
 
             // ── Color breakdown ──────────────────────────────────────────────
             AddSectionHeader("BY COLOR  (Pool Cards)");
-            AddRow("⬜  White", result.WhiteCount);
-            AddRow("🟦  Blue", result.BlueCount);
-            AddRow("⬛  Black", result.BlackCount);
-            AddRow("🟥  Red", result.RedCount);
-            AddRow("🟩  Green", result.GreenCount);
-            AddRow("🌈  Multicolor", result.MulticolorCount);
-            AddRow("◻   Colorless", result.ColorlessCount);
-            AddRow("🟫  Land", result.LandCount);
+            AddColorRow("White", result.WhiteCount, Color.FromRgb(0xF8, 0xF4, 0xC2));
+            AddColorRow("Blue", result.BlueCount, Color.FromRgb(0x14, 0x6B, 0xD5));
+            AddColorRow("Black", result.BlackCount, Color.FromRgb(0x44, 0x44, 0x44));
+            AddColorRow("Red", result.RedCount, Color.FromRgb(0xD3, 0x21, 0x2D));
+            AddColorRow("Green", result.GreenCount, Color.FromRgb(0x00, 0x73, 0x3E));
+            AddColorRow("Multicolor", result.MulticolorCount, Color.FromRgb(0xD4, 0xAF, 0x37));
+            AddColorRow("Colorless", result.ColorlessCount, Color.FromRgb(0xC0, 0xBE, 0xB5));
+            AddColorRow("Land", result.LandCount, Color.FromRgb(0x8B, 0x6E, 0x4E));
             AddCheckRow("Color totals match", result.ColorCountMatchesTotal);
 
             // ── Rarity breakdown ─────────────────────────────────────────────
@@ -73,12 +74,53 @@ namespace BreakersOfE.Windows
         }
 
         // ── Section header ────────────────────────────────────────────────────
+        private void AddColorRow(string label, int value, Color swatchColor)
+        {
+            var grid = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition
+            { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition
+            { Width = new GridLength(90) });
+
+            var labelPanel = new StackPanel { Orientation = Orientation.Horizontal };
+            labelPanel.Children.Add(new Rectangle
+            {
+                Width = 12,
+                Height = 12,
+                Fill = new SolidColorBrush(swatchColor),
+                Stroke = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80)),
+                StrokeThickness = 0.5,
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            labelPanel.Children.Add(new TextBlock
+            {
+                Text = label,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            var valueText = new TextBlock
+            {
+                Text = $"{value:N0}",
+                FontSize = 12,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            Grid.SetColumn(labelPanel, 0);
+            Grid.SetColumn(valueText, 1);
+            grid.Children.Add(labelPanel);
+            grid.Children.Add(valueText);
+            ReportPanel.Children.Add(grid);
+        }
+
         private void AddSectionHeader(string text)
         {
             ReportPanel.Children.Add(new TextBlock
             {
                 Text = text,
-                Foreground = new SolidColorBrush(Color.FromRgb(0, 122, 204)),
+                Foreground = (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["AccentBrush"],
                 FontWeight = FontWeights.Bold,
                 FontSize = 12,
                 Margin = new Thickness(0, 14, 0, 4)
@@ -104,7 +146,7 @@ namespace BreakersOfE.Windows
             labelPanel.Children.Add(new TextBlock
             {
                 Text = label,
-                Foreground = Brushes.White,
+                Foreground = (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["PrimaryTextBrush"],
                 FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
                 FontSize = 12
             });
@@ -114,8 +156,7 @@ namespace BreakersOfE.Windows
                 labelPanel.Children.Add(new TextBlock
                 {
                     Text = $"  {note}",
-                    Foreground = new SolidColorBrush(
-                        Color.FromRgb(150, 150, 150)),
+                    Foreground = (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["MutedTextBrush"],
                     FontSize = 10,
                     VerticalAlignment = VerticalAlignment.Center
                 });
@@ -124,7 +165,7 @@ namespace BreakersOfE.Windows
             var valueBlock = new TextBlock
             {
                 Text = $"{value:N0}",
-                Foreground = Brushes.White,
+                Foreground = (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["PrimaryTextBrush"],
                 FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
                 FontSize = 12,
                 TextAlignment = TextAlignment.Right,
@@ -154,7 +195,7 @@ namespace BreakersOfE.Windows
             var labelBlock = new TextBlock
             {
                 Text = label,
-                Foreground = Brushes.White,
+                Foreground = (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["PrimaryTextBrush"],
                 FontSize = 12
             };
 
@@ -180,12 +221,13 @@ namespace BreakersOfE.Windows
             {
                 Text = match
                     ? "✅  Counts match perfectly"
-                    : "⚠️  Count mismatch — some cards may have been skipped",
+                    : "ℹ️  Count difference — Scryfall total includes digital-only cards (MTGO/Arena) which are excluded from your pool. This is expected.",
                 Foreground = match
                     ? new SolidColorBrush(Color.FromRgb(78, 201, 78))
-                    : new SolidColorBrush(Color.FromRgb(255, 165, 0)),
-                FontWeight = FontWeights.Bold,
+                    : new SolidColorBrush(Color.FromRgb(100, 160, 220)),
+                FontWeight = FontWeights.Normal,
                 FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 4, 0, 0)
             });
         }
@@ -196,7 +238,7 @@ namespace BreakersOfE.Windows
             ReportPanel.Children.Add(new Border
             {
                 Height = 1,
-                Background = new SolidColorBrush(Color.FromRgb(63, 63, 70)),
+                Background = (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["BorderBrush"],
                 Margin = new Thickness(0, 6, 0, 6)
             });
         }

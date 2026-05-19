@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Resources\Images\SplashScreen.jpg" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.25" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.25" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.25">
@@ -22,7 +26,8 @@
 
   <ItemGroup>
     <Resource Include="Resources\Images\image_unavailable.png" />
-	<Resource Include="Resources\Images\MTG_Back.png" />  
+	<Resource Include="Resources\Images\MTG_Back.png" />
+	<Resource Include="Resources\Images\SplashScreen.jpg" />  
   </ItemGroup>
 
 </Project>

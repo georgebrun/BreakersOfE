@@ -5,8 +5,8 @@
         Width="520" Height="420"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        Background="#1E1E1E"
-        Foreground="White">
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource PrimaryTextBrush}">
 
     <Window.Resources>
 
@@ -110,15 +110,17 @@
 
         <!-- Title -->
         <TextBlock Grid.Row="0"
+                   Name="WindowTitleLabel"
                    Text="Update Card Database"
                    FontSize="18"
                    FontWeight="Bold"
-                   Foreground="White"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
                    Margin="0,0,0,6"/>
 
         <TextBlock Grid.Row="1"
+                   Name="WindowSubtitleLabel"
                    Text="Downloads all cards, mana symbols, and set symbols from Scryfall."
-                   Foreground="#AAAAAA"
+                   Foreground="{DynamicResource SecondaryTextBrush}"
                    FontSize="12"
                    TextWrapping="Wrap"
                    Margin="0,0,0,20"/>
@@ -130,7 +132,7 @@
 
             <TextBlock Name="StepLabel"
                        Text="Ready"
-                       Foreground="White"
+                       Foreground="{DynamicResource PrimaryTextBrush}"
                        FontSize="13"
                        VerticalAlignment="Center"/>
 
@@ -180,7 +182,7 @@
         <TextBlock Grid.Row="3"
                    Name="DetailLabel"
                    Text=""
-                   Foreground="#AAAAAA"
+                   Foreground="{DynamicResource SecondaryTextBrush}"
                    FontSize="11"
                    Margin="0,0,0,10"/>
 
@@ -191,15 +193,15 @@
                      Maximum="100"
                      Value="0"
                      Height="28"
-                     Background="#2D2D30"
-                     Foreground="#007ACC"
-                     BorderBrush="#555555"/>
+                     Background="{DynamicResource SurfaceAltBrush}"
+                     Foreground="{DynamicResource AccentBrush}"
+                     BorderBrush="{DynamicResource BorderBrush}"/>
 
         <!-- Percentage label centered on bar -->
         <TextBlock Grid.Row="4"
                    Name="PercentLabel"
                    Text="0%"
-                   Foreground="White"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
                    FontWeight="Bold"
                    FontSize="12"
                    HorizontalAlignment="Center"
@@ -210,7 +212,7 @@
         <TextBlock Grid.Row="5"
                    Name="ElapsedLabel"
                    Text=""
-                   Foreground="#666666"
+                   Foreground="{DynamicResource MutedTextBrush}"
                    FontSize="11"
                    HorizontalAlignment="Right"
                    Margin="0,4,0,0"/>
@@ -225,7 +227,7 @@
                     Content="Start Update"
                     Width="120" Height="32"
                     Margin="0,0,10,0"
-                    Background="#007ACC"
+                    Background="{DynamicResource AccentBrush}"
                     Foreground="White"
                     BorderThickness="0"
                     FontSize="13"
@@ -235,9 +237,9 @@
             <Button Name="CancelButton"
                     Content="Cancel"
                     Width="90" Height="32"
-                    Background="#3C3C3C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Background="{DynamicResource SurfaceAltBrush}"
+                    Foreground="{DynamicResource PrimaryTextBrush}"
+                    BorderThickness="1"
                     FontSize="13"
                     Cursor="Hand"
                     Click="CancelButton_Click"/>

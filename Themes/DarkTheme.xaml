@@ -2,32 +2,32 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- ── Core Colors ─────────────────────────────────────────────────── -->
-    <Color x:Key="WindowBackgroundColor">#1E1E1E</Color>
-    <Color x:Key="SurfaceColor">#252526</Color>
-    <Color x:Key="SurfaceAltColor">#2D2D30</Color>
-    <Color x:Key="BorderColor">#3F3F46</Color>
-    <Color x:Key="AccentColor">#007ACC</Color>
-    <Color x:Key="AccentHoverColor">#1C97EA</Color>
-    <Color x:Key="AccentPressedColor">#005A9E</Color>
+    <Color x:Key="WindowBackgroundColor">#1A1A1A</Color>
+    <Color x:Key="SurfaceColor">#242424</Color>
+    <Color x:Key="SurfaceAltColor">#2E2E2E</Color>
+    <Color x:Key="BorderColor">#404040</Color>
+    <Color x:Key="AccentColor">#0078D4</Color>
+    <Color x:Key="AccentHoverColor">#1688E0</Color>
+    <Color x:Key="AccentPressedColor">#005BA3</Color>
 
     <!-- ── Text Colors ──────────────────────────────────────────────────── -->
-    <Color x:Key="PrimaryTextColor">#FFFFFF</Color>
-    <Color x:Key="SecondaryTextColor">#CCCCCC</Color>
-    <Color x:Key="MutedTextColor">#888888</Color>
-    <Color x:Key="DisabledTextColor">#555555</Color>
-    <Color x:Key="LabelTextColor">#AAAAAA</Color>
+    <Color x:Key="PrimaryTextColor">#E8E8E8</Color>
+    <Color x:Key="SecondaryTextColor">#BBBBBB</Color>
+    <Color x:Key="MutedTextColor">#777777</Color>
+    <Color x:Key="DisabledTextColor">#484848</Color>
+    <Color x:Key="LabelTextColor">#999999</Color>
 
     <!-- ── Status Colors ───────────────────────────────────────────────── -->
-    <Color x:Key="SuccessColor">#4EC94E</Color>
-    <Color x:Key="WarningColor">#FFA500</Color>
-    <Color x:Key="ErrorColor">#F44747</Color>
+    <Color x:Key="SuccessColor">#4CAF50</Color>
+    <Color x:Key="WarningColor">#FF9800</Color>
+    <Color x:Key="ErrorColor">#F44336</Color>
 
     <!-- ── Grid Colors ─────────────────────────────────────────────────── -->
-    <Color x:Key="GridHeaderColor">#2D2D30</Color>
-    <Color x:Key="GridRowColor">#1E1E1E</Color>
-    <Color x:Key="GridAltRowColor">#252526</Color>
-    <Color x:Key="GridLineColor">#E0E0E0</Color>
-    <Color x:Key="GridSelectionColor">#094771</Color>
+    <Color x:Key="GridHeaderColor">#2E2E2E</Color>
+    <Color x:Key="GridRowColor">#1A1A1A</Color>
+    <Color x:Key="GridAltRowColor">#222222</Color>
+    <Color x:Key="GridLineColor">#333333</Color>
+    <Color x:Key="GridSelectionColor">#0D4F8C</Color>
 
     <!-- ── Brushes ──────────────────────────────────────────────────────── -->
     <SolidColorBrush x:Key="WindowBackgroundBrush"  Color="{StaticResource WindowBackgroundColor}"/>
@@ -50,6 +50,12 @@
     <SolidColorBrush x:Key="GridAltRowBrush"        Color="{StaticResource GridAltRowColor}"/>
     <SolidColorBrush x:Key="GridLineBrush"          Color="{StaticResource GridLineColor}"/>
     <SolidColorBrush x:Key="GridSelectionBrush"     Color="{StaticResource GridSelectionColor}"/>
+
+    <SolidColorBrush x:Key="ComboBoxBackgroundBrush"     Color="#2A2A3E"/>
+    <SolidColorBrush x:Key="ComboBoxForegroundBrush"     Color="#E8E8E8"/>
+    <SolidColorBrush x:Key="ComboBoxItemBackgroundBrush" Color="#2A2A3E"/>
+    <SolidColorBrush x:Key="ComboBoxItemForegroundBrush" Color="#E8E8E8"/>
+    <SolidColorBrush x:Key="ComboBoxHighlightBrush"      Color="#4444AA"/>
 
     <!-- ── Window Style ─────────────────────────────────────────────────── -->
     <Style x:Key="BaseWindowStyle" TargetType="Window">
@@ -75,7 +81,7 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="3"
+                            CornerRadius="4"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
@@ -83,9 +89,11 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Background" Value="{StaticResource AccentHoverBrush}"/>
+                            <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter Property="Background" Value="{StaticResource AccentPressedBrush}"/>
+                            <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
@@ -102,32 +110,36 @@
            BasedOn="{StaticResource BaseButtonStyle}">
         <Setter Property="Background"  Value="{StaticResource AccentBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Foreground"  Value="White"/>
     </Style>
 
     <!-- ── Toolbar Button ───────────────────────────────────────────────── -->
     <Style x:Key="ToolbarButtonStyle" TargetType="Button">
-        <Setter Property="Background"      Value="Transparent"/>
-        <Setter Property="Foreground"      Value="{StaticResource PrimaryTextBrush}"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Width"           Value="36"/>
-        <Setter Property="Height"          Value="36"/>
-        <Setter Property="Cursor"          Value="Hand"/>
-        <Setter Property="FontFamily"      Value="Segoe MDL2 Assets"/>
-        <Setter Property="FontSize"        Value="16"/>
+        <Setter Property="Background"        Value="Transparent"/>
+        <Setter Property="Foreground"        Value="{StaticResource SecondaryTextBrush}"/>
+        <Setter Property="BorderThickness"   Value="0"/>
+        <Setter Property="Width"             Value="36"/>
+        <Setter Property="Height"            Value="36"/>
+        <Setter Property="Cursor"            Value="Hand"/>
+        <Setter Property="FontFamily"        Value="Segoe MDL2 Assets"/>
+        <Setter Property="FontSize"          Value="16"/>
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border Background="{TemplateBinding Background}"
-                            CornerRadius="3" Padding="4">
+                            CornerRadius="4" Padding="4">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                            <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
@@ -152,111 +164,15 @@
     </Style>
 
     <!-- ── ComboBox ─────────────────────────────────────────────────────── -->
-    <!-- ── ComboBox ─────────────────────────────────────────────────────── -->
     <Style x:Key="BaseComboBoxStyle" TargetType="ComboBox">
-        <Setter Property="Background"      Value="#2D2D30"/>
-        <Setter Property="Foreground"      Value="#FFFFFF"/>
-        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding"         Value="6,4"/>
-        <Setter Property="FontFamily"      Value="Segoe UI"/>
-        <Setter Property="FontSize"        Value="13"/>
-        <Setter Property="Height"          Value="28"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ComboBox">
-                    <Grid>
-                        <ToggleButton Background="#2D2D30"
-                                  Foreground="#FFFFFF"
-                                  BorderBrush="{StaticResource BorderBrush}"
-                                  BorderThickness="1"
-                                  IsChecked="{Binding Path=IsDropDownOpen,
-                                      Mode=TwoWay,
-                                      RelativeSource={RelativeSource TemplatedParent}}"
-                                  Focusable="False"
-                                  ClickMode="Press">
-                            <ToggleButton.Template>
-                                <ControlTemplate TargetType="ToggleButton">
-                                    <Border Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="{TemplateBinding BorderThickness}">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="20"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ContentPresenter Grid.Column="0"
-                                                          Margin="6,0,0,0"
-                                                          VerticalAlignment="Center"/>
-                                            <Path Grid.Column="1"
-                                              Data="M 0 0 L 4 4 L 8 0 Z"
-                                              Fill="#FFFFFF"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                                        </Grid>
-                                    </Border>
-                                </ControlTemplate>
-                            </ToggleButton.Template>
-                        </ToggleButton>
-                        <ContentPresenter Name="ContentSite"
-                                      IsHitTestVisible="False"
-                                      Content="{TemplateBinding SelectionBoxItem}"
-                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                      Margin="6,0,24,0"
-                                      VerticalAlignment="Center">
-                            <ContentPresenter.Resources>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="#FFFFFF"/>
-                                    <Setter Property="FontSize"   Value="13"/>
-                                </Style>
-                            </ContentPresenter.Resources>
-                        </ContentPresenter>
-                        <Popup Name="Popup"
-                           Placement="Bottom"
-                           IsOpen="{TemplateBinding IsDropDownOpen}"
-                           AllowsTransparency="True"
-                           Focusable="False"
-                           PopupAnimation="Slide">
-                            <Grid Name="DropDown"
-                              SnapsToDevicePixels="True"
-                              MinWidth="{TemplateBinding ActualWidth}"
-                              MaxHeight="400">
-                                <Border Background="#2D2D30"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1"/>
-                                <ScrollViewer>
-                                    <StackPanel IsItemsHost="True"/>
-                                </ScrollViewer>
-                            </Grid>
-                        </Popup>
-                    </Grid>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- ── ComboBoxItem — white text on dark background ─────────────────── -->
-    <Style TargetType="ComboBoxItem">
-        <Setter Property="Background" Value="#2D2D30"/>
-        <Setter Property="Foreground" Value="#FFFFFF"/>
-        <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize"   Value="13"/>
-        <Setter Property="Padding"    Value="8,4"/>
-        <Style.Triggers>
-            <Trigger Property="IsHighlighted" Value="True">
-                <Setter Property="Background" Value="#007ACC"/>
-                <Setter Property="Foreground" Value="White"/>
-            </Trigger>
-            <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="#007ACC"/>
-                <Setter Property="Foreground" Value="White"/>
-            </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Foreground" Value="#888888"/>
-                <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="Background" Value="#252526"/>
-            </Trigger>
-        </Style.Triggers>
+        <Setter Property="Background"               Value="#FFFFFF"/>
+        <Setter Property="Foreground"               Value="#1A1A1A"/>
+        <Setter Property="BorderBrush"              Value="#CCCCCC"/>
+        <Setter Property="BorderThickness"          Value="1"/>
+        <Setter Property="FontFamily"               Value="Segoe UI"/>
+        <Setter Property="FontSize"                 Value="13"/>
+        <Setter Property="Height"                   Value="28"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
 
     <!-- ── Detail Labels ────────────────────────────────────────────────── -->
@@ -277,13 +193,13 @@
     <!-- ── DataGrid Column Header ───────────────────────────────────────── -->
     <Style x:Key="DataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
         <Setter Property="Background"      Value="{StaticResource GridHeaderBrush}"/>
-        <Setter Property="Foreground"      Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="Foreground"      Value="{StaticResource SecondaryTextBrush}"/>
         <Setter Property="FontWeight"      Value="SemiBold"/>
         <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,1,1"/>
         <Setter Property="Padding"         Value="6,4"/>
         <Setter Property="FontFamily"      Value="Segoe UI"/>
-        <Setter Property="FontSize"        Value="13"/>
+        <Setter Property="FontSize"        Value="12"/>
     </Style>
 
     <!-- ── DataGrid Row ─────────────────────────────────────────────────── -->
@@ -291,7 +207,7 @@
         <Setter Property="Background" Value="{Binding RowBackgroundBrush}"/>
         <Setter Property="Foreground" Value="{Binding RowForegroundBrush}"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize"   Value="14"/>
+        <Setter Property="FontSize"   Value="13"/>
         <Setter Property="MinHeight"  Value="26"/>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
@@ -305,7 +221,7 @@
     <Style x:Key="DataGridCellStyle" TargetType="DataGridCell">
         <Setter Property="Background"      Value="Transparent"/>
         <Setter Property="BorderBrush"     Value="{Binding CellBorderBrush}"/>
-        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
         <Setter Property="Padding"         Value="4,2"/>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">

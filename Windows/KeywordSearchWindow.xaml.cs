@@ -145,6 +145,9 @@ namespace BreakersOfE.Windows
         {
             if (_suppressFilter) return;
 
+            // Guard against calls during InitializeComponent before controls exist
+            if (RbCollection == null || RbAnd == null || ResultsGrid == null) return;
+
             bool useCollection = RbCollection.IsChecked == true;
             bool andLogic = RbAnd.IsChecked == true;
 
