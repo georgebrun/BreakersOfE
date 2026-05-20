@@ -213,7 +213,7 @@ namespace BreakersOfE
         private void BtnRemoveFromDeck_Click(object sender, RoutedEventArgs e)
         {
             if (_activeDeck == null) return;
-            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card && !card.IsFooter)
+            if (BottomDataGrid.SelectedItem is DeckCard card && !card.IsFooter)
             {
                 int qty = card.TotalQuantity;
                 DeckService.RemoveCard(_activeDeck, card, true);
@@ -344,7 +344,6 @@ namespace BreakersOfE
 
         private void BtnColumnChooser_Click(object sender, RoutedEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine("[ColChooser] Click fired.");
             if (sender is not Button btn) return;
             e.Handled = true;
 
@@ -372,9 +371,6 @@ namespace BreakersOfE
 
             if (grid == null) return;
 
-            System.Diagnostics.Debug.WriteLine(
-                $"[ColChooser] Using grid={grid.Name}, tableKey={tableKey}");
-
             try
             {
                 var popup = new Windows.ColumnChooserPopup(grid, tableKey)
@@ -386,7 +382,6 @@ namespace BreakersOfE
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[ColChooser] EXCEPTION: {ex}");
                 MessageBox.Show($"Column chooser error:\n{ex.Message}",
                     "Debug", MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -1644,11 +1639,34 @@ namespace BreakersOfE
             setSideboard.Click += DeckCtxMoveSideboard_Click;
             var setMainboard = new MenuItem { Header = "Move to Mainboard" };
             setMainboard.Click += DeckCtxMoveMainboard_Click;
+            var setCommander = new MenuItem { Header = "⭐ Set as Commander" };
+            setCommander.Click += DeckCtxSetCommander_Click;
+            var removeCommander = new MenuItem { Header = "Remove as Commander" };
+            removeCommander.Click += DeckCtxRemoveCommander_Click;
             ctx.Items.Add(removeOne);
             ctx.Items.Add(removeAll);
             ctx.Items.Add(new Separator());
             ctx.Items.Add(setSideboard);
             ctx.Items.Add(setMainboard);
+            ctx.Items.Add(new Separator());
+            ctx.Items.Add(setCommander);
+            ctx.Items.Add(removeCommander);
+
+            // Only show commander options for Commander decks
+            ctx.Opened += (s, e) =>
+            {
+                bool isCommander = _activeDeck?.DeckType == DeckType.Commander;
+                setCommander.Visibility = isCommander
+                    ? Visibility.Visible : Visibility.Collapsed;
+                removeCommander.Visibility = isCommander
+                    ? Visibility.Visible : Visibility.Collapsed;
+                if (isCommander)
+                {
+                    var sel = BottomDataGrid.SelectedItem as Models.DeckCard;
+                    setCommander.IsEnabled = sel != null && !sel.IsCommander && !sel.IsFooter;
+                    removeCommander.IsEnabled = sel != null && sel.IsCommander;
+                }
+            };
             BottomDataGrid.ContextMenu = ctx;
 
             _deckEventsWired = true;
@@ -1851,7 +1869,7 @@ namespace BreakersOfE
         private void DeckCtxRemove1_Click(object sender, RoutedEventArgs e)
         {
             if (_activeDeck == null) return;
-            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card && !card.IsFooter)
+            if (BottomDataGrid.SelectedItem is DeckCard card && !card.IsFooter)
             {
                 DeckService.RemoveCard(_activeDeck, card, false);
                 RefreshActiveDeckGrid();
@@ -1866,7 +1884,7 @@ namespace BreakersOfE
         private void DeckCtxRemoveAll_Click(object sender, RoutedEventArgs e)
         {
             if (_activeDeck == null) return;
-            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card && !card.IsFooter)
+            if (BottomDataGrid.SelectedItem is DeckCard card && !card.IsFooter)
             {
                 int qty = card.TotalQuantity;
                 DeckService.RemoveCard(_activeDeck, card, true);
@@ -1882,8 +1900,7 @@ namespace BreakersOfE
         private void DeckCtxSetCommander_Click(object sender, RoutedEventArgs e)
         {
             if (_activeDeck?.DeckType != DeckType.Commander) return;
-            if (!(GetActiveDeckGrid()?.SelectedItem is DeckCard card) ||
-                card.IsFooter) return;
+            if (BottomDataGrid.SelectedItem is not DeckCard card || card.IsFooter) return;
 
             // Check for existing commander
             var existing = _activeDeck.Cards
@@ -1910,13 +1927,13 @@ namespace BreakersOfE
             _activeDeck.IsModified = true;
             RefreshActiveDeckGrid();
             UpdateBottomTableLabel();
+            AutoSaveDeck(_activeDeck);
         }
 
         private void DeckCtxRemoveCommander_Click(object sender, RoutedEventArgs e)
         {
             if (_activeDeck?.DeckType != DeckType.Commander) return;
-            if (GetActiveDeckGrid()?.SelectedItem is DeckCard card &&
-                card.IsCommander)
+            if (BottomDataGrid.SelectedItem is DeckCard card && card.IsCommander)
             {
                 card.Category = DeckCardCategory.Mainboard;
                 card.IsCommander = false;
@@ -2961,8 +2978,8 @@ namespace BreakersOfE
 
         private void LoadTopTable_CollectionForDeck()
         {
-            SetTopExpandColumnVisibility(Visibility.Visible);
             EnsureCollectionColumns(TopDataGrid);
+            SetTopExpandColumnVisibility(Visibility.Visible);
             using var cdb = new Data.CollectionDbContext();
             using var pdb = new Data.AppDbContext();
             var rows = BuildCollectionRows(cdb, pdb);
@@ -2984,9 +3001,10 @@ namespace BreakersOfE
 
         private void SetTopExpandColumnVisibility(Visibility vis)
         {
-            // First column in TopDataGrid is the expand button column
-            if (TopDataGrid.Columns.Count > 0)
-                TopDataGrid.Columns[0].Visibility = vis;
+            var expandCol = TopDataGrid.Columns.FirstOrDefault(c =>
+                c.SortMemberPath == CollectionColumnMarker + "expand");
+            if (expandCol != null)
+                expandCol.Visibility = vis;
         }
 
         private static readonly string CollectionColumnMarker = "CollectionCol_";
@@ -3001,7 +3019,7 @@ namespace BreakersOfE
 
             // Save existing pool columns to restore later
             _savedPoolColumns.Clear();
-            _savedPoolColumns.AddRange(grid.Columns);
+            _savedPoolColumns.AddRange(grid.Columns.ToList());
             grid.Columns.Clear();
 
             DataGridColumn MakeText(string header, string binding,
@@ -3032,6 +3050,8 @@ namespace BreakersOfE
                 new System.Windows.Data.Binding("ExpandGlyph"));
             btnFactory.SetBinding(VisibilityProperty,
                 new System.Windows.Data.Binding("ExpandButtonVisibility"));
+            btnFactory.SetBinding(Button.TagProperty,
+                new System.Windows.Data.Binding()); // binds to entire row item
             btnFactory.SetValue(Button.WidthProperty, 20.0);
             btnFactory.SetValue(Button.HeightProperty, 20.0);
             btnFactory.SetValue(Button.BackgroundProperty,
@@ -6910,7 +6930,9 @@ namespace BreakersOfE
             string propName = GetPropertyNameForColumn(columnName, isTop);
             if (string.IsNullOrEmpty(propName)) return;
 
-            var values = GetUniqueValues(grid, propName);
+            // Always get values from the UNFILTERED source so all options
+            // are visible even when a filter is already active
+            var values = GetUniqueValuesFromCache(propName, isTop);
             var state = filters.GetOrCreate(columnName, propName);
 
             _activeFilterPopup?.Close();
@@ -7013,6 +7035,51 @@ namespace BreakersOfE
                 if (result != null) return result;
             }
             return null;
+        }
+
+        private List<string> GetUniqueValuesFromCache(
+            string propName, bool isTop)
+        {
+            System.Collections.IEnumerable? source = null;
+
+            if (isTop)
+            {
+                source = _currentMode switch
+                {
+                    "PoolToCollection" or "PoolToDeck" or
+                    "PoolToWantList" or "PoolToPlanechase" or
+                    "PoolToArchenemy" or "PoolToVanguard" or
+                    "PoolToTokens" or "PoolToArtSeries" or
+                    "PoolToConspiracy" => _poolCache,
+                    _ => null
+                };
+            }
+            else
+            {
+                // Bottom table — always read full collection from DB
+                using var cdb = new Data.CollectionDbContext();
+                using var pdb = new AppDbContext();
+                source = BuildCollectionRows(cdb, pdb);
+            }
+
+            // Fall back to grid ItemsSource if no source found
+            if (source == null)
+            {
+                var grid = isTop ? TopDataGrid : BottomDataGrid;
+                return GetUniqueValues(grid, propName);
+            }
+
+            var values = new HashSet<string>();
+            foreach (var item in source)
+            {
+                var prop = item.GetType().GetProperty(propName,
+                    System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.IgnoreCase);
+                string? val = prop?.GetValue(item)?.ToString();
+                values.Add(val ?? string.Empty);
+            }
+            return values.OrderBy(v => v).ToList();
         }
 
         private static List<string> GetUniqueValues(
