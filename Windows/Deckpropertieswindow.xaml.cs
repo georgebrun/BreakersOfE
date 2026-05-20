@@ -135,27 +135,78 @@ namespace BreakersOfE.Windows
 
             var formats = new[]
             {
-                ("S", "Standard",  _deck.DeckType == DeckType.Standard),
-                ("P", "Pioneer",   _deck.DeckType == DeckType.Standard),
-                ("M", "Modern",    _deck.DeckType == DeckType.Standard),
-                ("L", "Legacy",    true),
-                ("V", "Vintage",   true),
-                ("C", "Commander", _deck.DeckType == DeckType.Commander),
-                ("Pa","Pauper",    _deck.DeckType == DeckType.Standard),
+                ("S",  "Standard",  "standard"),
+                ("P",  "Pioneer",   "pioneer"),
+                ("M",  "Modern",    "modern"),
+                ("L",  "Legacy",    "legacy"),
+                ("V",  "Vintage",   "vintage"),
+                ("C",  "Commander", "commander"),
+                ("Pa", "Pauper",    "pauper"),
             };
 
-            foreach (var (abbr, name, relevant) in formats)
+            var mainCards = _deck.Cards
+                .Where(c => c.Category == DeckCardCategory.Mainboard ||
+                            c.Category == DeckCardCategory.Commander)
+                .ToList();
+
+            foreach (var (abbr, name, formatKey) in formats)
             {
+                // Check every card is legal in this format
+                bool allLegal = mainCards.Count > 0 &&
+                    mainCards.All(c =>
+                    {
+                        if (string.IsNullOrWhiteSpace(c.LegalitiesJson))
+                            return false;
+                        try
+                        {
+                            using var doc = System.Text.Json.JsonDocument
+                                .Parse(c.LegalitiesJson);
+                            if (doc.RootElement.TryGetProperty(
+                                    formatKey, out var val))
+                                return val.GetString() == "legal";
+                        }
+                        catch { }
+                        return false;
+                    });
+
+                // Find any illegal cards for tooltip
+                var illegal = mainCards
+                    .Where(c =>
+                    {
+                        if (string.IsNullOrWhiteSpace(c.LegalitiesJson))
+                            return true;
+                        try
+                        {
+                            using var doc = System.Text.Json.JsonDocument
+                                .Parse(c.LegalitiesJson);
+                            if (doc.RootElement.TryGetProperty(
+                                    formatKey, out var val))
+                                return val.GetString() != "legal";
+                        }
+                        catch { }
+                        return true;
+                    })
+                    .Select(c => c.Name)
+                    .Distinct()
+                    .Take(5)
+                    .ToList();
+
+                string tooltip = allLegal
+                    ? $"{name}: Legal"
+                    : illegal.Count > 0
+                        ? $"{name}: Illegal — {string.Join(", ", illegal)}"
+                        : $"{name}: Unknown";
+
                 var border = new Border
                 {
                     Width = 28,
                     Height = 22,
                     CornerRadius = new CornerRadius(3),
                     Margin = new Thickness(0, 0, 4, 0),
-                    Background = relevant
+                    Background = allLegal
                         ? new SolidColorBrush(Color.FromRgb(0, 120, 60))
-                        : new SolidColorBrush(Color.FromRgb(180, 180, 180)),
-                    ToolTip = name
+                        : new SolidColorBrush(Color.FromRgb(180, 40, 40)),
+                    ToolTip = tooltip
                 };
                 border.Child = new TextBlock
                 {

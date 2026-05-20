@@ -7,7 +7,8 @@
         Title="Breakers of E"
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
-        KeyDown="MainWindow_KeyDown">
+        KeyDown="MainWindow_KeyDown"
+        Closing="MainWindow_Closing">
 
     <Window.Resources>
 
@@ -227,8 +228,20 @@
                 <MenuItem Header="⬇ _Import Collection / Deck..." Click="MenuImport_Click"/>
                 <MenuItem Header="⬆ _Export Collection / Deck..." Click="MenuExport_Click"/>
                 <Separator/>
-                <!-- App -->
-                <MenuItem Header="📂 Open App Data Folder" Click="MenuOpenAppFolder_Click"/>
+                <!-- App folders -->
+                <MenuItem Header="📂 Open Folder">
+                    <MenuItem Header="📁 Root Folder (Breakers of E)"  Click="MenuOpenFolder_Root_Click"/>
+                    <Separator/>
+                    <MenuItem Header="🂠 Decks"                         Click="MenuOpenFolder_Decks_Click"/>
+                    <MenuItem Header="🃏 Card Images"                   Click="MenuOpenFolder_CardImages_Click"/>
+                    <MenuItem Header="📤 Exports"                       Click="MenuOpenFolder_Exports_Click"/>
+                    <MenuItem Header="📥 Imports"                       Click="MenuOpenFolder_Imports_Click"/>
+                    <MenuItem Header="🔍 Filters"                       Click="MenuOpenFolder_Filters_Click"/>
+                    <MenuItem Header="🗂 Collection"                    Click="MenuOpenFolder_Collection_Click"/>
+                    <Separator/>
+                    <MenuItem Header="🎮 Tabletop — Playmats"           Click="MenuOpenFolder_Playmats_Click"/>
+                    <MenuItem Header="🎮 Tabletop — Sleeves"            Click="MenuOpenFolder_Sleeves_Click"/>
+                </MenuItem>
                 <Separator/>
                 <MenuItem Header="_Preferences"      Click="MenuPreferences_Click"/>
                 <Separator/>
@@ -249,14 +262,18 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="_Tools">
-                <MenuItem Header="_Update Card Database" Click="MenuUpdateDatabase_Click"/>
-                <MenuItem Header="_Update Prices Only"   Click="MenuUpdatePrices_Click"/>
+                <MenuItem Header="_Update Card Database"      Click="MenuUpdateDatabase_Click"/>
+                <MenuItem Header="_Update Prices Only"        Click="MenuUpdatePrices_Click"/>
                 <Separator/>
                 <MenuItem Header="⬇ Download Missing Card Images"
                           Name="MenuDownloadImages"
                           Click="MenuDownloadImages_Click"/>
                 <Separator/>
-                <MenuItem Header="_Settings"             Click="MenuSettings_Click"/>
+                <MenuItem Header="🔗 Combine Duplicate Collection Rows"
+                          Click="MenuCombineDuplicates_Click"
+                          ToolTip="Merge multiple rows of the same card into one, adding quantities together"/>
+                <Separator/>
+                <MenuItem Header="_Settings"                  Click="MenuSettings_Click"/>
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="❓ _Help..." Click="MenuHelp_Click"/>
@@ -282,7 +299,7 @@
                 <Button Name="BtnSaveDeck"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE105;" ToolTip="Save Deck"             IsEnabled="False" Click="BtnSaveDeck_Click"        Margin="2,2"/>
                 <Button Name="BtnSaveAllDecks"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE116;" ToolTip="Save All Decks"        IsEnabled="False" Click="BtnSaveAllDecks_Click"    Margin="2,2"/>
                 <Button Name="BtnCloseDeck"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE106;" ToolTip="Close Deck"            IsEnabled="False" Click="BtnCloseDeck_Click"       Margin="2,2"/>
-                <Button Name="BtnCloseAllDecks"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE107;" ToolTip="Close All Decks"       IsEnabled="False" Click="BtnCloseAllDecks_Click"   Margin="2,2"/>
+                <Button Name="BtnCloseAllDecks"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE8F4;" ToolTip="Close All Decks"       IsEnabled="False" Click="BtnCloseAllDecks_Click"   Margin="2,2"/>
                 <Button Name="BtnDeckProperties"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE946;" ToolTip="Deck Properties"       IsEnabled="False" Click="BtnDeckProperties_Click"  Margin="2,2"/>
                 <Button Name="BtnDeckLegality"     Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE73E;" ToolTip="Deck Legality"         IsEnabled="False" Click="BtnDeckLegality_Click"    Margin="2,2"/>
                 <Button Name="BtnDeckStats"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE9F9;" ToolTip="Deck Statistics"       IsEnabled="False" Click="BtnDeckStats_Click"       Margin="2,2"/>
@@ -291,19 +308,11 @@
 
                 <!-- GROUP 2: DECK CARDS -->
                 <Button Name="BtnAddToDeck"        Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE109;" ToolTip="Add 1 Card to Deck"              IsEnabled="False" Click="BtnAddToDeck_Click"       Margin="2,2"/>
-                <Button Name="BtnAdd4ToDeck"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE1FE;" ToolTip="Add 4 Cards to Deck (Standard)"  IsEnabled="False" Click="BtnAdd4ToDeck_Click"      Margin="2,2"/>
+                <Button Name="BtnAdd4ToDeck"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE8D3;" ToolTip="Add 4 Cards to Deck (Standard)"  IsEnabled="False" Click="BtnAdd4ToDeck_Click"      Margin="2,2"/>
                 <Button Name="BtnAddFoilToDeck"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE734;" ToolTip="Add 1 Foil Card to Deck"         IsEnabled="False" Click="BtnAddFoilToDeck_Click"   Margin="2,2"/>
                 <Button Name="BtnRemoveFromDeck"   Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE108;" ToolTip="Remove Card from Deck"           IsEnabled="False" Click="BtnRemoveFromDeck_Click"  Margin="2,2"/>
-                <Button Name="BtnDeckQtyIncrease"  Style="{DynamicResource ToolbarButtonStyle}" ToolTip="Increase Qty in Deck"  IsEnabled="False" Click="BtnDeckQtyIncrease_Click" Margin="2,2">
-                    <Button.Content>
-                        <TextBlock Text="+" FontSize="16" FontWeight="Bold"/>
-                    </Button.Content>
-                </Button>
-                <Button Name="BtnDeckQtyDecrease"  Style="{DynamicResource ToolbarButtonStyle}" ToolTip="Decrease Qty in Deck"  IsEnabled="False" Click="BtnDeckQtyDecrease_Click" Margin="2,2">
-                    <Button.Content>
-                        <TextBlock Text="−" FontSize="16" FontWeight="Bold"/>
-                    </Button.Content>
-                </Button>
+                <Button Name="BtnDeckQtyIncrease"  Style="{DynamicResource ToolbarButtonStyle}" Content="(+)" ToolTip="Increase Qty in Deck"  IsEnabled="False" Click="BtnDeckQtyIncrease_Click" Margin="2,2" FontFamily="Segoe UI" FontSize="12"/>
+                <Button Name="BtnDeckQtyDecrease"  Style="{DynamicResource ToolbarButtonStyle}" Content="(-)" ToolTip="Decrease Qty in Deck"  IsEnabled="False" Click="BtnDeckQtyDecrease_Click" Margin="2,2" FontFamily="Segoe UI" FontSize="12"/>
 
                 <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="4,2"/>
 
@@ -435,6 +444,7 @@
                     <RowDefinition Height="*" MinHeight="120"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*" MinHeight="100"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <!-- TOP TABLE -->
@@ -506,6 +516,7 @@
                               SelectionUnit="FullRow" HeadersVisibility="Column"
                               SelectionChanged="TopDataGrid_SelectionChanged"
                               PreviewKeyDown="TopDataGrid_PreviewKeyDown"
+                              MouseDoubleClick="TopDataGrid_MouseDoubleClick"
                               CellEditEnding="TopDataGrid_CellEditEnding"
                               Background="{DynamicResource GridRowBrush}"
                               Foreground="{DynamicResource PrimaryTextBrush}"
@@ -737,6 +748,9 @@
                               SelectionUnit="FullRow" HeadersVisibility="Column"
                               SelectionChanged="BottomDataGrid_SelectionChanged"
                               CellEditEnding="BottomDataGrid_CellEditEnding"
+                              ScrollViewer.ScrollChanged="BottomDataGrid_ScrollChanged"
+                              PreviewKeyDown="BottomDataGrid_PreviewKeyDown"
+                              Loaded="BottomDataGrid_Loaded"
                               Background="{DynamicResource GridRowBrush}"
                               Foreground="{DynamicResource PrimaryTextBrush}"
                               BorderThickness="0" GridLinesVisibility="None"
@@ -756,12 +770,12 @@
                             </DataGrid.Resources>
                             <DataGrid.ContextMenu>
                                 <ContextMenu>
-                                    <MenuItem Header="Remove 1 Copy"     Click="CtxRemove1_Click"/>
-                                    <MenuItem Header="Remove All Copies"  Click="CtxRemoveAll_Click"/>
+                                    <MenuItem Header="Remove 1 Non-Foil"        Click="CtxRemove1NonFoil_Click"/>
+                                    <MenuItem Header="Remove 1 Foil"            Click="CtxRemove1Foil_Click"/>
                                     <Separator/>
-                                    <MenuItem Header="Show Deck Usage"   Click="CtxShowDeckUsage_Click"/>
+                                    <MenuItem Header="Remove All Copies"        Click="CtxRemoveAll_Click"/>
                                     <Separator/>
-                                    <MenuItem Header="View Card Details"  Click="CtxViewDetails_Click"/>
+                                    <MenuItem Header="Show Deck Usage"          Click="CtxShowDeckUsage_Click"/>
                                 </ContextMenu>
                             </DataGrid.ContextMenu>
                             <DataGrid.RowDetailsTemplate>
@@ -843,22 +857,83 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                     <DataGridTemplateColumn.CellEditingTemplate>
                                         <DataTemplate>
-                                            <ComboBox SelectedItem="{Binding Condition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center">
-                                                <ComboBoxItem Content="Unknown"/>
-                                                <ComboBoxItem Content="Sealed"/>
-                                                <ComboBoxItem Content="Brand New"/>
-                                                <ComboBoxItem Content="Mint"/>
+                                            <ComboBox Text="{Binding Condition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      IsEditable="False"
+                                                      VerticalAlignment="Center"
+                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      BorderBrush="#CCCCCC" BorderThickness="1"
+                                                      FontSize="13" Height="28">
+                                                <ComboBox.Resources>
+                                                    <Style TargetType="ComboBoxItem">
+                                                        <Setter Property="Background" Value="#FFFFFF"/>
+                                                        <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                        <Setter Property="FontSize"   Value="13"/>
+                                                        <Setter Property="Padding"    Value="6,3"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsHighlighted" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ComboBox.Resources>
                                                 <ComboBoxItem Content="Near Mint"/>
-                                                <ComboBoxItem Content="Fine"/>
-                                                <ComboBoxItem Content="Good"/>
-                                                <ComboBoxItem Content="Fair"/>
-                                                <ComboBoxItem Content="Poor"/>
-                                                <ComboBoxItem Content="Misprint"/>
-                                                <ComboBoxItem Content="Signed"/>
-                                                <ComboBoxItem Content="Foreign"/>
-                                                <ComboBoxItem Content="Graded"/>
-                                                <ComboBoxItem Content="Laminated"/>
-                                                <ComboBoxItem Content="Proof"/>
+                                                <ComboBoxItem Content="Lightly Played"/>
+                                                <ComboBoxItem Content="Moderately Played"/>
+                                                <ComboBoxItem Content="Heavily Played"/>
+                                                <ComboBoxItem Content="Damaged"/>
+                                                <ComboBoxItem Content="Unknown"/>
+                                            </ComboBox>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellEditingTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Language" Width="110">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Language}" VerticalAlignment="Center" Margin="4,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                    <DataGridTemplateColumn.CellEditingTemplate>
+                                        <DataTemplate>
+                                            <ComboBox Text="{Binding Language, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      IsEditable="False"
+                                                      VerticalAlignment="Center"
+                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      BorderBrush="#CCCCCC" BorderThickness="1"
+                                                      FontSize="13" Height="28">
+                                                <ComboBox.Resources>
+                                                    <Style TargetType="ComboBoxItem">
+                                                        <Setter Property="Background" Value="#FFFFFF"/>
+                                                        <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                        <Setter Property="FontSize"   Value="13"/>
+                                                        <Setter Property="Padding"    Value="6,3"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsHighlighted" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ComboBox.Resources>
+                                                <ComboBoxItem Content="English"/>
+                                                <ComboBoxItem Content="Japanese"/>
+                                                <ComboBoxItem Content="German"/>
+                                                <ComboBoxItem Content="French"/>
+                                                <ComboBoxItem Content="Italian"/>
+                                                <ComboBoxItem Content="Spanish"/>
+                                                <ComboBoxItem Content="Portuguese"/>
+                                                <ComboBoxItem Content="Russian"/>
+                                                <ComboBoxItem Content="Korean"/>
+                                                <ComboBoxItem Content="Chinese Simplified"/>
+                                                <ComboBoxItem Content="Chinese Traditional"/>
                                             </ComboBox>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellEditingTemplate>
@@ -873,7 +948,30 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                     <DataGridTemplateColumn.CellEditingTemplate>
                                         <DataTemplate>
-                                            <ComboBox SelectedItem="{Binding Desired, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center">
+                                            <ComboBox Text="{Binding Desired, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      IsEditable="False"
+                                                      VerticalAlignment="Center"
+                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      BorderBrush="#CCCCCC" BorderThickness="1"
+                                                      FontSize="13" Height="28">
+                                                <ComboBox.Resources>
+                                                    <Style TargetType="ComboBoxItem">
+                                                        <Setter Property="Background" Value="#FFFFFF"/>
+                                                        <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                        <Setter Property="FontSize"   Value="13"/>
+                                                        <Setter Property="Padding"    Value="6,3"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsHighlighted" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ComboBox.Resources>
                                                 <ComboBoxItem Content="Unassigned"/>
                                                 <ComboBoxItem Content="Junk"/>
                                                 <ComboBoxItem Content="Needed"/>
@@ -893,7 +991,30 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                     <DataGridTemplateColumn.CellEditingTemplate>
                                         <DataTemplate>
-                                            <ComboBox SelectedItem="{Binding PrintType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center">
+                                            <ComboBox Text="{Binding PrintType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      IsEditable="False"
+                                                      VerticalAlignment="Center"
+                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      BorderBrush="#CCCCCC" BorderThickness="1"
+                                                      FontSize="13" Height="28">
+                                                <ComboBox.Resources>
+                                                    <Style TargetType="ComboBoxItem">
+                                                        <Setter Property="Background" Value="#FFFFFF"/>
+                                                        <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                        <Setter Property="FontSize"   Value="13"/>
+                                                        <Setter Property="Padding"    Value="6,3"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsHighlighted" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ComboBox.Resources>
                                                 <ComboBoxItem Content="Unknown"/>
                                                 <ComboBoxItem Content="Duels"/>
                                                 <ComboBoxItem Content="MTGA"/>
@@ -913,7 +1034,30 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                     <DataGridTemplateColumn.CellEditingTemplate>
                                         <DataTemplate>
-                                            <ComboBox SelectedItem="{Binding BuyStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center">
+                                            <ComboBox Text="{Binding BuyStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      IsEditable="False"
+                                                      VerticalAlignment="Center"
+                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      BorderBrush="#CCCCCC" BorderThickness="1"
+                                                      FontSize="13" Height="28">
+                                                <ComboBox.Resources>
+                                                    <Style TargetType="ComboBoxItem">
+                                                        <Setter Property="Background" Value="#FFFFFF"/>
+                                                        <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                        <Setter Property="FontSize"   Value="13"/>
+                                                        <Setter Property="Padding"    Value="6,3"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsHighlighted" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ComboBox.Resources>
                                                 <ComboBoxItem Content="Unassigned"/>
                                                 <ComboBoxItem Content="None"/>
                                                 <ComboBoxItem Content="Buy"/>
@@ -931,7 +1075,30 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                     <DataGridTemplateColumn.CellEditingTemplate>
                                         <DataTemplate>
-                                            <ComboBox SelectedItem="{Binding SellStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center">
+                                            <ComboBox Text="{Binding SellStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      IsEditable="False"
+                                                      VerticalAlignment="Center"
+                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      BorderBrush="#CCCCCC" BorderThickness="1"
+                                                      FontSize="13" Height="28">
+                                                <ComboBox.Resources>
+                                                    <Style TargetType="ComboBoxItem">
+                                                        <Setter Property="Background" Value="#FFFFFF"/>
+                                                        <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                        <Setter Property="FontSize"   Value="13"/>
+                                                        <Setter Property="Padding"    Value="6,3"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsHighlighted" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter Property="Background" Value="#0078D4"/>
+                                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ComboBox.Resources>
                                                 <ComboBoxItem Content="Unassigned"/>
                                                 <ComboBoxItem Content="None"/>
                                                 <ComboBoxItem Content="Buy"/>
@@ -990,16 +1157,7 @@
                         </DataGrid>
                     </Grid>
 
-                    <!-- DECK TabControl — shown in deck modes only -->
-                    <TabControl Name="DeckTabControl" Grid.Row="1"
-                                TabStripPlacement="Bottom"
-                                Visibility="Collapsed"
-                                Background="{DynamicResource SurfaceBrush}"
-                                BorderThickness="0,1,0,0"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                SelectionChanged="DeckTabControl_SelectionChanged">
-                        <!-- Deck tabs added dynamically in code-behind -->
-                    </TabControl>
+
 
                     <!-- Bottom summary grid (frozen, no headers, column-aligned totals) -->
                     <DataGrid Name="BottomSummaryGrid" Grid.Row="2"
@@ -1016,7 +1174,8 @@
                               ScrollViewer.HorizontalScrollBarVisibility="Hidden"
                               ScrollViewer.VerticalScrollBarVisibility="Disabled"
                               CanUserResizeColumns="False"
-                              CanUserReorderColumns="False"/>
+                              CanUserReorderColumns="False"
+                              Loaded="BottomSummaryGrid_Loaded"/>
 
                     <!-- Bottom filter bar -->
                     <Border Grid.Row="3" Style="{DynamicResource FilterBarStyle}">
@@ -1044,6 +1203,19 @@
                     </Border>
 
                 </Grid>
+
+                <!-- DECK TABS — permanent strip at bottom of right panel -->
+                <TabControl Name="DeckTabControl" Grid.Row="3"
+                            TabStripPlacement="Bottom"
+                            Visibility="Collapsed"
+                            Height="30"
+                            Background="{DynamicResource SurfaceAltBrush}"
+                            BorderThickness="0,1,0,0"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            Padding="0"
+                            SelectionChanged="DeckTabControl_SelectionChanged">
+                </TabControl>
+
             </Grid>
         </Grid>
 

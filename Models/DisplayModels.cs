@@ -286,6 +286,15 @@ namespace BreakersOfE.Models
         public string PriceUsd { get; set; } = string.Empty;
         public string PriceUsdFoil { get; set; } = string.Empty;
         public string TotalValue { get; set; } = string.Empty;
+        public string MarketValue { get; set; } = string.Empty;
+        public string BuyAt { get; set; } = string.Empty;
+        public string SellAt { get; set; } = string.Empty;
+        public string SellAtValue { get; set; } = string.Empty;
+        public string PriceHigh { get; set; } = string.Empty;
+        public string PriceLow { get; set; } = string.Empty;
+        public string Needed { get; set; } = string.Empty;
+        public string Excess { get; set; } = string.Empty;
+        public string Target { get; set; } = string.Empty;
         public string Col1 { get; set; } = string.Empty;
         public string Col2 { get; set; } = string.Empty;
         public string Col3 { get; set; } = string.Empty;

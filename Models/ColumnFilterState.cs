@@ -28,6 +28,7 @@ namespace BreakersOfE.Models
         // Values tab — selected unique values (OR logic)
         public List<string> SelectedValues { get; set; } = new();
         public bool AllSelected { get; set; } = true;
+        public int TotalValueCount { get; set; } = 0; // total available values
 
         // Text filter tab
         public bool UseTextFilter { get; set; } = false;

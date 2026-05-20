@@ -82,6 +82,9 @@ namespace BreakersOfE.Windows
                 });
             }
 
+            // Store total count so summary can compute exclusions
+            _state.TotalValueCount = _allValues.Count;
+
             ValuesListBox.ItemsSource = _items;
 
             // Sync the pinned Select All checkbox
