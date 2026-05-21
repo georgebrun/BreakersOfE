@@ -215,7 +215,8 @@ namespace BreakersOfE.Models
         public int Quantity { get; set; } = 1;
         public bool IsFoil { get; set; } = false;
         public string Condition { get; set; } = "Near Mint";
-        public decimal? AskingPrice { get; set; }  // null = use market value
+        public decimal? AskingPrice { get; set; }  // your sell price
+        public string Notes { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
     }
 
@@ -227,7 +228,8 @@ namespace BreakersOfE.Models
         public int PoolId { get; set; }
         public int Quantity { get; set; } = 1;
         public bool IsFoil { get; set; } = false;
-        public decimal? OfferPrice { get; set; }  // null = use market value
+        public decimal? OfferPrice { get; set; }  // your buy price
+        public string Notes { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
     }
 

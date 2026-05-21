@@ -51,6 +51,8 @@ namespace BreakersOfE
         private const string LockKeyPrefix = "Lock_";
         private const string ColVisPrefix = "ColVis_";
         private const string ColOrderPrefix = "ColOrder_";
+        private const string ColLayoutVersion = "ColLayoutVer";
+        private const string CurrentColLayoutVersion = "2"; // bump to force resize
         private const string RecentDecksKey = "RecentDecks";
         private const int MaxRecentDecks = 8;
 
@@ -80,6 +82,27 @@ namespace BreakersOfE
                 db.SaveChanges();
             }
             catch { }
+        }
+
+        private static void DeleteSetting(string key)
+        {
+            try
+            {
+                using var db = new Data.AppDbContext();
+                var s = db.AppSettings.FirstOrDefault(x => x.Key == key);
+                if (s != null) { db.AppSettings.Remove(s); db.SaveChanges(); }
+            }
+            catch { }
+        }
+
+        private static List<string> GetAllSettingKeys()
+        {
+            try
+            {
+                using var db = new Data.AppDbContext();
+                return db.AppSettings.Select(s => s.Key).ToList();
+            }
+            catch { return new List<string>(); }
         }
 
         // ── Asset folders ────────────────────────────────────────────────────
@@ -1675,20 +1698,43 @@ namespace BreakersOfE
         private void RestoreCollectionContextMenu()
         {
             var ctx = new ContextMenu();
-            var r1nf = new MenuItem { Header = "Remove 1 Non-Foil" };
-            r1nf.Click += CtxRemove1NonFoil_Click;
-            var r1f = new MenuItem { Header = "Remove 1 Foil" };
-            r1f.Click += CtxRemove1Foil_Click;
-            var rAll = new MenuItem { Header = "Remove All Copies" };
-            rAll.Click += CtxRemoveAll_Click;
-            var usage = new MenuItem { Header = "Show Deck Usage" };
-            usage.Click += CtxShowDeckUsage_Click;
-            ctx.Items.Add(r1nf);
-            ctx.Items.Add(r1f);
-            ctx.Items.Add(new Separator());
-            ctx.Items.Add(rAll);
-            ctx.Items.Add(new Separator());
-            ctx.Items.Add(usage);
+
+            if (_currentMode == "CollectionToTradeBinder")
+            {
+                var rem = new MenuItem { Header = "Remove from Trade Binder" };
+                rem.Click += (s, e) => {
+                    if (BottomDataGrid.SelectedItem is CollectionDisplayRow r)
+                        RemoveFromTradeBinderRow(r);
+                };
+                ctx.Items.Add(rem);
+            }
+            else if (_currentMode == "PoolToWantList")
+            {
+                var rem = new MenuItem { Header = "Remove from Want List" };
+                rem.Click += (s, e) => {
+                    if (BottomDataGrid.SelectedItem is CollectionDisplayRow r)
+                        RemoveFromWantListRow(r);
+                };
+                ctx.Items.Add(rem);
+            }
+            else
+            {
+                var r1nf = new MenuItem { Header = "Remove 1 Non-Foil" };
+                r1nf.Click += CtxRemove1NonFoil_Click;
+                var r1f = new MenuItem { Header = "Remove 1 Foil" };
+                r1f.Click += CtxRemove1Foil_Click;
+                var rAll = new MenuItem { Header = "Remove All Copies" };
+                rAll.Click += CtxRemoveAll_Click;
+                var usage = new MenuItem { Header = "Show Deck Usage" };
+                usage.Click += CtxShowDeckUsage_Click;
+                ctx.Items.Add(r1nf);
+                ctx.Items.Add(r1f);
+                ctx.Items.Add(new Separator());
+                ctx.Items.Add(rAll);
+                ctx.Items.Add(new Separator());
+                ctx.Items.Add(usage);
+            }
+
             BottomDataGrid.ContextMenu = ctx;
         }
 
@@ -2334,6 +2380,17 @@ namespace BreakersOfE
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            // Clear saved column layouts if version changed (forces header-sized columns)
+            if (GetSetting(ColLayoutVersion) != CurrentColLayoutVersion)
+            {
+                var keys = GetAllSettingKeys()
+                    .Where(k => k.StartsWith(ColOrderPrefix))
+                    .ToList();
+                foreach (var k in keys)
+                    DeleteSetting(k);
+                SaveSetting(ColLayoutVersion, CurrentColLayoutVersion);
+            }
+
             LoadRecentDecks();
 
             // Close splash screen — minimum display time enforced inside CloseWhenReady
@@ -2479,6 +2536,7 @@ namespace BreakersOfE
 
             // Restore pool columns if leaving DeckToCollection
             RemoveDeckColumns(TopDataGrid);
+            RemoveCollectionColumns(TopDataGrid);
 
             // Restore bottom collection columns if leaving deck mode
             if (!isDeckTabMode)
@@ -2571,6 +2629,7 @@ namespace BreakersOfE
                 case "CollectionToTradeBinder":
                     LoadTopTable_CollectionForDeck(); // reuse — shows your collection
                     LoadBottomTable_TradeBinder();
+                    RestoreCollectionContextMenu();
                     TopSearchLabel.Text = "Collection";
                     BottomTableLabel.Text = "Trade Binder — Have List";
                     break;
@@ -2578,6 +2637,7 @@ namespace BreakersOfE
                 case "PoolToWantList":
                     LoadTopTable_Pool();
                     LoadBottomTable_WantList();
+                    RestoreCollectionContextMenu();
                     TopSearchLabel.Text = "Pool  (read only)";
                     BottomTableLabel.Text = "Want List";
                     break;
@@ -2838,6 +2898,7 @@ namespace BreakersOfE
 
         private void LoadBottomTable_TradeBinder()
         {
+            EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new Data.CollectionDbContext();
             using var pdb = new AppDbContext();
             var entries = cdb.TradeBinderEntries.AsNoTracking().ToList();
@@ -2846,40 +2907,64 @@ namespace BreakersOfE
             var cards = pdb.PoolCards.AsNoTracking()
                 .Where(c => ids.Contains(c.PoolId))
                 .ToList().ToDictionary(c => c.PoolId);
-            var rows = new List<TradeBinderDisplayRow>(entries.Count);
-            foreach (var e in entries)
+
+            // Group by PoolId — merge foil + non-foil into one display row
+            var grouped = entries.GroupBy(e => e.PoolId);
+            var rows = new List<CollectionDisplayRow>();
+            foreach (var grp in grouped)
             {
-                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
-                rows.Add(new TradeBinderDisplayRow
+                if (!cards.TryGetValue(grp.Key, out var pc)) continue;
+                var nonFoil = grp.FirstOrDefault(e => !e.IsFoil);
+                var foil = grp.FirstOrDefault(e => e.IsFoil);
+                var primary = nonFoil ?? foil!;
+                rows.Add(new CollectionDisplayRow
                 {
-                    EntryId = e.TradeBinderEntryId,
+                    CollectionEntryId = primary.TradeBinderEntryId,
                     PoolId = pc.PoolId,
                     Name = pc.Name,
                     SetCode = pc.SetCode,
                     SetName = pc.SetName,
                     CollectorNumber = pc.CollectorNumber,
                     TypeLine = pc.TypeLine,
+                    OracleText = pc.OracleText,
+                    FlavorText = pc.FlavorText,
                     ManaCost = pc.ManaCost,
                     ManaValue = pc.ManaValue,
                     ColorIdentity = pc.ColorIdentity,
                     Rarity = pc.Rarity,
-                    Quantity = e.Quantity,
-                    IsFoil = e.IsFoil,
-                    Condition = e.Condition,
-                    AskingPrice = e.AskingPrice,
-                    MarketPrice = e.IsFoil ? pc.PriceUsdFoil : pc.PriceUsd,
-                    LocalImagePath = pc.LocalImagePath,
+                    Artist = pc.Artist,
+                    Power = pc.Power,
+                    Toughness = pc.Toughness,
+                    IsFoil = pc.IsFoil,
+                    IsNonFoil = pc.IsNonFoil,
+                    PriceUsd = pc.PriceUsd,
+                    PriceUsdFoil = pc.PriceUsdFoil,
                     ImageNormalUrl = pc.ImageNormalUrl,
-                    DateAdded = e.DateAdded
+                    LocalImagePath = pc.LocalImagePath,
+                    IsLegalStandard = pc.IsLegalStandard,
+                    IsLegalModern = pc.IsLegalModern,
+                    IsLegalPioneer = pc.IsLegalPioneer,
+                    IsLegalLegacy = pc.IsLegalLegacy,
+                    IsLegalVintage = pc.IsLegalVintage,
+                    Quantity = nonFoil?.Quantity ?? 0,
+                    FoilQuantity = foil?.Quantity ?? 0,
+                    Condition = primary.Condition,
+                    SellAt = primary.AskingPrice,
+                    Notes = primary.Notes,
+                    MarketValue = pc.PriceUsd,
+                    DateAdded = primary.DateAdded
                 });
             }
-            rows.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            rows.Sort((a, b) => string.Compare(
+                a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
+            UpdateSummaryRow(rows);
         }
 
         private void LoadBottomTable_WantList()
         {
+            EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new Data.CollectionDbContext();
             using var pdb = new AppDbContext();
             var entries = cdb.WantListEntries.AsNoTracking().ToList();
@@ -2888,35 +2973,59 @@ namespace BreakersOfE
             var cards = pdb.PoolCards.AsNoTracking()
                 .Where(c => ids.Contains(c.PoolId))
                 .ToList().ToDictionary(c => c.PoolId);
-            var rows = new List<WantListDisplayRow>(entries.Count);
-            foreach (var e in entries)
+
+            // Group by PoolId — merge foil + non-foil into one display row
+            var grouped = entries.GroupBy(e => e.PoolId);
+            var rows = new List<CollectionDisplayRow>();
+            foreach (var grp in grouped)
             {
-                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
-                rows.Add(new WantListDisplayRow
+                if (!cards.TryGetValue(grp.Key, out var pc)) continue;
+                var nonFoil = grp.FirstOrDefault(e => !e.IsFoil);
+                var foil = grp.FirstOrDefault(e => e.IsFoil);
+                // Use the first entry's ID for editing
+                var primary = nonFoil ?? foil!;
+                rows.Add(new CollectionDisplayRow
                 {
-                    EntryId = e.WantListEntryId,
+                    CollectionEntryId = primary.WantListEntryId,
                     PoolId = pc.PoolId,
                     Name = pc.Name,
                     SetCode = pc.SetCode,
                     SetName = pc.SetName,
                     CollectorNumber = pc.CollectorNumber,
                     TypeLine = pc.TypeLine,
+                    OracleText = pc.OracleText,
+                    FlavorText = pc.FlavorText,
                     ManaCost = pc.ManaCost,
                     ManaValue = pc.ManaValue,
                     ColorIdentity = pc.ColorIdentity,
                     Rarity = pc.Rarity,
-                    Quantity = e.Quantity,
-                    IsFoil = e.IsFoil,
-                    OfferPrice = e.OfferPrice,
-                    MarketPrice = e.IsFoil ? pc.PriceUsdFoil : pc.PriceUsd,
-                    LocalImagePath = pc.LocalImagePath,
+                    Artist = pc.Artist,
+                    Power = pc.Power,
+                    Toughness = pc.Toughness,
+                    IsFoil = pc.IsFoil,
+                    IsNonFoil = pc.IsNonFoil,
+                    PriceUsd = pc.PriceUsd,
+                    PriceUsdFoil = pc.PriceUsdFoil,
                     ImageNormalUrl = pc.ImageNormalUrl,
-                    DateAdded = e.DateAdded
+                    LocalImagePath = pc.LocalImagePath,
+                    IsLegalStandard = pc.IsLegalStandard,
+                    IsLegalModern = pc.IsLegalModern,
+                    IsLegalPioneer = pc.IsLegalPioneer,
+                    IsLegalLegacy = pc.IsLegalLegacy,
+                    IsLegalVintage = pc.IsLegalVintage,
+                    Quantity = nonFoil?.Quantity ?? 0,
+                    FoilQuantity = foil?.Quantity ?? 0,
+                    BuyAt = primary.OfferPrice,
+                    Notes = primary.Notes,
+                    MarketValue = pc.PriceUsd,
+                    DateAdded = primary.DateAdded
                 });
             }
-            rows.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            rows.Sort((a, b) => string.Compare(
+                a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
             BottomDataGrid.ItemsSource = rows;
+            UpdateSummaryRow(rows);
         }
 
         private void LoadTopTable_DeckForCollection()
@@ -3036,6 +3145,7 @@ namespace BreakersOfE
                 return col;
             }
 
+
             // ── Expand button ─────────────────────────────────────────────
             var expandCol = new DataGridTemplateColumn
             {
@@ -3093,11 +3203,11 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Foil Qty", "FoilQuantity", 60));
             grid.Columns.Add(MakeText("Used", "UsedCount", 50, true));
             grid.Columns.Add(MakeText("Available", "AvailableCount", 70, true));
-            grid.Columns.Add(MakeText("Buy At", "BuyAt", 70));
-            grid.Columns.Add(MakeText("Sell At", "SellAt", 70));
-            grid.Columns.Add(MakeText("Sell At Value", "SellAtValue", 90));
-            grid.Columns.Add(MakeText("Price High", "PriceHigh", 80));
-            grid.Columns.Add(MakeText("Market Value", "MarketValue", 90));
+            grid.Columns.Add(MakeText("Buy At", "BuyAtDisplay", 70));
+            grid.Columns.Add(MakeText("Sell At", "SellAtDisplay", 70));
+            grid.Columns.Add(MakeText("Sell At Value", "SellAtValueDisplay", 90, true));
+            grid.Columns.Add(MakeText("Price High", "PriceHighDisplay", 80, true));
+            grid.Columns.Add(MakeText("Market Value", "MarketValueDisplay", 90, true));
             grid.Columns.Add(MakeText("Needed", "Needed", 60));
             grid.Columns.Add(MakeText("Excess", "Excess", 60));
             grid.Columns.Add(MakeText("Target", "Target", 60));
@@ -3888,24 +3998,23 @@ namespace BreakersOfE
             if (!string.IsNullOrEmpty(GetSetting(ColOrderPrefix + tableKey)))
                 return;
 
+            // Size each column to fit its header text
             foreach (var col in grid.Columns)
             {
-                // Skip fixed-width utility columns (ES, ↕, chooser)
                 var hdr = col.Header?.ToString() ?? string.Empty;
                 if (string.IsNullOrEmpty(hdr) || hdr == "ES" || hdr == "↕")
                     continue;
-
-                col.Width = DataGridLength.Auto;
+                col.Width = new DataGridLength(1, DataGridLengthUnitType.SizeToHeader);
             }
 
-            // Force measure, then freeze widths so they stay resizable
             grid.UpdateLayout();
+
+            // Freeze the measured widths so columns stay resizable
             foreach (var col in grid.Columns)
             {
                 var hdr = col.Header?.ToString() ?? string.Empty;
                 if (string.IsNullOrEmpty(hdr) || hdr == "ES" || hdr == "↕")
                     continue;
-
                 if (col.ActualWidth > 0)
                     col.Width = new DataGridLength(col.ActualWidth);
             }
@@ -4153,6 +4262,22 @@ namespace BreakersOfE
             if (e.EditAction != DataGridEditAction.Commit) return;
             if (e.Row.Item is not CollectionDisplayRow row || row.IsFooter) return;
 
+            // Route to appropriate save method based on mode
+            if (_currentMode == "CollectionToTradeBinder")
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                    SaveTradeBinderRow(row)),
+                    System.Windows.Threading.DispatcherPriority.Background);
+                return;
+            }
+            if (_currentMode == "PoolToWantList")
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                    SaveWantListRow(row)),
+                    System.Windows.Threading.DispatcherPriority.Background);
+                return;
+            }
+
             // Capture scroll position NOW before the deferred invoke
             _bottomDataGridScroller ??= FindVisualChild<ScrollViewer>(BottomDataGrid);
             double savedH = _bottomDataGridScroller?.HorizontalOffset ?? 0;
@@ -4161,6 +4286,25 @@ namespace BreakersOfE
                 ?.Binding is System.Windows.Data.Binding b ? b.Path?.Path ?? ""
                 : e.Column?.Header?.ToString() ?? "";
             bool isQtyEdit = editedCol is "Quantity" or "FoilQuantity";
+
+            // For currency display columns, parse the edited text back to decimal
+            if (editedCol is "BuyAtDisplay" or "SellAtDisplay")
+            {
+                if (e.EditingElement is System.Windows.Controls.TextBox tb)
+                {
+                    string raw = tb.Text.Replace("$", "").Trim();
+                    if (decimal.TryParse(raw, out decimal val))
+                    {
+                        if (editedCol == "BuyAtDisplay") row.BuyAt = val;
+                        if (editedCol == "SellAtDisplay") row.SellAt = val;
+                    }
+                    else
+                    {
+                        if (editedCol == "BuyAtDisplay") row.BuyAt = null;
+                        if (editedCol == "SellAtDisplay") row.SellAt = null;
+                    }
+                }
+            }
 
             // Save after the binding commits (slight delay)
             Dispatcher.BeginInvoke(new Action(() =>
@@ -4374,14 +4518,6 @@ namespace BreakersOfE
                 case ConspiracyCard cc:
                     ShowConspiracyCardDetail(cc);
                     await LoadCardImageAsync(cc.LocalImagePath, cc.ImageNormalUrl);
-                    break;
-                case TradeBinderDisplayRow tb:
-                    ShowPoolCardDetailById(tb.PoolId);
-                    await LoadCardImageAsync(tb.LocalImagePath, tb.ImageNormalUrl);
-                    break;
-                case WantListDisplayRow wl:
-                    ShowPoolCardDetailById(wl.PoolId);
-                    await LoadCardImageAsync(wl.LocalImagePath, wl.ImageNormalUrl);
                     break;
                 case CollectionDisplayRow cr:
                     ShowCollectionRowDetail(cr);
@@ -4967,25 +5103,25 @@ namespace BreakersOfE
 
         private void BtnRemoveFromCollection_Click(object sender, RoutedEventArgs e)
         {
-            if (BottomDataGrid.SelectedItem is TradeBinderDisplayRow tbRow)
-            {
-                if (MessageBox.Show($"Remove '{tbRow.Name}' from your Trade Binder?",
-                    "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Question)
-                    == MessageBoxResult.Yes)
-                    RemoveFromTradeBinder(tbRow);
-                return;
-            }
-
-            if (BottomDataGrid.SelectedItem is WantListDisplayRow wlRow)
-            {
-                if (MessageBox.Show($"Remove '{wlRow.Name}' from your Want List?",
-                    "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Question)
-                    == MessageBoxResult.Yes)
-                    RemoveFromWantList(wlRow);
-                return;
-            }
-
             if (BottomDataGrid.SelectedItem is not CollectionDisplayRow row) return;
+
+            if (_currentMode == "CollectionToTradeBinder")
+            {
+                if (MessageBox.Show($"Remove '{row.Name}' from your Trade Binder?",
+                    "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Question)
+                    == MessageBoxResult.Yes)
+                    RemoveFromTradeBinderRow(row);
+                return;
+            }
+
+            if (_currentMode == "PoolToWantList")
+            {
+                if (MessageBox.Show($"Remove '{row.Name}' from your Want List?",
+                    "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Question)
+                    == MessageBoxResult.Yes)
+                    RemoveFromWantListRow(row);
+                return;
+            }
 
             bool hasBoth = row.Quantity > 0 && row.FoilQuantity > 0;
             bool foil = false;
@@ -5553,6 +5689,25 @@ namespace BreakersOfE
         private void AddToTradeBinder(PoolCard pc, bool foil, int qty)
         {
             using var db = new Data.CollectionDbContext();
+
+            // Check if card is in a deck (UsedCount > 0)
+            var collEntry = db.CollectionEntries
+                .FirstOrDefault(c => c.PoolId == pc.PoolId);
+            if (collEntry != null && collEntry.UsedCount > 0)
+            {
+                var r = MessageBox.Show(
+                    $"'{pc.Name}' has {collEntry.UsedCount} copy/copies currently " +
+                    $"in a deck.\n\nAre you sure you want to list it in the Trade Binder?",
+                    "Card Is In a Deck",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (r != MessageBoxResult.Yes) return;
+            }
+
+            // Auto-pull condition and market price from collection entry
+            string condition = collEntry?.Condition ?? "Near Mint";
+            decimal? askingPrice = foil ? pc.PriceUsdFoil : pc.PriceUsd;
+
             var existing = db.TradeBinderEntries
                 .FirstOrDefault(e => e.PoolId == pc.PoolId && e.IsFoil == foil);
             if (existing == null)
@@ -5561,11 +5716,61 @@ namespace BreakersOfE
                     PoolId = pc.PoolId,
                     Quantity = qty,
                     IsFoil = foil,
-                    Condition = "Near Mint",
+                    Condition = condition,
+                    AskingPrice = askingPrice,
                     DateAdded = DateTime.Now
                 });
             else
+            {
                 existing.Quantity += qty;
+            }
+            db.SaveChanges();
+            RefreshBottom();
+        }
+
+        private void SaveTradeBinderRow(CollectionDisplayRow row)
+        {
+            using var db = new Data.CollectionDbContext();
+            var e = db.TradeBinderEntries.FirstOrDefault(
+                t => t.TradeBinderEntryId == row.CollectionEntryId);
+            if (e == null) return;
+            e.Quantity = row.Quantity;
+            e.Condition = row.Condition;
+            e.AskingPrice = row.SellAt;
+            e.Notes = row.Notes;
+            db.SaveChanges();
+        }
+
+        private void SaveWantListRow(CollectionDisplayRow row)
+        {
+            using var db = new Data.CollectionDbContext();
+            var e = db.WantListEntries.FirstOrDefault(
+                w => w.WantListEntryId == row.CollectionEntryId);
+            if (e == null) return;
+            e.Quantity = row.Quantity;
+            e.OfferPrice = row.BuyAt;
+            e.Notes = row.Notes;
+            db.SaveChanges();
+        }
+
+        private void RemoveFromTradeBinderRow(CollectionDisplayRow row)
+        {
+            using var db = new Data.CollectionDbContext();
+            var e = db.TradeBinderEntries.FirstOrDefault(
+                t => t.TradeBinderEntryId == row.CollectionEntryId);
+            if (e == null) return;
+            db.TradeBinderEntries.Remove(e);
+            db.SaveChanges();
+            RefreshBottom();
+        }
+
+        private void RemoveFromWantListRow(CollectionDisplayRow row)
+        {
+            using var db = new Data.CollectionDbContext();
+            var e = db.WantListEntries.FirstOrDefault(
+                w => w.WantListEntryId == row.CollectionEntryId);
+            if (e == null) return;
+            db.WantListEntries.Remove(e);
             db.SaveChanges();
             RefreshBottom();
         }
@@ -7563,18 +7768,20 @@ namespace BreakersOfE
 
         private void MenuImport_Click(object sender, RoutedEventArgs e)
         {
-            var win = new Windows.ImportExportWindow(_activeDeck) { Owner = this };
+            var win = new Windows.ImportExportWindow(
+                Windows.ImportExportWindow.StartMode.ImportCollection)
+            { Owner = this };
             win.ShowDialog();
-            // Refresh collection view after import
             if (_currentMode.Contains("Collection") || _currentMode == "PoolToCollection")
                 LoadCurrentMode();
         }
 
         private void MenuExport_Click(object sender, RoutedEventArgs e)
         {
-            var win = new Windows.ImportExportWindow(_activeDeck) { Owner = this };
-            // Switch to Export tab
-            win.Show();
+            var win = new Windows.ImportExportWindow(
+                Windows.ImportExportWindow.StartMode.ExportCollection, _activeDeck)
+            { Owner = this };
+            win.ShowDialog();
         }
 
         private void MenuShowSplash_Click(object sender, RoutedEventArgs e)

@@ -225,8 +225,8 @@
                 <MenuItem Header="Close _All Decks"  Name="MenuCloseAllDecks" IsEnabled="False" Click="MenuCloseAllDecks_Click"/>
                 <Separator/>
                 <!-- Import / Export -->
-                <MenuItem Header="⬇ _Import Collection / Deck..." Click="MenuImport_Click"/>
-                <MenuItem Header="⬆ _Export Collection / Deck..." Click="MenuExport_Click"/>
+                <MenuItem Header="⬇ _Import..."  Click="MenuImport_Click"/>
+                <MenuItem Header="⬆ _Export..."  Click="MenuExport_Click"/>
                 <Separator/>
                 <!-- App folders -->
                 <MenuItem Header="📂 Open Folder">
@@ -841,11 +841,11 @@
                                 <DataGridTextColumn Header="Foil Qty"      Binding="{Binding FoilQuantity}"      Width="60"/>
                                 <DataGridTextColumn Header="Used"          Binding="{Binding UsedCount}"         Width="50"  IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Available"     Binding="{Binding AvailableCount}"    Width="70"  IsReadOnly="True"/>
-                                <DataGridTextColumn Header="Buy At"        Binding="{Binding BuyAt}"             Width="70"/>
-                                <DataGridTextColumn Header="Sell At"       Binding="{Binding SellAt}"            Width="70"/>
-                                <DataGridTextColumn Header="Sell At Value" Binding="{Binding SellAtValue}"       Width="90"/>
-                                <DataGridTextColumn Header="Price High"    Binding="{Binding PriceHigh}"         Width="80"/>
-                                <DataGridTextColumn Header="Market Value"  Binding="{Binding MarketValue}"       Width="90"/>
+                                <DataGridTextColumn Header="Buy At"        Binding="{Binding BuyAtDisplay}"             Width="70"/>
+                                <DataGridTextColumn Header="Sell At"       Binding="{Binding SellAtDisplay}"            Width="70"/>
+                                <DataGridTextColumn Header="Sell At Value" Binding="{Binding SellAtValueDisplay}"       Width="90"/>
+                                <DataGridTextColumn Header="Price High"    Binding="{Binding PriceHighDisplay}"         Width="80"/>
+                                <DataGridTextColumn Header="Market Value"  Binding="{Binding MarketValueDisplay}"       Width="90"/>
                                 <DataGridTextColumn Header="Needed"        Binding="{Binding Needed}"            Width="60"/>
                                 <DataGridTextColumn Header="Excess"        Binding="{Binding Excess}"            Width="60"/>
                                 <DataGridTextColumn Header="Target"        Binding="{Binding Target}"            Width="60"/>

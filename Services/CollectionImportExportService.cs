@@ -139,9 +139,100 @@ namespace BreakersOfE.Services
             if (format == ImportExportFormat.MtgStudioDeck)
                 return ImportMtgStudioDeck(filePath);
 
+            // CSV formats — parse as card list and build a deck
+            List<ImportRow> rows = format switch
+            {
+                ImportExportFormat.MtgStudioCsv => ParseMtgStudioCsv(filePath),
+                ImportExportFormat.Moxfield => ParseMoxfieldCsv(filePath),
+                ImportExportFormat.TcgPlayer => ParseTcgPlayerCsv(filePath),
+                ImportExportFormat.Deckbox => ParseDeckboxCsv(filePath),
+                ImportExportFormat.DragonShield => ParseDragonShieldCsv(filePath),
+                _ => new List<ImportRow>()
+            };
+
+            if (rows.Count == 0)
+            {
+                var err = new CollectionImportResult();
+                err.Errors.Add($"Deck import not supported for format {format}");
+                return (err, null);
+            }
+
+            return BuildDeckFromRows(rows, Path.GetFileNameWithoutExtension(filePath));
+        }
+
+        private static (CollectionImportResult result, Deck? deck) BuildDeckFromRows(
+            List<ImportRow> rows, string deckName)
+        {
             var result = new CollectionImportResult();
-            result.Errors.Add($"Deck import not supported for format {format}");
-            return (result, null);
+            var deck = DeckService.CreateNew(deckName, DeckType.Standard);
+
+            using var pdb = new AppDbContext();
+            var cardLookup = pdb.PoolCards.AsNoTracking()
+                .Select(c => new {
+                    c.PoolId,
+                    c.Name,
+                    c.SetCode,
+                    c.CollectorNumber,
+                    c.TypeLine,
+                    c.ManaCost,
+                    c.ManaValue,
+                    c.ColorIdentity,
+                    c.Power,
+                    c.Toughness,
+                    c.LocalImagePath,
+                    c.ImageNormalUrl
+                })
+                .ToList();
+
+            foreach (var row in rows)
+            {
+                string matchName = row.Name.Contains(" // ")
+                    ? row.Name.Split(new[] { " // " }, StringSplitOptions.None)[0].Trim()
+                    : row.Name;
+
+                var match = cardLookup.FirstOrDefault(c =>
+                    c.Name.Equals(row.Name, StringComparison.OrdinalIgnoreCase) &&
+                    c.SetCode.Equals(row.SetCode, StringComparison.OrdinalIgnoreCase))
+                    ?? cardLookup.FirstOrDefault(c =>
+                        c.Name.Equals(row.Name, StringComparison.OrdinalIgnoreCase))
+                    ?? cardLookup.FirstOrDefault(c =>
+                        (c.Name.Contains(" // ")
+                            ? c.Name.Split(new[] { " // " }, StringSplitOptions.None)[0].Trim()
+                            : c.Name)
+                        .Equals(matchName, StringComparison.OrdinalIgnoreCase));
+
+                if (match == null)
+                {
+                    result.CardsNotFound++;
+                    result.Warnings.Add($"Not in pool: {row.Name} [{row.SetCode}]");
+                    continue;
+                }
+
+                deck.Cards.Add(new DeckCard
+                {
+                    Name = match.Name,
+                    SetCode = match.SetCode,
+                    CollectorNumber = match.CollectorNumber,
+                    TypeLine = match.TypeLine,
+                    ManaCost = match.ManaCost,
+                    ManaValue = match.ManaValue,
+                    ColorIdentity = match.ColorIdentity,
+                    Power = match.Power,
+                    Toughness = match.Toughness,
+                    LocalImagePath = match.LocalImagePath,
+                    ImageNormalUrl = match.ImageNormalUrl,
+                    Quantity = row.IsFoil ? 0 : row.Quantity,
+                    FoilQuantity = row.IsFoil ? row.Quantity : 0,
+                    Category = DeckCardCategory.Mainboard
+                });
+                result.CardsImported += row.Quantity;
+            }
+
+            result.Warnings.Add(
+                "CSV deck import does not include commander or sideboard information. " +
+                "Please set commanders manually in the deck editor.");
+
+            return (result, deck);
         }
 
         // ── MTG Studio CSV parser ─────────────────────────────────────────────
@@ -399,7 +490,7 @@ namespace BreakersOfE.Services
                         c.PoolId,
                         c.Name,
                         c.SetCode,
-                        c.ScryfallId,
+                        ScryfallId = "",
                         c.LocalImagePath,
                         c.ImageNormalUrl,
                         c.TypeLine,
@@ -425,15 +516,33 @@ namespace BreakersOfE.Services
                     name = System.Text.RegularExpressions.Regex
                         .Replace(name, @"\s*\(\d+\)\s*$", "").Trim();
 
-                    // Handle split cards: "Struggle/Survive" — use first half for matching
-                    string matchName = name.Contains('/') ? name.Split('/')[0].Trim() : name;
+                    // Handle split/DFC cards — use first half for matching
+                    // "Struggle/Survive" → "Struggle"
+                    // "Defacing Duskmage // Vandal's Edit" → "Defacing Duskmage"
+                    string matchName = name.Contains(" // ")
+                        ? name.Split(new[] { " // " }, StringSplitOptions.None)[0].Trim()
+                        : name.Contains('/')
+                            ? name.Split('/')[0].Trim()
+                            : name;
 
-                    // Find pool card — prefer set+name match, fallback to name only
+                    // Find pool card — try full name first, then front face
                     var match = cardLookup.FirstOrDefault(c =>
-                        c.Name.Equals(matchName, StringComparison.OrdinalIgnoreCase) &&
+                        c.Name.Equals(name, StringComparison.OrdinalIgnoreCase) &&
                         c.SetCode.Equals(edition, StringComparison.OrdinalIgnoreCase))
                         ?? cardLookup.FirstOrDefault(c =>
-                            c.Name.Equals(matchName, StringComparison.OrdinalIgnoreCase));
+                            c.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                        // Try front face match for DFCs stored with " // " in pool
+                        ?? cardLookup.FirstOrDefault(c =>
+                            (c.Name.Contains(" // ")
+                                ? c.Name.Split(new[] { " // " }, StringSplitOptions.None)[0].Trim()
+                                : c.Name)
+                            .Equals(matchName, StringComparison.OrdinalIgnoreCase) &&
+                            c.SetCode.Equals(edition, StringComparison.OrdinalIgnoreCase))
+                        ?? cardLookup.FirstOrDefault(c =>
+                            (c.Name.Contains(" // ")
+                                ? c.Name.Split(new[] { " // " }, StringSplitOptions.None)[0].Trim()
+                                : c.Name)
+                            .Equals(matchName, StringComparison.OrdinalIgnoreCase));
 
                     if (match == null)
                     {
@@ -484,6 +593,13 @@ namespace BreakersOfE.Services
                         result.CardsImported += sbQty;
                     }
                 }
+
+                // MTG Studio .deck XML does not store foil or commander data
+                result.Warnings.Add(
+                    "MTG Studio .deck format does not include foil or commander " +
+                    "information. Please mark foil cards and commanders manually " +
+                    "in the deck editor, or use Breakers of E (.json) for full fidelity.");
+
                 return (result, deck);
             }
             catch (Exception ex)
@@ -509,8 +625,8 @@ namespace BreakersOfE.Services
 
             // Build lookup dictionaries for fast matching
             var byScryfallId = pdb.PoolCards.AsNoTracking()
-                .Where(c => c.ScryfallId != "")
-                .ToDictionary(c => c.ScryfallId, c => c,
+                .Where(c => "" != "")
+                .ToDictionary(c => "", c => c,
                     StringComparer.OrdinalIgnoreCase);
 
             var byNameSet = pdb.PoolCards.AsNoTracking()
@@ -548,6 +664,18 @@ namespace BreakersOfE.Services
                         c.Name.Equals(row.Name, StringComparison.OrdinalIgnoreCase));
                 }
 
+                // 4. DFC fallback — strip " // Back Face" and try front face only
+                if (pc == null && row.Name.Contains(" // "))
+                {
+                    string frontFace = row.Name.Split(new[] { " // " },
+                        StringSplitOptions.None)[0].Trim();
+                    string dfcKey = $"{frontFace}|{row.SetCode}";
+                    if (!byNameSet.TryGetValue(dfcKey, out pc))
+                        pc = byNameSet.Values.FirstOrDefault(c =>
+                            c.Name.Equals(frontFace,
+                                StringComparison.OrdinalIgnoreCase));
+                }
+
                 if (pc == null)
                 {
                     result.CardsNotFound++;
@@ -560,15 +688,18 @@ namespace BreakersOfE.Services
                 {
                     if (mergeWithExisting)
                     {
-                        // Add quantities
-                        if (row.IsFoil) existing.FoilQuantity += row.Quantity;
-                        else existing.Quantity += row.Quantity;
+                        // Merge: take the higher of existing vs imported quantity
+                        // This makes re-importing the same file safe (idempotent)
+                        if (row.IsFoil)
+                            existing.FoilQuantity = Math.Max(existing.FoilQuantity, row.Quantity);
+                        else
+                            existing.Quantity = Math.Max(existing.Quantity, row.Quantity);
                         existing.DateModified = DateTime.Now;
                         result.CardsUpdated++;
                     }
                     else
                     {
-                        // Replace quantities
+                        // Replace: overwrite quantities exactly
                         if (row.IsFoil) existing.FoilQuantity = row.Quantity;
                         else existing.Quantity = row.Quantity;
                         existing.DateModified = DateTime.Now;
@@ -650,14 +781,212 @@ namespace BreakersOfE.Services
             }
         }
 
+        public static void ExportWantList(string filePath,
+            ImportExportFormat format)
+        {
+            using var cdb = new CollectionDbContext();
+            using var pdb = new AppDbContext();
+
+            var entries = cdb.WantListEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) return;
+            var poolIds = entries.Select(e => e.PoolId).ToHashSet();
+            var cards = pdb.PoolCards.AsNoTracking()
+                .Where(c => poolIds.Contains(c.PoolId))
+                .ToList().ToDictionary(c => c.PoolId);
+
+            // Convert to CollectionEntry-like for reuse of export methods
+            var collEntries = entries
+                .Where(e => cards.ContainsKey(e.PoolId))
+                .Select(e => new CollectionEntry
+                {
+                    PoolId = e.PoolId,
+                    Quantity = e.IsFoil ? 0 : e.Quantity,
+                    FoilQuantity = e.IsFoil ? e.Quantity : 0,
+                    Condition = "Near Mint",
+                    BuyAt = e.OfferPrice,
+                    DateAdded = e.DateAdded
+                }).ToList();
+
+            switch (format)
+            {
+                case ImportExportFormat.MtgStudioCsv:
+                    ExportMtgStudioCsv(filePath, collEntries, cards); break;
+                case ImportExportFormat.Moxfield:
+                    ExportMoxfieldCsv(filePath, collEntries, cards); break;
+                case ImportExportFormat.TcgPlayer:
+                    ExportTcgPlayerCsv(filePath, collEntries, cards); break;
+                case ImportExportFormat.Deckbox:
+                    ExportDeckboxCsv(filePath, collEntries, cards); break;
+                case ImportExportFormat.DragonShield:
+                    ExportDragonShieldCsv(filePath, collEntries, cards); break;
+                default:
+                    ExportMtgStudioCsv(filePath, collEntries, cards); break;
+            }
+        }
+
+        public static void ExportTradeBinder(string filePath,
+            ImportExportFormat format)
+        {
+            using var cdb = new CollectionDbContext();
+            using var pdb = new AppDbContext();
+
+            var entries = cdb.TradeBinderEntries.AsNoTracking().ToList();
+            if (entries.Count == 0) return;
+            var poolIds = entries.Select(e => e.PoolId).ToHashSet();
+            var cards = pdb.PoolCards.AsNoTracking()
+                .Where(c => poolIds.Contains(c.PoolId))
+                .ToList().ToDictionary(c => c.PoolId);
+
+            var collEntries = entries
+                .Where(e => cards.ContainsKey(e.PoolId))
+                .Select(e => new CollectionEntry
+                {
+                    PoolId = e.PoolId,
+                    Quantity = e.IsFoil ? 0 : e.Quantity,
+                    FoilQuantity = e.IsFoil ? e.Quantity : 0,
+                    Condition = e.Condition,
+                    SellAt = e.AskingPrice,
+                    DateAdded = e.DateAdded
+                }).ToList();
+
+            switch (format)
+            {
+                case ImportExportFormat.MtgStudioCsv:
+                    ExportMtgStudioCsv(filePath, collEntries, cards); break;
+                case ImportExportFormat.Moxfield:
+                    ExportMoxfieldCsv(filePath, collEntries, cards); break;
+                case ImportExportFormat.TcgPlayer:
+                    ExportTcgPlayerCsv(filePath, collEntries, cards); break;
+                case ImportExportFormat.Deckbox:
+                    ExportDeckboxCsv(filePath, collEntries, cards); break;
+                case ImportExportFormat.DragonShield:
+                    ExportDragonShieldCsv(filePath, collEntries, cards); break;
+                default:
+                    ExportMtgStudioCsv(filePath, collEntries, cards); break;
+            }
+        }
+
         public static void ExportDeck(string filePath,
             ImportExportFormat format, Deck deck)
         {
-            if (format == ImportExportFormat.MtgStudioDeck)
-                ExportMtgStudioDeck(filePath, deck);
-            else
-                throw new NotSupportedException(
-                    $"Deck export not supported for {format}");
+            switch (format)
+            {
+                case ImportExportFormat.MtgStudioDeck:
+                    ExportMtgStudioDeck(filePath, deck);
+                    break;
+                case ImportExportFormat.MtgStudioCsv:
+                    ExportDeckAsMtgStudioCsv(filePath, deck);
+                    break;
+                case ImportExportFormat.Moxfield:
+                    ExportDeckAsMoxfieldCsv(filePath, deck);
+                    break;
+                case ImportExportFormat.TcgPlayer:
+                    ExportDeckAsTcgPlayerCsv(filePath, deck);
+                    break;
+                case ImportExportFormat.Deckbox:
+                    ExportDeckAsDeckboxCsv(filePath, deck);
+                    break;
+                case ImportExportFormat.DragonShield:
+                    ExportDeckAsDragonShieldCsv(filePath, deck);
+                    break;
+                case ImportExportFormat.BreakersOfE:
+                    ExportDeckAsJson(filePath, deck);
+                    break;
+                default:
+                    throw new NotSupportedException(
+                        $"Deck export not supported for {format}");
+            }
+        }
+
+        private static void ExportDeckAsMtgStudioCsv(string filePath, Deck deck)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.WriteLine("CardId,ScryfallId,TcgPlayerId,MtgOnline3Id,Name,SetAbbreviation," +
+                "SetName,CollectorNo,CollectorNoSortable,Quantity,Foil,Condition," +
+                "Notes,Storage,Used,Target,Needed,Excess,Group,PrintType," +
+                "BuyAt,SellAt,Desired,Buy,Sell,Added");
+            int id = 1;
+            foreach (var c in deck.Cards.OrderBy(c => c.Name))
+            {
+                string cond = MapToMtgStudioCondition("Near Mint");
+                if (c.Quantity > 0)
+                    sw.WriteLine(CsvRow(id++, "", "", "", c.Name,
+                        c.SetCode, c.SetName, c.CollectorNumber, c.CollectorNumber,
+                        c.Quantity, "False", cond, "", "", 0, 0, 0, 0, "", "Paper",
+                        0, 0, "Unassigned", "", "", DateTime.Now.ToString("O")));
+                if (c.FoilQuantity > 0)
+                    sw.WriteLine(CsvRow(id++, "", "", "", c.Name,
+                        c.SetCode, c.SetName, c.CollectorNumber, c.CollectorNumber,
+                        c.FoilQuantity, "True", cond, "", "", 0, 0, 0, 0, "", "Paper",
+                        0, 0, "Unassigned", "", "", DateTime.Now.ToString("O")));
+            }
+        }
+
+        private static void ExportDeckAsMoxfieldCsv(string filePath, Deck deck)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.WriteLine("Count,Tradelist Count,Name,Edition,Condition,Language,Foil,Tags,Collector Number,Alter,Proxy,Purchase Price");
+            foreach (var c in deck.Cards.OrderBy(c => c.Name))
+            {
+                if (c.Quantity > 0)
+                    sw.WriteLine(CsvRow(c.Quantity, 0, c.Name, c.SetCode,
+                        "Near Mint", "English", "", "", c.CollectorNumber, "False", "False", ""));
+                if (c.FoilQuantity > 0)
+                    sw.WriteLine(CsvRow(c.FoilQuantity, 0, c.Name, c.SetCode,
+                        "Near Mint", "English", "foil", "", c.CollectorNumber, "False", "False", ""));
+            }
+        }
+
+        private static void ExportDeckAsTcgPlayerCsv(string filePath, Deck deck)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.WriteLine("Quantity,Name,Set,Card Number,Condition,Printing");
+            foreach (var c in deck.Cards.OrderBy(c => c.Name))
+            {
+                if (c.Quantity > 0)
+                    sw.WriteLine(CsvRow(c.Quantity, c.Name, c.SetName,
+                        c.CollectorNumber, "Near Mint", "Normal"));
+                if (c.FoilQuantity > 0)
+                    sw.WriteLine(CsvRow(c.FoilQuantity, c.Name, c.SetName,
+                        c.CollectorNumber, "Near Mint", "Foil"));
+            }
+        }
+
+        private static void ExportDeckAsDeckboxCsv(string filePath, Deck deck)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.WriteLine("Count,Tradelist Count,Name,Edition,Card Number,Condition,Language,Foil,Signed,Artist Proof,Altered Art,Misprint,Promo,Textless,My Price");
+            foreach (var c in deck.Cards.OrderBy(c => c.Name))
+            {
+                if (c.Quantity > 0)
+                    sw.WriteLine(CsvRow(c.Quantity, 0, c.Name, c.SetName,
+                        c.CollectorNumber, "Near Mint", "English", "", "", "", "", "", "", "", ""));
+                if (c.FoilQuantity > 0)
+                    sw.WriteLine(CsvRow(c.FoilQuantity, 0, c.Name, c.SetName,
+                        c.CollectorNumber, "Near Mint", "English", "foil", "", "", "", "", "", "", ""));
+            }
+        }
+
+        private static void ExportDeckAsDragonShieldCsv(string filePath, Deck deck)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.WriteLine("Folder Name,Quantity,Trade Quantity,Card Name,Set Code,Set Name,Collector Number,Printing,Condition,Language");
+            foreach (var c in deck.Cards.OrderBy(c => c.Name))
+            {
+                if (c.Quantity > 0)
+                    sw.WriteLine(CsvRow("Deck", c.Quantity, 0, c.Name,
+                        c.SetCode, c.SetName, c.CollectorNumber, "Normal", "NM", "English"));
+                if (c.FoilQuantity > 0)
+                    sw.WriteLine(CsvRow("Deck", c.FoilQuantity, 0, c.Name,
+                        c.SetCode, c.SetName, c.CollectorNumber, "Foil", "NM", "English"));
+            }
+        }
+
+        private static void ExportDeckAsJson(string filePath, Deck deck)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(deck,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(filePath, json, Encoding.UTF8);
         }
 
         // ── MTG Studio CSV export ─────────────────────────────────────────────
@@ -737,12 +1066,17 @@ namespace BreakersOfE.Services
 
         private static string MapToMoxfieldCondition(string c) => c switch
         {
-            "Near Mint" => "NM",
-            "Lightly Played" => "LP",
-            "Moderately Played" => "MP",
-            "Heavily Played" => "HP",
-            "Damaged" => "D",
-            _ => "NM"
+            "Near Mint" => "Near Mint",
+            "Lightly Played" => "Lightly Played",
+            "Moderately Played" => "Moderately Played",
+            "Heavily Played" => "Heavily Played",
+            "Damaged" => "Damaged",
+            "NM" => "Near Mint",
+            "LP" => "Lightly Played",
+            "MP" => "Moderately Played",
+            "HP" => "Heavily Played",
+            "D" => "Damaged",
+            _ => "Near Mint"
         };
 
         // ── TCGPlayer CSV export ──────────────────────────────────────────────

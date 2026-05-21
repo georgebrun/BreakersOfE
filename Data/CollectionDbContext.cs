@@ -108,6 +108,8 @@ namespace BreakersOfE.Data
                 ("SchemeCollectionEntries",    "UsedCount",    "INTEGER NOT NULL DEFAULT 0"),
                 ("VanguardCollectionEntries",  "UsedCount",    "INTEGER NOT NULL DEFAULT 0"),
                 ("ArtSeriesCollectionEntries", "UsedCount",    "INTEGER NOT NULL DEFAULT 0"),
+                ("TradeBinderEntries",         "Notes",        "TEXT NOT NULL DEFAULT ''"),
+                ("WantListEntries",            "Notes",        "TEXT NOT NULL DEFAULT ''"),
             };
 
             foreach (var (table, col, def) in columns)

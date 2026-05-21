@@ -9,28 +9,46 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 
 namespace BreakersOfE.Windows
 {
+    // ── Pocket data — one per DB entry ──────────────────────────────────────
+    public class BinderPocket
+    {
+        public int EntryId { get; set; }
+        public bool IsWantList { get; set; }
+        public int PoolId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public bool IsFoil { get; set; }
+        public int Quantity { get; set; }
+        public string LocalImagePath { get; set; } = string.Empty;
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public decimal? Price { get; set; }   // AskingPrice / OfferPrice
+        public decimal? MarketPrice { get; set; }
+        public string Condition { get; set; } = string.Empty;
+
+        public string PriceDisplay =>
+            Price.HasValue ? $"${Price.Value:F2}"
+            : MarketPrice.HasValue ? $"~${MarketPrice.Value:F2}"
+            : string.Empty;
+    }
+
     public partial class BinderWindow : Window
     {
-        // ── Constants ─────────────────────────────────────────────────────────
-        private const int CardsPerPage = 9;   // 3x3
-        private const double PocketW = 100; // card pocket width
-        private const double PocketH = 140; // card pocket height
+        // ── Constants ────────────────────────────────────────────────────────
+        private const int CardsPerPage = 9;   // 3×3
 
-        // ── State ─────────────────────────────────────────────────────────────
-        private bool _showingHave = true;  // true = Have list, false = Want list
-        private int _currentPage = 0;     // 0-based
+        // ── State ────────────────────────────────────────────────────────────
+        private bool _showingHave = true;
+        private int _currentPage = 0;
 
-        // Loaded card data
-        private List<TradeBinderDisplayRow> _haveCards = new();
-        private List<WantListDisplayRow> _wantCards = new();
+        private List<BinderPocket> _haveCards = new();
+        private List<BinderPocket> _wantCards = new();
 
-        // ── Constructor ───────────────────────────────────────────────────────
+        // ── Constructor ──────────────────────────────────────────────────────
         public BinderWindow()
         {
             InitializeComponent();
@@ -38,14 +56,14 @@ namespace BreakersOfE.Windows
             RenderPage();
         }
 
-        // ── Data loading ──────────────────────────────────────────────────────
+        // ── Data loading ─────────────────────────────────────────────────────
         private void LoadData()
         {
             _haveCards = LoadHaveCards();
             _wantCards = LoadWantCards();
         }
 
-        private static List<TradeBinderDisplayRow> LoadHaveCards()
+        private static List<BinderPocket> LoadHaveCards()
         {
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
@@ -55,32 +73,38 @@ namespace BreakersOfE.Windows
             var cards = pdb.PoolCards.AsNoTracking()
                 .Where(c => ids.Contains(c.PoolId))
                 .ToList().ToDictionary(c => c.PoolId);
-            var rows = new List<TradeBinderDisplayRow>();
+
+            var pockets = new List<BinderPocket>();
             foreach (var e in entries)
             {
                 if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
-                for (int i = 0; i < e.Quantity; i++) // one pocket per copy
-                    rows.Add(new TradeBinderDisplayRow
-                    {
-                        EntryId = e.TradeBinderEntryId,
-                        PoolId = pc.PoolId,
-                        Name = pc.Name,
-                        SetCode = pc.SetCode,
-                        Rarity = pc.Rarity,
-                        Quantity = e.Quantity,
-                        IsFoil = e.IsFoil,
-                        Condition = e.Condition,
-                        AskingPrice = e.AskingPrice,
-                        MarketPrice = e.IsFoil ? pc.PriceUsdFoil : pc.PriceUsd,
-                        LocalImagePath = pc.LocalImagePath,
-                        ImageNormalUrl = pc.ImageNormalUrl,
-                    });
+                pockets.Add(new BinderPocket
+                {
+                    EntryId = e.TradeBinderEntryId,
+                    IsWantList = false,
+                    PoolId = pc.PoolId,
+                    Name = pc.Name,
+                    SetCode = pc.SetCode,
+                    IsFoil = e.IsFoil,
+                    Quantity = e.Quantity,
+                    LocalImagePath = pc.LocalImagePath,
+                    ImageNormalUrl = pc.ImageNormalUrl,
+                    Price = e.AskingPrice,
+                    MarketPrice = e.IsFoil ? pc.PriceUsdFoil : pc.PriceUsd,
+                    Condition = e.Condition
+                });
             }
-            rows.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
-            return rows;
+            // Sort: same card name groups together — foil after non-foil
+            pockets.Sort((a, b) =>
+            {
+                int n = string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+                if (n != 0) return n;
+                return a.IsFoil.CompareTo(b.IsFoil);
+            });
+            return pockets;
         }
 
-        private static List<WantListDisplayRow> LoadWantCards()
+        private static List<BinderPocket> LoadWantCards()
         {
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
@@ -90,55 +114,55 @@ namespace BreakersOfE.Windows
             var cards = pdb.PoolCards.AsNoTracking()
                 .Where(c => ids.Contains(c.PoolId))
                 .ToList().ToDictionary(c => c.PoolId);
-            var rows = new List<WantListDisplayRow>();
+
+            var pockets = new List<BinderPocket>();
             foreach (var e in entries)
             {
                 if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
-                for (int i = 0; i < e.Quantity; i++)
-                    rows.Add(new WantListDisplayRow
-                    {
-                        EntryId = e.WantListEntryId,
-                        PoolId = pc.PoolId,
-                        Name = pc.Name,
-                        SetCode = pc.SetCode,
-                        Rarity = pc.Rarity,
-                        Quantity = e.Quantity,
-                        IsFoil = e.IsFoil,
-                        OfferPrice = e.OfferPrice,
-                        MarketPrice = e.IsFoil ? pc.PriceUsdFoil : pc.PriceUsd,
-                        LocalImagePath = pc.LocalImagePath,
-                        ImageNormalUrl = pc.ImageNormalUrl,
-                    });
+                pockets.Add(new BinderPocket
+                {
+                    EntryId = e.WantListEntryId,
+                    IsWantList = true,
+                    PoolId = pc.PoolId,
+                    Name = pc.Name,
+                    SetCode = pc.SetCode,
+                    IsFoil = e.IsFoil,
+                    Quantity = e.Quantity,
+                    LocalImagePath = pc.LocalImagePath,
+                    ImageNormalUrl = pc.ImageNormalUrl,
+                    Price = e.OfferPrice,
+                    MarketPrice = e.IsFoil ? pc.PriceUsdFoil : pc.PriceUsd,
+                    Condition = string.Empty
+                });
             }
-            rows.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
-            return rows;
+            pockets.Sort((a, b) =>
+            {
+                int n = string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+                if (n != 0) return n;
+                return a.IsFoil.CompareTo(b.IsFoil);
+            });
+            return pockets;
         }
 
-        // ── Rendering ─────────────────────────────────────────────────────────
+        // ── Rendering ────────────────────────────────────────────────────────
         private void RenderPage()
         {
-            var cards = _showingHave
-                ? _haveCards.Cast<object>().ToList()
-                : _wantCards.Cast<object>().ToList();
+            var cards = _showingHave ? _haveCards : _wantCards;
 
             int total = cards.Count;
             int totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)CardsPerPage));
             _currentPage = Math.Clamp(_currentPage, 0, totalPages - 1);
 
-            // Update header info
             PageIndicatorText.Text = $"Page {_currentPage + 1} of {totalPages}";
             CardCountText.Text = $"{total} card{(total == 1 ? "" : "s")}";
 
-            // Nav button states
             BtnFirst.IsEnabled = _currentPage > 0;
             BtnPrev.IsEnabled = _currentPage > 0;
             BtnNext.IsEnabled = _currentPage < totalPages - 1;
 
-            // Get the 9 cards for this page
             int start = _currentPage * CardsPerPage;
             var pageCards = cards.Skip(start).Take(CardsPerPage).ToList();
 
-            // Clear and rebuild the 3x3 grid
             CardGrid.Children.Clear();
 
             for (int i = 0; i < CardsPerPage; i++)
@@ -150,29 +174,23 @@ namespace BreakersOfE.Windows
             }
         }
 
-        private UIElement MakePocket(object card)
+        // ── Pocket builder ───────────────────────────────────────────────────
+        private UIElement MakePocket(BinderPocket pocket)
         {
-            string name = card is TradeBinderDisplayRow tb ? tb.Name
-                               : card is WantListDisplayRow wl ? wl.Name : "";
-            string localPath = card is TradeBinderDisplayRow tb2 ? tb2.LocalImagePath
-                               : card is WantListDisplayRow wl2 ? wl2.LocalImagePath : "";
-            bool isFoil = card is TradeBinderDisplayRow tb3 && tb3.IsFoil
-                               || card is WantListDisplayRow wl3 && wl3.IsFoil;
-            string priceStr = card is TradeBinderDisplayRow tb4 ? tb4.PriceDisplay
-                               : card is WantListDisplayRow wl4 ? wl4.PriceDisplay : "";
-            string condition = card is TradeBinderDisplayRow tb5 ? tb5.Condition : "";
-
             var outer = new Border
             {
                 Margin = new Thickness(6),
                 Cursor = Cursors.Hand,
-                ToolTip = $"{name}{(isFoil ? " (Foil)" : "")}\n{priceStr}"
+                ToolTip = $"{pocket.Name}{(pocket.IsFoil ? " ✦ Foil" : "")}" +
+                          $"\n{pocket.SetCode}" +
+                          $"{(!string.IsNullOrEmpty(pocket.Condition) ? "\n" + pocket.Condition : "")}" +
+                          $"\n{pocket.PriceDisplay}"
             };
 
-            var grid = new Grid();
-            outer.Child = grid;
+            var stack = new StackPanel();
+            outer.Child = stack;
 
-            // Pocket sleeve background
+            // ── Sleeve (card image area) ─────────────────────────────────────
             var sleeve = new Border
             {
                 Background = new SolidColorBrush(Color.FromRgb(0xCC, 0xC8, 0xBC)),
@@ -181,13 +199,122 @@ namespace BreakersOfE.Windows
                 CornerRadius = new CornerRadius(4),
                 Padding = new Thickness(3)
             };
-            grid.Children.Add(sleeve);
+            stack.Children.Add(sleeve);
 
-            // Card image inside sleeve
-            var inner = new Grid();
-            sleeve.Child = inner;
+            // Canvas for image + badges
+            var canvas = new Canvas { Width = 94, Height = 131 };
+            sleeve.Child = canvas;
 
-            // Image or fallback
+            // Card image
+            UIElement cardImg = MakeCardImage(pocket.LocalImagePath, pocket.Name);
+            Canvas.SetLeft(cardImg, 0);
+            Canvas.SetTop(cardImg, 0);
+            canvas.Children.Add(cardImg);
+
+            // ── Foil badge — rainbow triangle top-right ──────────────────────
+            if (pocket.IsFoil)
+            {
+                var foilBadge = MakeFoilTriangle();
+                Canvas.SetRight(foilBadge, 0);
+                Canvas.SetTop(foilBadge, 0);
+                canvas.Children.Add(foilBadge);
+            }
+
+            // ── Qty badge — dark pill bottom-left ───────────────────────────
+            if (pocket.Quantity > 0)
+            {
+                var qtyBadge = MakeQtyBadge(pocket.Quantity);
+                Canvas.SetLeft(qtyBadge, 4);
+                Canvas.SetBottom(qtyBadge, 4);
+                canvas.Children.Add(qtyBadge);
+            }
+
+            // ── Card name ───────────────────────────────────────────────────
+            stack.Children.Add(new TextBlock
+            {
+                Text = pocket.Name,
+                FontSize = 9,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0x18, 0x10)),
+                Margin = new Thickness(0, 3, 0, 0),
+                MaxWidth = 94
+            });
+
+            // ── Price ────────────────────────────────────────────────────────
+            if (!string.IsNullOrEmpty(pocket.PriceDisplay))
+                stack.Children.Add(new TextBlock
+                {
+                    Text = pocket.PriceDisplay,
+                    FontSize = 8,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x66, 0x44)),
+                    Margin = new Thickness(0, 1, 0, 0)
+                });
+
+            // ── Mouse events ─────────────────────────────────────────────────
+            outer.MouseLeftButtonDown += (s, e) =>
+            {
+                if (e.ClickCount >= 2) ShowEnlarged(pocket);
+            };
+            outer.MouseRightButtonDown += (s, e) =>
+            {
+                ShowPocketContextMenu(pocket, outer);
+                e.Handled = true;
+            };
+
+            return outer;
+        }
+
+        // ── Foil rainbow triangle badge ──────────────────────────────────────
+        private static UIElement MakeFoilTriangle()
+        {
+            const double size = 22;
+            var poly = new Polygon
+            {
+                Points = new PointCollection
+                {
+                    new Point(0, 0),
+                    new Point(size, 0),
+                    new Point(size, size)
+                },
+                Fill = new LinearGradientBrush(
+                    new GradientStopCollection
+                    {
+                        new GradientStop(Color.FromRgb(0xFF, 0x00, 0x80), 0.0),  // pink
+                        new GradientStop(Color.FromRgb(0xFF, 0xA5, 0x00), 0.2),  // orange
+                        new GradientStop(Color.FromRgb(0xFF, 0xFF, 0x00), 0.4),  // yellow
+                        new GradientStop(Color.FromRgb(0x00, 0xDD, 0x44), 0.6),  // green
+                        new GradientStop(Color.FromRgb(0x00, 0xAA, 0xFF), 0.8),  // blue
+                        new GradientStop(Color.FromRgb(0xAA, 0x00, 0xFF), 1.0),  // purple
+                    },
+                    new Point(0, 0), new Point(1, 1)),
+                Opacity = 0.85
+            };
+            return poly;
+        }
+
+        // ── Qty pill badge ───────────────────────────────────────────────────
+        private static UIElement MakeQtyBadge(int qty)
+        {
+            return new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(200, 0x1A, 0x1A, 0x1A)),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(5, 2, 5, 2),
+                Child = new TextBlock
+                {
+                    Text = $"×{qty}",
+                    FontSize = 9,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF))
+                }
+            };
+        }
+
+        // ── Card image ───────────────────────────────────────────────────────
+        private static UIElement MakeCardImage(string localPath, string name)
+        {
             if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
             {
                 try
@@ -199,86 +326,21 @@ namespace BreakersOfE.Windows
                     bmp.DecodePixelWidth = 94;
                     bmp.EndInit();
                     bmp.Freeze();
-                    inner.Children.Add(new System.Windows.Controls.Image
+                    return new System.Windows.Controls.Image
                     {
                         Source = bmp,
                         Stretch = Stretch.Fill,
                         Width = 94,
                         Height = 131
-                    });
+                    };
                 }
-                catch { inner.Children.Add(MakeFallbackCard(name)); }
+                catch { }
             }
-            else
-            {
-                inner.Children.Add(MakeFallbackCard(name));
-            }
-
-            // Foil shimmer overlay
-            if (isFoil)
-            {
-                inner.Children.Add(new Border
-                {
-                    Width = 94,
-                    Height = 131,
-                    Background = new LinearGradientBrush(
-                        new GradientStopCollection
-                        {
-                            new GradientStop(Color.FromArgb(0, 0xFF, 0xD7, 0x00), 0.0),
-                            new GradientStop(Color.FromArgb(60, 0xFF, 0xD7, 0x00), 0.5),
-                            new GradientStop(Color.FromArgb(0, 0xFF, 0xD7, 0x00), 1.0),
-                        },
-                        new Point(0, 0), new Point(1, 1)),
-                    IsHitTestVisible = false
-                });
-            }
-
-            // Card name label below image
-            var nameLabel = new TextBlock
-            {
-                Text = name,
-                FontSize = 9,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0x18, 0x10)),
-                Margin = new Thickness(0, 2, 0, 0),
-                MaxWidth = 94
-            };
-
-            // Price label
-            var priceLabel = new TextBlock
-            {
-                Text = priceStr,
-                FontSize = 8,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x44, 0x66, 0x44)),
-                Margin = new Thickness(0, 1, 0, 0)
-            };
-
-            var pocketStack = new StackPanel();
-            pocketStack.Children.Add(sleeve);
-            pocketStack.Children.Add(nameLabel);
-            pocketStack.Children.Add(priceLabel);
-            outer.Child = pocketStack;
-
-            // Click to view enlarged
-            outer.MouseLeftButtonDown += (s, e) =>
-            {
-                if (e.ClickCount >= 2) ShowEnlarged(card);
-            };
-
-            outer.MouseRightButtonDown += (s, e) =>
-            {
-                ShowPocketContextMenu(card, outer);
-                e.Handled = true;
-            };
-
-            return outer;
+            return MakeFallbackCard(name);
         }
 
-        private static Border MakeFallbackCard(string name)
-        {
-            return new Border
+        private static Border MakeFallbackCard(string name) =>
+            new Border
             {
                 Width = 94,
                 Height = 131,
@@ -299,49 +361,42 @@ namespace BreakersOfE.Windows
                     Margin = new Thickness(4)
                 }
             };
-        }
 
-        private static UIElement MakeEmptyPocket()
-        {
-            return new Border
+        private static UIElement MakeEmptyPocket() =>
+            new Border
             {
                 Margin = new Thickness(6),
-                Width = 100,
-                Height = 158,
+                Width = 112,
+                Height = 165,
                 BorderBrush = new SolidColorBrush(Color.FromArgb(80, 0xAA, 0xA0, 0x90)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
                 Background = new SolidColorBrush(Color.FromArgb(40, 0xCC, 0xC8, 0xBC))
             };
-        }
 
-        // ── Context menu ──────────────────────────────────────────────────────
-        private void ShowPocketContextMenu(object card, FrameworkElement anchor)
+        // ── Context menu ─────────────────────────────────────────────────────
+        private void ShowPocketContextMenu(BinderPocket pocket, FrameworkElement anchor)
         {
             var menu = new ContextMenu();
 
-            string name = card is TradeBinderDisplayRow tb ? tb.Name
-                        : card is WantListDisplayRow wl ? wl.Name : "";
-
-            var view = new MenuItem { Header = $"🔍 View Card — {name}" };
-            view.Click += (s, e) => ShowEnlarged(card);
+            var view = new MenuItem { Header = $"🔍 View Card — {pocket.Name}" };
+            view.Click += (s, e) => ShowEnlarged(pocket);
             menu.Items.Add(view);
 
             menu.Items.Add(new Separator());
 
             var remove = new MenuItem
             {
-                Header = _showingHave ? "✕ Remove from Trade Binder"
-                                          : "✕ Remove from Want List",
+                Header = pocket.IsWantList ? "✕ Remove from Want List"
+                                               : "✕ Remove from Trade Binder",
                 Foreground = Brushes.IndianRed
             };
             remove.Click += (s, e) =>
             {
-                if (MessageBox.Show($"Remove '{name}'?", "Confirm",
+                if (MessageBox.Show($"Remove '{pocket.Name}'?", "Confirm",
                     MessageBoxButton.YesNo, MessageBoxImage.Question)
                     != MessageBoxResult.Yes) return;
-
-                RemoveEntry(card);
+                RemoveEntry(pocket);
             };
             menu.Items.Add(remove);
 
@@ -349,24 +404,13 @@ namespace BreakersOfE.Windows
             menu.IsOpen = true;
         }
 
-        private void RemoveEntry(object card)
+        private void RemoveEntry(BinderPocket pocket)
         {
             using var db = new CollectionDbContext();
-            if (card is TradeBinderDisplayRow tb)
-            {
-                var e = db.TradeBinderEntries.FirstOrDefault(
-                    x => x.TradeBinderEntryId == tb.EntryId);
-                if (e != null)
-                {
-                    if (e.Quantity > 1) e.Quantity--;
-                    else db.TradeBinderEntries.Remove(e);
-                    db.SaveChanges();
-                }
-            }
-            else if (card is WantListDisplayRow wl)
+            if (pocket.IsWantList)
             {
                 var e = db.WantListEntries.FirstOrDefault(
-                    x => x.WantListEntryId == wl.EntryId);
+                    x => x.WantListEntryId == pocket.EntryId);
                 if (e != null)
                 {
                     if (e.Quantity > 1) e.Quantity--;
@@ -374,38 +418,30 @@ namespace BreakersOfE.Windows
                     db.SaveChanges();
                 }
             }
+            else
+            {
+                var e = db.TradeBinderEntries.FirstOrDefault(
+                    x => x.TradeBinderEntryId == pocket.EntryId);
+                if (e != null)
+                {
+                    if (e.Quantity > 1) e.Quantity--;
+                    else db.TradeBinderEntries.Remove(e);
+                    db.SaveChanges();
+                }
+            }
             LoadData();
             RenderPage();
         }
 
-        // ── Enlarged card view ────────────────────────────────────────────────
-        private void ShowEnlarged(object card)
+        // ── Enlarged card view ───────────────────────────────────────────────
+        private void ShowEnlarged(BinderPocket pocket)
         {
-            string path = card is TradeBinderDisplayRow tb ? tb.LocalImagePath
-                        : card is WantListDisplayRow wl ? wl.LocalImagePath : "";
-            string name = card is TradeBinderDisplayRow tb2 ? tb2.Name
-                        : card is WantListDisplayRow wl2 ? wl2.Name : "";
-
-            ImageSource? src = null;
-            if (!string.IsNullOrEmpty(path) && File.Exists(path))
-            {
-                try
-                {
-                    var bmp = new BitmapImage();
-                    bmp.BeginInit();
-                    bmp.UriSource = new Uri(path, UriKind.Absolute);
-                    bmp.CacheOption = BitmapCacheOption.OnLoad;
-                    bmp.EndInit();
-                    src = bmp;
-                }
-                catch { }
-            }
-
-            var win = new CardImageWindow(src, name) { Owner = this };
+            var win = new BinderCardWindow(pocket) { Owner = this };
             win.ShowDialog();
         }
 
-        // ── Tab handlers ──────────────────────────────────────────────────────
+
+        // ── Tab handlers ─────────────────────────────────────────────────────
         private void BtnTabHave_Click(object sender, RoutedEventArgs e)
         {
             _showingHave = true;
@@ -428,7 +464,7 @@ namespace BreakersOfE.Windows
             RenderPage();
         }
 
-        // ── Navigation ────────────────────────────────────────────────────────
+        // ── Navigation ───────────────────────────────────────────────────────
         private void BtnFirst_Click(object sender, RoutedEventArgs e)
         { _currentPage = 0; RenderPage(); }
 
@@ -437,15 +473,13 @@ namespace BreakersOfE.Windows
 
         private void BtnNext_Click(object sender, RoutedEventArgs e)
         {
-            var cards = _showingHave
-                ? _haveCards.Cast<object>().ToList()
-                : _wantCards.Cast<object>().ToList();
+            var cards = _showingHave ? _haveCards : _wantCards;
             int totalPages = Math.Max(1,
                 (int)Math.Ceiling(cards.Count / (double)CardsPerPage));
             if (_currentPage < totalPages - 1) { _currentPage++; RenderPage(); }
         }
 
-        // ── Keyboard navigation ───────────────────────────────────────────────
+        // ── Keyboard navigation ──────────────────────────────────────────────
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);
