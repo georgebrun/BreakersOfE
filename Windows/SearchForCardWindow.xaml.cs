@@ -58,6 +58,13 @@ namespace BreakersOfE.Windows
             Close();
         }
 
+        private void CardNameCombo_KeyDown(object sender,
+            System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Enter)
+                BtnOK_Click(sender, new RoutedEventArgs());
+        }
+
         public static List<string> GetHistory() => _history;
     }
 }

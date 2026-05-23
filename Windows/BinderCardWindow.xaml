@@ -67,6 +67,10 @@
                        Margin="0,4,0,0"
                        Visibility="Collapsed"/>
 
+            <TextBlock Text="Images provided by Scryfall"
+                               FontSize="9" Foreground="Gray"
+                               HorizontalAlignment="Center"
+                               Margin="0,8,0,2"/>
         </StackPanel>
     </Border>
 </Window>

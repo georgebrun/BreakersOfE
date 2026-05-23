@@ -130,7 +130,7 @@ namespace BreakersOfE.Windows
             {
                 Title = "Select file to import",
                 Filter = isDeck
-                    ? "MTG Studio Deck (*.deck)|*.deck|All files (*.*)|*.*"
+                    ? "All Supported Deck Formats|*.deck;*.csv|MTG Studio Deck (*.deck)|*.deck|CSV files (*.csv)|*.csv|All files (*.*)|*.*"
                     : "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
                 InitialDirectory = AppFolderService.ImportsFolder
             };

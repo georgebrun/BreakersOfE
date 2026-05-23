@@ -83,5 +83,6 @@
                     IsEnabled="False"
                     Click="BtnKeep_Click"/>
         </Grid>
+        <TextBlock Text="Images provided by Scryfall" FontSize="9" Foreground="Gray" HorizontalAlignment="Center" Margin="0,2,0,4"/>
     </Grid>
 </Window>

@@ -864,6 +864,79 @@ namespace BreakersOfE.Windows
             }
 
             // Cards always display upright regardless of which side
+            // Wrap in Canvas to add foil/commander badges without affecting layout
+            if (!faceDown && (card.IsFoil || card.IsCommander))
+            {
+                var canvas = new Canvas
+                {
+                    Width = CardW,
+                    Height = CardH
+                };
+                Canvas.SetLeft(border, 0);
+                Canvas.SetTop(border, 0);
+                canvas.Children.Add(border);
+
+                // Foil rainbow triangle — top right
+                if (card.IsFoil)
+                {
+                    const double ts = 14;
+                    var poly = new System.Windows.Shapes.Polygon
+                    {
+                        Points = new PointCollection
+                        {
+                            new Point(0, 0),
+                            new Point(ts, 0),
+                            new Point(ts, ts)
+                        },
+                        Fill = new LinearGradientBrush(
+                            new GradientStopCollection
+                            {
+                                new GradientStop(Color.FromRgb(0xFF, 0x00, 0x80), 0.0),
+                                new GradientStop(Color.FromRgb(0xFF, 0xA5, 0x00), 0.2),
+                                new GradientStop(Color.FromRgb(0xFF, 0xFF, 0x00), 0.4),
+                                new GradientStop(Color.FromRgb(0x00, 0xDD, 0x44), 0.6),
+                                new GradientStop(Color.FromRgb(0x00, 0xAA, 0xFF), 0.8),
+                                new GradientStop(Color.FromRgb(0xAA, 0x00, 0xFF), 1.0),
+                            },
+                            new Point(0, 0), new Point(1, 1)),
+                        Opacity = 0.9,
+                        IsHitTestVisible = false
+                    };
+                    Canvas.SetRight(poly, 0);
+                    Canvas.SetTop(poly, 0);
+                    canvas.Children.Add(poly);
+                }
+
+                // Commander star — bottom left
+                if (card.IsCommander)
+                {
+                    var star = new Border
+                    {
+                        Background = new SolidColorBrush(Color.FromArgb(200, 0x22, 0x11, 0x00)),
+                        CornerRadius = new CornerRadius(3),
+                        Padding = new Thickness(2, 1, 2, 1),
+                        IsHitTestVisible = false,
+                        Child = new TextBlock
+                        {
+                            Text = "⭐",
+                            FontSize = 8,
+                            Foreground = Brushes.Gold
+                        }
+                    };
+                    Canvas.SetLeft(star, 2);
+                    Canvas.SetBottom(star, 2);
+                    canvas.Children.Add(star);
+                }
+
+                var wrapper = new Border
+                {
+                    Width = CardW,
+                    Height = CardH,
+                    Child = canvas
+                };
+                return wrapper;
+            }
+
             return border;
         }
 

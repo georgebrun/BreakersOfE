@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 
 namespace BreakersOfE.Windows
 {
@@ -377,25 +378,97 @@ namespace BreakersOfE.Windows
             ApplyFilter();
         }
 
-        private void ResultsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-            => UpdateActionButtons();
-
-        private void ResultsGrid_DoubleClick(object sender, MouseButtonEventArgs e)
+        private async void ResultsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            UpdateActionButtons();
             if (ResultsGrid.SelectedItem is not PoolCard pc) return;
-            var win = new CardImageWindow(null, pc.Name) { Owner = this };
-            // Load image if available
+
+            DetailName.Text = pc.Name;
+            DetailType.Text = pc.TypeLine;
+            DetailSet.Text = $"{pc.SetCode} — {pc.SetName}";
+            DetailOracle.Text = pc.OracleText;
+            DetailPT.Text = string.IsNullOrEmpty(pc.Power) ? string.Empty
+                                : $"{pc.Power} / {pc.Toughness}";
+            DetailPrices.Text = pc.PriceUsd.HasValue
+                                ? $"${pc.PriceUsd:F2}" + (pc.PriceUsdFoil.HasValue
+                                    ? $"  Foil: ${pc.PriceUsdFoil:F2}" : string.Empty)
+                                : string.Empty;
+
+            // Mana cost as plain text
+            DetailManaCostPanel.Children.Clear();
+            if (!string.IsNullOrEmpty(pc.ManaCost))
+                DetailManaCostPanel.Children.Add(new TextBlock
+                {
+                    Text = pc.ManaCost,
+                    FontSize = 12
+                });
+
+            // Load image — local first, URL fallback
+            BitmapImage? bmp = null;
             if (!string.IsNullOrEmpty(pc.LocalImagePath) &&
                 System.IO.File.Exists(pc.LocalImagePath))
             {
-                var bmp = new System.Windows.Media.Imaging.BitmapImage();
-                bmp.BeginInit();
-                bmp.UriSource = new Uri(pc.LocalImagePath, UriKind.Absolute);
-                bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                bmp.EndInit();
-                win = new CardImageWindow(bmp, pc.Name) { Owner = this };
+                try
+                {
+                    bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.UriSource = new Uri(pc.LocalImagePath, UriKind.Absolute);
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.EndInit();
+                    bmp.Freeze();
+                }
+                catch { bmp = null; }
             }
-            win.ShowDialog();
+
+            if (bmp == null && !string.IsNullOrEmpty(pc.ImageNormalUrl))
+            {
+                try
+                {
+                    using var http = new System.Net.Http.HttpClient();
+                    using var cts = new System.Threading.CancellationTokenSource(
+                        TimeSpan.FromSeconds(8));
+                    var bytes = await http.GetByteArrayAsync(pc.ImageNormalUrl, cts.Token);
+                    bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.StreamSource = new System.IO.MemoryStream(bytes);
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.EndInit();
+                    bmp.Freeze();
+                }
+                catch { bmp = null; }
+            }
+
+            if (bmp != null)
+            {
+                CardImage.Source = bmp;
+            }
+            else
+            {
+                string fallback = System.IO.Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    "Resources", "Images", "image_unavailable.png");
+                if (System.IO.File.Exists(fallback))
+                {
+                    try
+                    {
+                        var fb = new BitmapImage();
+                        fb.BeginInit();
+                        fb.UriSource = new Uri(fallback, UriKind.Absolute);
+                        fb.CacheOption = BitmapCacheOption.OnLoad;
+                        fb.EndInit();
+                        fb.Freeze();
+                        CardImage.Source = fb;
+                    }
+                    catch { CardImage.Source = null; }
+                }
+                else
+                    CardImage.Source = null;
+            }
+        }
+
+        private void ResultsGrid_DoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            // Double-click same as single click — already handled by SelectionChanged
         }
 
         private void UpdateActionButtons()

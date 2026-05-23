@@ -1666,6 +1666,8 @@ namespace BreakersOfE
             setCommander.Click += DeckCtxSetCommander_Click;
             var removeCommander = new MenuItem { Header = "Remove as Commander" };
             removeCommander.Click += DeckCtxRemoveCommander_Click;
+            var toggleType = new MenuItem();
+            toggleType.Click += DeckCtxToggleDeckType_Click;
             ctx.Items.Add(removeOne);
             ctx.Items.Add(removeAll);
             ctx.Items.Add(new Separator());
@@ -1674,6 +1676,8 @@ namespace BreakersOfE
             ctx.Items.Add(new Separator());
             ctx.Items.Add(setCommander);
             ctx.Items.Add(removeCommander);
+            ctx.Items.Add(new Separator());
+            ctx.Items.Add(toggleType);
 
             // Only show commander options for Commander decks
             ctx.Opened += (s, e) =>
@@ -1689,6 +1693,10 @@ namespace BreakersOfE
                     setCommander.IsEnabled = sel != null && !sel.IsCommander && !sel.IsFooter;
                     removeCommander.IsEnabled = sel != null && sel.IsCommander;
                 }
+                // Update toggle label based on current type
+                toggleType.Header = isCommander
+                    ? "🔄 Switch to Standard Deck"
+                    : "🔄 Switch to Commander Deck";
             };
             BottomDataGrid.ContextMenu = ctx;
 
@@ -1941,6 +1949,63 @@ namespace BreakersOfE
                 AutoSaveDeck(_activeDeck!);
                 if (_currentMode == "CollectionToDeck") LoadTopTable_CollectionForDeck();
             }
+        }
+
+        private void DeckCtxToggleDeckType_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeDeck == null) return;
+
+            bool isCurrentlyCommander = _activeDeck.DeckType == DeckType.Commander;
+
+            if (isCurrentlyCommander)
+            {
+                // Switch to Standard — warn if over 4 copies of any non-land card
+                var violations = _activeDeck.Cards
+                    .Where(c => !c.TypeLine.Contains("Land", StringComparison.OrdinalIgnoreCase)
+                        && c.TotalQuantity > 4)
+                    .Select(c => $"{c.Name} ({c.TotalQuantity} copies)")
+                    .ToList();
+
+                string msg = "Switch this deck to Standard format?";
+                if (violations.Any())
+                    msg += $"\n\n⚠ These cards exceed the 4-copy limit:\n  • " +
+                           string.Join("\n  • ", violations);
+
+                if (MessageBox.Show(msg, "Switch to Standard",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question)
+                    != MessageBoxResult.Yes) return;
+
+                _activeDeck.DeckType = DeckType.Standard;
+                // Clear commander flags
+                foreach (var c in _activeDeck.Cards)
+                    if (c.IsCommander) { c.IsCommander = false; c.Category = DeckCardCategory.Mainboard; }
+            }
+            else
+            {
+                // Switch to Commander — validate 100 cards, 1 copy each
+                int total = _activeDeck.Cards.Sum(c => c.TotalQuantity);
+                var overOneCopy = _activeDeck.Cards
+                    .Where(c => !c.TypeLine.Contains("Land", StringComparison.OrdinalIgnoreCase)
+                        && c.TotalQuantity > 1)
+                    .Select(c => $"{c.Name} ({c.TotalQuantity} copies)")
+                    .ToList();
+
+                string msg = $"Switch this deck to Commander format?\n\nCurrent card count: {total} (Commander requires 100)";
+                if (overOneCopy.Any())
+                    msg += $"\n\n⚠ These non-land cards have more than 1 copy:\n  • " +
+                           string.Join("\n  • ", overOneCopy);
+
+                if (MessageBox.Show(msg, "Switch to Commander",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question)
+                    != MessageBoxResult.Yes) return;
+
+                _activeDeck.DeckType = DeckType.Commander;
+            }
+
+            _activeDeck.IsModified = true;
+            RefreshActiveDeckGrid();
+            UpdateBottomTableLabel();
+            AutoSaveDeck(_activeDeck);
         }
 
         private void DeckCtxSetCommander_Click(object sender, RoutedEventArgs e)
@@ -6414,7 +6479,7 @@ namespace BreakersOfE
         }
 
         // Shows pool card detail by looking it up from cache by PoolId
-        private void ShowPoolCardDetailById(int poolId)
+        internal void ShowPoolCardDetailById(int poolId)
         {
             var pc = _poolCache?.FirstOrDefault(c => c.PoolId == poolId);
             if (pc != null) ShowPoolCardDetail(pc);
@@ -6649,7 +6714,7 @@ namespace BreakersOfE
         private string _currentBackUrl = string.Empty;
         private bool _showingBackFace = false;
 
-        private async Task LoadCardImageAsync(string localPath, string remoteUrl,
+        internal async Task LoadCardImageAsync(string localPath, string remoteUrl,
             string backLocalPath = "", string backUrl = "")
         {
             // Reset flip state
@@ -6747,10 +6812,19 @@ namespace BreakersOfE
         {
             try
             {
-                CardImage.Source = new BitmapImage(new Uri(
-                    "pack://application:,,,/BreakersOfE;component/" +
-                    "Resources/Images/image_unavailable.png",
-                    UriKind.Absolute));
+                string fallback = ImageUnavailablePath;
+                if (File.Exists(fallback))
+                {
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.UriSource = new Uri(fallback, UriKind.Absolute);
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    CardImage.Source = bmp;
+                }
+                else
+                    CardImage.Source = null;
             }
             catch { CardImage.Source = null; }
         }

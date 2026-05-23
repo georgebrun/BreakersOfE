@@ -271,5 +271,13 @@
 
         <!-- Right spine (mirror of left, no rings) -->
         <Border Grid.Column="2" Background="{DynamicResource SpineBrush}"/>
+
+        <!-- Scryfall credit -->
+        <TextBlock Grid.Column="0" Grid.ColumnSpan="3"
+                   Text="Images provided by Scryfall"
+                   FontSize="9" Foreground="Gray"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Bottom"
+                   Margin="0,0,0,4"/>
     </Grid>
 </Window>

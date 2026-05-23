@@ -547,7 +547,8 @@ namespace BreakersOfE.Services
                     if (match == null)
                     {
                         result.CardsNotFound++;
-                        result.Warnings.Add($"Not found: {name} [{edition}]");
+                        // Debug: show what we tried to match
+                        result.Warnings.Add($"Not found: '{name}' [{edition}] (matchName='{matchName}')");
                         continue;
                     }
 
@@ -1189,20 +1190,39 @@ namespace BreakersOfE.Services
             var cardElements = new List<XElement>();
 
             foreach (var c in deck.Cards.Where(c => c.Category != DeckCardCategory.Sideboard))
+            {
+                // Non-foil copies
                 for (int i = 0; i < c.Quantity; i++)
                     cardElements.Add(new XElement("card",
                         new XAttribute("deck", "1"),
                         new XAttribute("sb", "0"),
                         new XAttribute("edition", c.SetCode),
                         c.Name));
+                // Foil copies — MTG Studio XML has no foil attribute
+                // so foil cards are written as regular entries
+                for (int i = 0; i < c.FoilQuantity; i++)
+                    cardElements.Add(new XElement("card",
+                        new XAttribute("deck", "1"),
+                        new XAttribute("sb", "0"),
+                        new XAttribute("edition", c.SetCode),
+                        c.Name));
+            }
 
             foreach (var c in deck.Cards.Where(c => c.Category == DeckCardCategory.Sideboard))
+            {
                 for (int i = 0; i < c.Quantity; i++)
                     cardElements.Add(new XElement("card",
                         new XAttribute("deck", "0"),
                         new XAttribute("sb", "1"),
                         new XAttribute("edition", c.SetCode),
                         c.Name));
+                for (int i = 0; i < c.FoilQuantity; i++)
+                    cardElements.Add(new XElement("card",
+                        new XAttribute("deck", "0"),
+                        new XAttribute("sb", "1"),
+                        new XAttribute("edition", c.SetCode),
+                        c.Name));
+            }
 
             var xml = new XDocument(
                 new XDeclaration("1.0", "UTF-8", "yes"),

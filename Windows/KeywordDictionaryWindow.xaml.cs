@@ -17,9 +17,7 @@ namespace BreakersOfE.Windows
             var results = string.IsNullOrWhiteSpace(query)
                 ? MtgKeywordService.All
                 : MtgKeywordService.Search(query);
-            var list = results
-                .OrderBy(k => k.Name)
-                .ToList();
+            var list = results.OrderBy(k => k.Name).ToList();
             DictGrid.ItemsSource = list;
             CountText.Text = $"{list.Count} keyword{(list.Count == 1 ? "" : "s")}";
         }

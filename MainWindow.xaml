@@ -429,6 +429,10 @@
                         <TextBlock Name="DetailPrices"     Style="{DynamicResource DetailValueStyle}" FontSize="12"/>
                         <TextBlock Text="FORMAT LEGALITY"  Style="{DynamicResource DetailLabelStyle}"/>
                         <StackPanel Name="DetailLegalityPanel" Margin="0,2,0,0"/>
+                        <TextBlock Text="Images provided by Scryfall"
+                                   FontSize="9" Foreground="Gray"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,12,0,4"/>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
