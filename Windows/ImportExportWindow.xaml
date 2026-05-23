@@ -1,7 +1,7 @@
 ﻿<Window x:Class="BreakersOfE.Windows.ImportExportWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Import / Export"
+        Title="Import / Export — Breakers of E"
         Width="660" Height="720"
         MinWidth="580" MinHeight="600"
         WindowStartupLocation="CenterOwner"
@@ -101,7 +101,6 @@
                             <TextBox Grid.Column="0" Name="TxtImportPath"
                                      Height="28" Padding="6,0"
                                      VerticalContentAlignment="Center"
-                                     IsReadOnly="True"
                                      Text="(no file selected — click Browse)"/>
                             <Button Grid.Column="1" Content="Browse…"
                                     Margin="6,0,0,0" Padding="12,4" Height="28"
@@ -181,8 +180,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBox Grid.Column="0" Name="TxtExportPath"
                                      Height="28" Padding="6,0"
-                                     VerticalContentAlignment="Center"
-                                     IsReadOnly="True"/>
+                                     VerticalContentAlignment="Center"/>
                             <Button Grid.Column="1" Content="Browse…"
                                     Margin="6,0,0,0" Padding="12,4" Height="28"
                                     Click="BtnBrowseExport_Click"/>
@@ -213,14 +211,26 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="8"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Name="StatusText"
                        VerticalAlignment="Center" FontSize="11" Foreground="Gray"/>
-            <Button Grid.Column="1" Name="BtnAction"
+            <Button Grid.Column="1" Content="📋 Copy Log"
+                    Width="110" Height="34" FontSize="12"
+                    ToolTip="Copy the log to clipboard"
+                    Click="BtnCopyLog_Click"/>
+            <Button Grid.Column="3" Content="💾 Save Log"
+                    Width="110" Height="34" FontSize="12"
+                    ToolTip="Save the log to a text file"
+                    Click="BtnSaveLog_Click"/>
+            <Button Grid.Column="5" Name="BtnAction"
                     Content="⬇  Import"
                     Width="130" Height="34" FontSize="13" FontWeight="SemiBold"
                     Click="BtnAction_Click"/>
-            <Button Grid.Column="3" Content="Close"
+            <Button Grid.Column="7" Content="Close"
                     Width="90" Height="34" FontSize="13"
                     IsCancel="True" Click="BtnClose_Click"/>
         </Grid>

@@ -2458,12 +2458,30 @@ namespace BreakersOfE
 
             LoadRecentDecks();
 
-            // Close splash screen — minimum display time enforced inside CloseWhenReady
+            // Close splash screen
             if (App.Splash != null)
             {
                 App.Splash.SetStatus("Ready!", 100);
                 _ = App.Splash.CloseWhenReady();
                 App.Splash = null;
+            }
+
+            // First-run database download requested by installer
+            if (App.FirstRunDownloadRequested)
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    var result = MessageBox.Show(
+                        "Welcome to Breakers of E!\n\n" +
+                        "Would you like to download the card database now?\n\n" +
+                        "This downloads ~98,000 cards from Scryfall and is required " +
+                        "before you can use the app. It may take a few minutes.",
+                        "Download Card Database",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    if (result == MessageBoxResult.Yes)
+                        MenuUpdateDatabase_Click(this, new RoutedEventArgs());
+                }), System.Windows.Threading.DispatcherPriority.Background);
             }
 
             // Dispatcher at Render priority ensures the grid has laid out
@@ -4202,7 +4220,7 @@ namespace BreakersOfE
             bool canFoil = false;
             bool canNonFoil = false;
 
-            if (hasTopSel)
+            if (hasTopSel && TopDataGrid?.SelectedItem != null)
             {
                 if (TopDataGrid.SelectedItem is PoolCard pc)
                 { canFoil = pc.IsFoil; canNonFoil = pc.IsNonFoil; }
@@ -5840,16 +5858,6 @@ namespace BreakersOfE
             RefreshBottom();
         }
 
-        private void RemoveFromTradeBinder(TradeBinderDisplayRow row)
-        {
-            using var db = new Data.CollectionDbContext();
-            var e = db.TradeBinderEntries
-                .FirstOrDefault(x => x.TradeBinderEntryId == row.EntryId);
-            if (e == null) return;
-            db.TradeBinderEntries.Remove(e);
-            db.SaveChanges();
-            RefreshBottom();
-        }
 
         // ── Want List operations ──────────────────────────────────────────────
         private void AddToWantList(PoolCard pc, bool foil, int qty)
@@ -5871,16 +5879,6 @@ namespace BreakersOfE
             RefreshBottom();
         }
 
-        private void RemoveFromWantList(WantListDisplayRow row)
-        {
-            using var db = new Data.CollectionDbContext();
-            var e = db.WantListEntries
-                .FirstOrDefault(x => x.WantListEntryId == row.EntryId);
-            if (e == null) return;
-            db.WantListEntries.Remove(e);
-            db.SaveChanges();
-            RefreshBottom();
-        }
 
         private void RemoveFromCollection(
             CollectionDisplayRow row, int qty, bool all, bool foil = false)

@@ -246,14 +246,6 @@
                 <MenuItem Header="_Preferences"      Click="MenuPreferences_Click"/>
                 <Separator/>
                 <MenuItem Header="E_xit"             Click="MenuExit_Click"/>
-                <Separator/>
-                <!-- Tools -->
-                <MenuItem Header="🂠 _Tabletop Simulator" Name="MenuTabletop"
-                          Click="MenuTabletop_Click"/>
-                <MenuItem Header="📒 _Trade Binder" Name="MenuTradeBinder"
-                          Click="MenuTradeBinder_Click"/>
-                <MenuItem Header="🔍 _Keyword Search" Name="MenuKeywordSearch"
-                          Click="MenuKeywordSearch_Click"/>
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="_Theme">
@@ -273,7 +265,12 @@
                           Click="MenuCombineDuplicates_Click"
                           ToolTip="Merge multiple rows of the same card into one, adding quantities together"/>
                 <Separator/>
-                <MenuItem Header="_Settings"                  Click="MenuSettings_Click"/>
+                <MenuItem Header="🂠 _Tabletop Simulator" Name="MenuTabletop"
+                          Click="MenuTabletop_Click"/>
+                <MenuItem Header="📒 _Trade Binder"       Name="MenuTradeBinder"
+                          Click="MenuTradeBinder_Click"/>
+                <MenuItem Header="🔍 _Keyword Search"     Name="MenuKeywordSearch"
+                          Click="MenuKeywordSearch_Click"/>
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="❓ _Help..." Click="MenuHelp_Click"/>

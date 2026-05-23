@@ -1,7 +1,7 @@
 ﻿<Window x:Class="BreakersOfE.Windows.UpdateDatabaseWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Update Card Database"
+        Title="Update Card Database — Breakers of E"
         Width="520" Height="420"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"

@@ -1,7 +1,7 @@
 ﻿<Window x:Class="BreakersOfE.Windows.SearchForCardWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Search for Card"
+        Title="Search for Card — Breakers of E"
         Width="420" Height="320"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"

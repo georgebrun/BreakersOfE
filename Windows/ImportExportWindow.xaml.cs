@@ -359,6 +359,30 @@ namespace BreakersOfE.Windows
             LogBox.ScrollToEnd();
         }
 
+        private void BtnCopyLog_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(LogBox.Text)) return;
+            Clipboard.SetText(LogBox.Text);
+            StatusText.Text = "✅ Log copied to clipboard.";
+        }
+
+        private void BtnSaveLog_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(LogBox.Text)) return;
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Save import/export log",
+                Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
+                FileName = $"BreakersOfE_Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt",
+                InitialDirectory = AppFolderService.ExportsFolder
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                System.IO.File.WriteAllText(dlg.FileName, LogBox.Text);
+                StatusText.Text = $"✅ Log saved to {System.IO.Path.GetFileName(dlg.FileName)}";
+            }
+        }
+
         private void BtnClose_Click(object sender, RoutedEventArgs e)
             => Close();
     }

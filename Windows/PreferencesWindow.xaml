@@ -1,7 +1,7 @@
 ﻿<Window x:Class="BreakersOfE.Windows.PreferencesWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Preferences"
+        Title="Preferences — Breakers of E"
         Width="520" Height="760"
         MinWidth="460" MinHeight="680"
         WindowStartupLocation="CenterOwner"

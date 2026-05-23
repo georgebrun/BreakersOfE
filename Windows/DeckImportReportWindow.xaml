@@ -1,7 +1,7 @@
 ﻿<Window x:Class="BreakersOfE.Windows.DeckImportReportWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Import Report"
+        Title="Import Report — Breakers of E"
         Width="860" Height="520"
         MinWidth="600" MinHeight="360"
         WindowStartupLocation="CenterOwner"
