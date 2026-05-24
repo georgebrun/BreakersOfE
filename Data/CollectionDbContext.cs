@@ -31,11 +31,18 @@ namespace BreakersOfE.Data
                 .HasIndex(e => e.PoolId);
         }
 
-        public void EnsureCreated() => Database.EnsureCreated();
+        public void EnsureCreated()
+        {
+            // Only create if the file doesn't exist — never overwrite existing data
+            if (!System.IO.File.Exists(AppFolderService.CollectionDatabasePath))
+                Database.EnsureCreated();
+        }
 
         public void MigrateSchema()
         {
-            Database.EnsureCreated();
+            // Only create if the file doesn't exist — never overwrite existing data
+            if (!System.IO.File.Exists(AppFolderService.CollectionDatabasePath))
+                Database.EnsureCreated();
 
             // Create ConspiracyCollectionEntries table if it doesn't exist
             try

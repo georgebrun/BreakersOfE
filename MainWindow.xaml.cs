@@ -2466,7 +2466,8 @@ namespace BreakersOfE
                 App.Splash = null;
             }
 
-            // First-run database download requested by installer
+            // Check for updates silently in background
+            _ = CheckForUpdatesAsync();
             if (App.FirstRunDownloadRequested)
             {
                 Dispatcher.BeginInvoke(new Action(() =>
@@ -6987,6 +6988,54 @@ namespace BreakersOfE
 
         private void MenuExit_Click(object sender, RoutedEventArgs e) =>
             Application.Current.Shutdown();
+
+        private async Task CheckForUpdatesAsync()
+        {
+            try
+            {
+                var current = System.Reflection.Assembly
+                    .GetExecutingAssembly().GetName().Version;
+                if (current == null) return;
+
+                using var http = new System.Net.Http.HttpClient();
+                http.DefaultRequestHeaders.Add("User-Agent", "BreakersOfE");
+                http.Timeout = TimeSpan.FromSeconds(5);
+
+                var json = await http.GetStringAsync(
+                    "https://api.github.com/repos/georgebrun/BreakersOfE/releases/latest");
+
+                var doc = System.Text.Json.JsonDocument.Parse(json);
+                string tag = doc.RootElement
+                    .GetProperty("tag_name").GetString() ?? string.Empty;
+
+                string versionStr = tag.TrimStart('v');
+                if (!Version.TryParse(versionStr, out var latest)) return;
+
+                if (latest > new Version(current.Major, current.Minor, current.Build))
+                {
+                    string url = doc.RootElement
+                        .GetProperty("html_url").GetString() ?? string.Empty;
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        var result = MessageBox.Show(
+                            $"A new version of Breakers of E is available!\n\n" +
+                            $"Current:  {current.Major}.{current.Minor}.{current.Build}\n" +
+                            $"New:      {versionStr}\n\n" +
+                            "Would you like to open the download page?",
+                            "Update Available",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Information);
+
+                        if (result == MessageBoxResult.Yes && !string.IsNullOrEmpty(url))
+                            System.Diagnostics.Process.Start(
+                                new System.Diagnostics.ProcessStartInfo(url)
+                                { UseShellExecute = true });
+                    });
+                }
+            }
+            catch { /* Silent fail — no internet or GitHub API unavailable */ }
+        }
 
         private void MenuPreferences_Click(object sender, RoutedEventArgs e)
         {
