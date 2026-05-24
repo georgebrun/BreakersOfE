@@ -273,13 +273,15 @@
                           Click="MenuKeywordSearch_Click"/>
             </MenuItem>
             <MenuItem Header="_Help">
-                <MenuItem Header="❓ _Help..." Click="MenuHelp_Click"/>
+                <MenuItem Header="❓ _Help..."              Click="MenuHelp_Click"/>
                 <Separator/>
-                <MenuItem Header="📖 _Keyword Dictionary" Click="MenuKeywordDictionary_Click"/>
+                <MenuItem Header="📖 _Keyword Dictionary"  Click="MenuKeywordDictionary_Click"/>
                 <Separator/>
-                <MenuItem Header="🎬 Show _Splash Screen" Click="MenuShowSplash_Click"/>
+                <MenuItem Header="🔄 Check for _Updates"   Click="MenuCheckForUpdates_Click"/>
                 <Separator/>
-                <MenuItem Header="_About" Click="MenuAbout_Click"/>
+                <MenuItem Header="🎬 Show _Splash Screen"  Click="MenuShowSplash_Click"/>
+                <Separator/>
+                <MenuItem Header="_About"                   Click="MenuAbout_Click"/>
             </MenuItem>
         </Menu>
 

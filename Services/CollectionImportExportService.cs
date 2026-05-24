@@ -719,6 +719,7 @@ namespace BreakersOfE.Services
                     var entry = new CollectionEntry
                     {
                         PoolId = pc.PoolId,
+                        ScryfallId = pc.ScryfallId,
                         Quantity = row.IsFoil ? 0 : row.Quantity,
                         FoilQuantity = row.IsFoil ? row.Quantity : 0,
                         Condition = row.Condition,

@@ -5601,10 +5601,18 @@ namespace BreakersOfE
                 // No = fall through to add as new row
             }
 
-            // Add as new row
+            // Add as new row — look up ScryfallId for stable remapping after pool rebuilds
+            string scryfallId = string.Empty;
+            using (var pdbLookup = new Data.AppDbContext())
+                scryfallId = pdbLookup.PoolCards
+                    .Where(p => p.PoolId == poolId)
+                    .Select(p => p.ScryfallId)
+                    .FirstOrDefault() ?? string.Empty;
+
             db.CollectionEntries.Add(new CollectionEntry
             {
                 PoolId = poolId,
+                ScryfallId = scryfallId,
                 Quantity = foil ? 0 : qty,
                 FoilQuantity = foil ? qty : 0,
                 Condition = "Near Mint",
@@ -6989,6 +6997,66 @@ namespace BreakersOfE
         private void MenuExit_Click(object sender, RoutedEventArgs e) =>
             Application.Current.Shutdown();
 
+        private async void MenuCheckForUpdates_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var current = System.Reflection.Assembly
+                    .GetExecutingAssembly().GetName().Version;
+                if (current == null) return;
+
+                using var http = new System.Net.Http.HttpClient();
+                http.DefaultRequestHeaders.Add("User-Agent", "BreakersOfE");
+                http.Timeout = TimeSpan.FromSeconds(5);
+
+                var json = await http.GetStringAsync(
+                    "https://api.github.com/repos/georgebrun/BreakersOfE/releases/latest");
+
+                var doc = System.Text.Json.JsonDocument.Parse(json);
+                string tag = doc.RootElement
+                    .GetProperty("tag_name").GetString() ?? string.Empty;
+
+                string versionStr = tag.TrimStart('v');
+                if (!Version.TryParse(versionStr, out var latest)) return;
+
+                if (latest > new Version(current.Major, current.Minor, current.Build))
+                {
+                    string url = doc.RootElement
+                        .GetProperty("html_url").GetString() ?? string.Empty;
+
+                    var result = MessageBox.Show(
+                        $"A new version is available!\n\n" +
+                        $"Current:  {current.Major}.{current.Minor}.{current.Build}\n" +
+                        $"New:      {versionStr}\n\n" +
+                        "Would you like to open the download page?",
+                        "Update Available",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Information);
+
+                    if (result == MessageBoxResult.Yes && !string.IsNullOrEmpty(url))
+                        System.Diagnostics.Process.Start(
+                            new System.Diagnostics.ProcessStartInfo(url)
+                            { UseShellExecute = true });
+                }
+                else
+                {
+                    MessageBox.Show(
+                        $"You are running the latest version ({current.Major}.{current.Minor}.{current.Build}).",
+                        "Up to Date",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+            }
+            catch
+            {
+                MessageBox.Show(
+                    "Could not check for updates. Please check your internet connection.",
+                    "Update Check Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
+
         private async Task CheckForUpdatesAsync()
         {
             try
@@ -7073,8 +7141,74 @@ namespace BreakersOfE
             { Owner = this };
             if (win.ShowDialog() == true)
             {
-                LoadCaches();      // ← refresh cache after update
+                // Remap collection PoolIds — they change after a full pool rebuild
+                RemapCollectionPoolIds();
+                LoadCaches();
                 LoadCurrentMode();
+            }
+        }
+
+        /// <summary>
+        /// After a full pool rebuild, PoolId auto-increment values change.
+        /// This remaps all collection entries to the new PoolIds using ScryfallId
+        /// stored in the pool as the stable key.
+        /// </summary>
+        private void RemapCollectionPoolIds()
+        {
+            try
+            {
+                using var pdb = new AppDbContext();
+                using var cdb = new Data.CollectionDbContext();
+
+                // Build ScryfallId → new PoolId lookup from fresh pool
+                var scryfallToPool = pdb.PoolCards.AsNoTracking()
+                    .Select(c => new { c.ScryfallId, c.PoolId })
+                    .ToDictionary(c => c.ScryfallId, c => c.PoolId);
+
+                if (scryfallToPool.Count == 0) return;
+
+                var validPoolIds = scryfallToPool.Values.ToHashSet();
+                var entries = cdb.CollectionEntries.ToList();
+                var broken = entries.Where(e => !validPoolIds.Contains(e.PoolId)).ToList();
+
+                if (broken.Count == 0) return;
+
+                int fixed_ = 0;
+                int lost = 0;
+
+                foreach (var entry in broken)
+                {
+                    if (!string.IsNullOrEmpty(entry.ScryfallId) &&
+                        scryfallToPool.TryGetValue(entry.ScryfallId, out int newPoolId))
+                    {
+                        entry.PoolId = newPoolId;
+                        fixed_++;
+                    }
+                    else
+                    {
+                        // No ScryfallId stored — can't remap, remove orphan
+                        cdb.CollectionEntries.Remove(entry);
+                        lost++;
+                    }
+                }
+
+                cdb.SaveChanges();
+
+                if (lost > 0)
+                    MessageBox.Show(
+                        $"Collection update: {fixed_} entries remapped successfully.\n" +
+                        $"{lost} entries could not be matched and were removed.\n\n" +
+                        $"Re-import your collection from a backup to restore missing entries.",
+                        "Collection Remapped",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                else if (fixed_ > 0)
+                    System.Diagnostics.Debug.WriteLine(
+                        $"RemapCollectionPoolIds: {fixed_} entries remapped successfully.");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"RemapCollectionPoolIds error: {ex.Message}");
             }
         }
 

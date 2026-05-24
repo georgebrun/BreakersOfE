@@ -110,6 +110,7 @@ namespace BreakersOfE.Data
                 ("CollectionEntries",          "FoilQuantity", "INTEGER NOT NULL DEFAULT 0"),
                 ("CollectionEntries",          "UsedCount",    "INTEGER NOT NULL DEFAULT 0"),
                 ("CollectionEntries",          "Condition",    "TEXT NOT NULL DEFAULT 'NM'"),
+                ("CollectionEntries",          "ScryfallId",   "TEXT NOT NULL DEFAULT ''"),
                 ("TokenCollectionEntries",     "UsedCount",    "INTEGER NOT NULL DEFAULT 0"),
                 ("PlanarCollectionEntries",    "UsedCount",    "INTEGER NOT NULL DEFAULT 0"),
                 ("SchemeCollectionEntries",    "UsedCount",    "INTEGER NOT NULL DEFAULT 0"),

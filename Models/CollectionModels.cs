@@ -9,6 +9,7 @@ namespace BreakersOfE.Models
         [Key]
         public int CollectionEntryId { get; set; }
         public int PoolId { get; set; }
+        public string ScryfallId { get; set; } = string.Empty;  // stable key for remapping after pool rebuilds
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
