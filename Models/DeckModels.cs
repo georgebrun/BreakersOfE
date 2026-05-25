@@ -102,6 +102,7 @@ namespace BreakersOfE.Models
         // ── Deck-specific ─────────────────────────────────────────────────────
         public int Quantity { get; set; } = 0;
         public int FoilQuantity { get; set; } = 0;
+        public string FoilBadge => FoilQuantity > 0 ? "★" : string.Empty;
         public DeckCardCategory Category { get; set; } =
             DeckCardCategory.Mainboard;
         public bool IsCommander { get; set; } = false;

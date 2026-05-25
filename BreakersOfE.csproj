@@ -9,9 +9,11 @@
     <AssemblyVersion>1.0.2.0</AssemblyVersion>
     <FileVersion>1.0.2.0</FileVersion>
     <Version>1.0.2</Version>
+    <ApplicationIcon>Resources\Images\BreakersOfE.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Resources\Images\BreakersOfE.ico" />
     <None Remove="Resources\Images\SplashScreen.jpg" />
   </ItemGroup>
 
@@ -28,6 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Resources\Images\BreakersOfE.ico" />
     <Resource Include="Resources\Images\image_unavailable.png" />
 	<Resource Include="Resources\Images\MTG_Back.png" />
 	<Resource Include="Resources\Images\SplashScreen.jpg" />  

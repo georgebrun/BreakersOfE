@@ -85,10 +85,6 @@ namespace BreakersOfE.Services
         public static Brush GetBackground(bool isFoil, int rowIndex)
         {
             bool dark = ThemeService.CurrentTheme == AppTheme.Dark;
-
-            if (isFoil)
-                return BuildFoilBrush(dark);
-
             bool isEven = rowIndex % 2 == 0;
 
             if (dark)

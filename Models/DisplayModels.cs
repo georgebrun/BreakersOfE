@@ -60,6 +60,7 @@ namespace BreakersOfE.Models
         public string LocalImageBackPath { get; set; } = string.Empty;
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
+        public string FoilBadge => FoilQuantity > 0 ? "★" : string.Empty;
         public int UsedCount { get; set; }
         public string Condition { get; set; } = "Unknown";
         public string Language { get; set; } = string.Empty;
@@ -191,7 +192,7 @@ namespace BreakersOfE.Models
             }
         }
 
-        public string FavoriteGlyph => IsFavorite ? "★" : string.Empty;
+        public string FavoriteGlyph => IsFavorite ? "F*" : string.Empty;
 
         public string SetSymbolPath
         {
@@ -234,20 +235,6 @@ namespace BreakersOfE.Models
             $"Cards: {TotalCards:N0}   " +
             $"Foils: {TotalFoils:N0}   " +
             $"Total Value: ${TotalValue:F2}";
-    }
-
-    // ── Dashboard stats ───────────────────────────────────────────────────────
-    public class DashboardStats
-    {
-        public int PoolCount { get; set; }
-        public int TokenCount { get; set; }
-        public int PlanarCount { get; set; }
-        public int SchemeCount { get; set; }
-        public int VanguardCount { get; set; }
-        public int ArtSeriesCount { get; set; }
-        public int CollectionCount { get; set; }
-        public int TradeBinderCount { get; set; }
-        public int DeckCount { get; set; }
     }
 
     // ── Deck usage row ────────────────────────────────────────────────────────
@@ -298,36 +285,6 @@ namespace BreakersOfE.Models
         public string Col1 { get; set; } = string.Empty;
         public string Col2 { get; set; } = string.Empty;
         public string Col3 { get; set; } = string.Empty;
-    }
-
-    // ── Trade Binder display row (Have list) ──────────────────────────────────
-    public class TradeBinderDisplayRow
-    {
-        public int EntryId { get; set; }
-        public int PoolId { get; set; }
-        public int RowIndex { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string SetCode { get; set; } = string.Empty;
-        public string SetName { get; set; } = string.Empty;
-        public string CollectorNumber { get; set; } = string.Empty;
-        public string TypeLine { get; set; } = string.Empty;
-        public string ManaCost { get; set; } = string.Empty;
-        public double ManaValue { get; set; }
-        public string ColorIdentity { get; set; } = string.Empty;
-        public string Rarity { get; set; } = string.Empty;
-        public int Quantity { get; set; }
-        public bool IsFoil { get; set; }
-        public string Condition { get; set; } = string.Empty;
-        public decimal? AskingPrice { get; set; }
-        public decimal? MarketPrice { get; set; } // from pool (PriceUsd or PriceUsdFoil)
-        public string LocalImagePath { get; set; } = string.Empty;
-        public string ImageNormalUrl { get; set; } = string.Empty;
-        public DateTime DateAdded { get; set; }
-
-        public string PriceDisplay =>
-            AskingPrice.HasValue
-                ? $"${AskingPrice:F2}"
-                : MarketPrice.HasValue ? $"${MarketPrice:F2} (mkt)" : "—";
     }
 
     // ── Want List display row ─────────────────────────────────────────────────

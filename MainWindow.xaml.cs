@@ -14,6 +14,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace BreakersOfE
@@ -52,7 +53,7 @@ namespace BreakersOfE
         private const string ColVisPrefix = "ColVis_";
         private const string ColOrderPrefix = "ColOrder_";
         private const string ColLayoutVersion = "ColLayoutVer";
-        private const string CurrentColLayoutVersion = "2"; // bump to force resize
+        private const string CurrentColLayoutVersion = "4"; // bump to force resize
         private const string RecentDecksKey = "RecentDecks";
         private const int MaxRecentDecks = 8;
 
@@ -2449,7 +2450,7 @@ namespace BreakersOfE
             if (GetSetting(ColLayoutVersion) != CurrentColLayoutVersion)
             {
                 var keys = GetAllSettingKeys()
-                    .Where(k => k.StartsWith(ColOrderPrefix))
+                    .Where(k => k.StartsWith(ColOrderPrefix) || k.StartsWith(ColVisPrefix))
                     .ToList();
                 foreach (var k in keys)
                     DeleteSetting(k);
@@ -2932,6 +2933,7 @@ namespace BreakersOfE
 
         private void LoadBottomTable_ConspiracyCollection()
         {
+            EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
             var entries = cdb.ConspiracyCollectionEntries.AsNoTracking().ToList();
@@ -3205,10 +3207,37 @@ namespace BreakersOfE
 
         private void EnsureCollectionColumns(DataGrid grid)
         {
-            // If already in collection mode, do nothing
+            // If already in collection mode, check if F* badge column needs adding
             if (grid.Columns.Any(c =>
                 c.SortMemberPath?.StartsWith(CollectionColumnMarker) == true))
+            {
+                if (!grid.Columns.Any(c => c.Header?.ToString() == "Foil"))
+                {
+                    var badge = new DataGridTextColumn
+                    {
+                        Header = "Foil",
+                        SortMemberPath = CollectionColumnMarker + "FoilBadge",
+                        Binding = new System.Windows.Data.Binding("FoilBadge"),
+                        Width = new DataGridLength(30),
+                        IsReadOnly = true
+                    };
+                    var style = new Style(typeof(TextBlock));
+                    style.Setters.Add(new Setter(TextBlock.ForegroundProperty,
+                        new SolidColorBrush(Color.FromRgb(0xFF, 0xC0, 0x00))));
+                    style.Setters.Add(new Setter(TextBlock.FontWeightProperty,
+                        FontWeights.Bold));
+                    style.Setters.Add(new Setter(TextBlock.HorizontalAlignmentProperty,
+                        HorizontalAlignment.Center));
+                    badge.ElementStyle = style;
+                    grid.Columns.Add(badge);
+                    // Place before Name column
+                    var nameCol = grid.Columns.FirstOrDefault(
+                        c => c.Header?.ToString() == "Name");
+                    if (nameCol != null)
+                        badge.DisplayIndex = Math.Max(0, nameCol.DisplayIndex);
+                }
                 return;
+            }
 
             // Save existing pool columns to restore later
             _savedPoolColumns.Clear();
@@ -3226,6 +3255,17 @@ namespace BreakersOfE
                     Width = new DataGridLength(width),
                     IsReadOnly = readOnly
                 };
+                // Style the foil badge column gold
+                if (header == "Foil")
+                {
+                    var style = new Style(typeof(TextBlock));
+                    style.Setters.Add(new Setter(TextBlock.ForegroundProperty,
+                        new SolidColorBrush(Color.FromRgb(0xFF, 0xC0, 0x00))));
+                    style.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.Bold));
+                    style.Setters.Add(new Setter(TextBlock.HorizontalAlignmentProperty,
+                        HorizontalAlignment.Center));
+                    col.ElementStyle = style;
+                }
                 return col;
             }
 
@@ -3281,6 +3321,7 @@ namespace BreakersOfE
             grid.Columns.Add(esCol);
 
             // ── Text columns in exact order ───────────────────────────────
+            grid.Columns.Add(MakeText("Foil", "FoilBadge", 30, true));
             grid.Columns.Add(MakeText("Name", "Name", 200, true));
             grid.Columns.Add(MakeText("Edition", "SetCode", 55, true));
             grid.Columns.Add(MakeText("Qty", "Quantity", 45));
@@ -3291,7 +3332,9 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Sell At", "SellAtDisplay", 70));
             grid.Columns.Add(MakeText("Sell At Value", "SellAtValueDisplay", 90, true));
             grid.Columns.Add(MakeText("Price High", "PriceHighDisplay", 80, true));
-            grid.Columns.Add(MakeText("Market Value", "MarketValueDisplay", 90, true));
+            grid.Columns.Add(MakeText("Price Total", "MarketValueDisplay", 90, true));
+            grid.Columns.Add(MakeText("Foil Value", "FoilValueDisplay", 80, true));
+            grid.Columns.Add(MakeText("Total Value", "TotalValueDisplay", 80, true));
             grid.Columns.Add(MakeText("Needed", "Needed", 60));
             grid.Columns.Add(MakeText("Excess", "Excess", 60));
             grid.Columns.Add(MakeText("Target", "Target", 60));
@@ -3359,6 +3402,16 @@ namespace BreakersOfE
                     Width = new DataGridLength(width),
                     IsReadOnly = readOnly
                 };
+                if (header == "★")
+                {
+                    var style = new Style(typeof(TextBlock));
+                    style.Setters.Add(new Setter(TextBlock.ForegroundProperty,
+                        new SolidColorBrush(Color.FromRgb(0xFF, 0xC0, 0x00))));
+                    style.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.Bold));
+                    style.Setters.Add(new Setter(TextBlock.HorizontalAlignmentProperty,
+                        HorizontalAlignment.Center));
+                    col.ElementStyle = style;
+                }
                 return col;
             }
 
@@ -3394,10 +3447,12 @@ namespace BreakersOfE
             });
             grid.Columns.Add(MakeText("SB", "SideboardDisplay", 35));
             grid.Columns.Add(MakeText("Edition", "SetCode", 55));
+            grid.Columns.Add(MakeText("★", "FoilBadge", 30, readOnly: false));
             grid.Columns.Add(MakeText("Non-Foil", "Quantity", 60, readOnly: false));
             grid.Columns.Add(MakeText("Foil", "FoilQuantity", 50, readOnly: false));
             grid.Columns.Add(MakeText("Total", "TotalQuantity", 50));
             grid.Columns.Add(MakeText("USD", "ValueDisplay", 70));
+            grid.Columns.Add(MakeText("Foil USD", "FoilValueDisplay", 70));
             grid.Columns.Add(MakeText("Color", "ColorDisplay", 50));
             grid.Columns.Add(MakeText("Type", "TypeLine", 160));
             grid.Columns.Add(MakeText("Rarity", "RarityCode", 50));
@@ -3438,6 +3493,7 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void LoadBottomTable_Collection()
         {
+            EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new Data.CollectionDbContext();
             using var pdb = new AppDbContext();
             var rows = BuildCollectionRows(cdb, pdb);
@@ -3471,6 +3527,7 @@ namespace BreakersOfE
 
         private void LoadBottomTable_PlanechaseCollection()
         {
+            EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
             var entries = cdb.PlanarCollectionEntries.AsNoTracking().ToList();
@@ -3531,6 +3588,7 @@ namespace BreakersOfE
 
         private void LoadBottomTable_ArchenemyCollection()
         {
+            EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
             var entries = cdb.SchemeCollectionEntries.AsNoTracking().ToList();
@@ -3590,6 +3648,7 @@ namespace BreakersOfE
 
         private void LoadBottomTable_VanguardCollection()
         {
+            EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
             var entries = cdb.VanguardCollectionEntries.AsNoTracking().ToList();
@@ -3650,6 +3709,7 @@ namespace BreakersOfE
 
         private void LoadBottomTable_TokenCollection()
         {
+            EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
             var entries = cdb.TokenCollectionEntries.AsNoTracking().ToList();
@@ -3709,6 +3769,7 @@ namespace BreakersOfE
 
         private void LoadBottomTable_ArtSeriesCollection()
         {
+            EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
             using var pdb = new AppDbContext();
             var entries = cdb.ArtSeriesCollectionEntries.AsNoTracking().ToList();
@@ -4024,6 +4085,8 @@ namespace BreakersOfE
                 var visJson = GetSetting(ColVisPrefix + tableKey);
                 var orderJson = GetSetting(ColOrderPrefix + tableKey);
 
+                // If saved layout exists, check it has all current columns
+                // If any column is missing from saved layout, clear and rebuild fresh
                 if (!string.IsNullOrEmpty(visJson))
                 {
                     try
@@ -4031,6 +4094,20 @@ namespace BreakersOfE
                         var vis = System.Text.Json.JsonSerializer
                             .Deserialize<Dictionary<string, bool>>(visJson);
                         if (vis != null)
+                        {
+                            bool anyMissing = grid.Columns.Any(col =>
+                            {
+                                string hdr = col.Header?.ToString() ?? string.Empty;
+                                return !string.IsNullOrEmpty(hdr) && !vis.ContainsKey(hdr);
+                            });
+                            if (anyMissing)
+                            {
+                                // New columns added — clear saved layout and start fresh
+                                SaveSetting(ColVisPrefix + tableKey, string.Empty);
+                                SaveSetting(ColOrderPrefix + tableKey, string.Empty);
+                                return;
+                            }
+                            // Apply saved visibility
                             foreach (var col in grid.Columns)
                             {
                                 string hdr = col.Header?.ToString() ?? string.Empty;
@@ -4039,6 +4116,7 @@ namespace BreakersOfE
                                         ? Visibility.Visible
                                         : Visibility.Collapsed;
                             }
+                        }
                     }
                     catch { }
                 }
@@ -4106,8 +4184,23 @@ namespace BreakersOfE
 
         private void WireColumnLayoutSave(DataGrid grid, string tableKey)
         {
+            bool _syncingDisplayIndex = false;
             grid.ColumnDisplayIndexChanged += (s, e) =>
+            {
                 SaveColumnLayout(grid, tableKey);
+                if (_syncingDisplayIndex) return;
+                DataGrid? summary = grid == TopDataGrid ? TopSummaryGrid
+                                  : grid == BottomDataGrid ? BottomSummaryGrid
+                                  : null;
+                if (summary == null) return;
+                _syncingDisplayIndex = true;
+                try
+                {
+                    for (int i = 0; i < grid.Columns.Count && i < summary.Columns.Count; i++)
+                        summary.Columns[i].DisplayIndex = grid.Columns[i].DisplayIndex;
+                }
+                finally { _syncingDisplayIndex = false; }
+            };
         }
 
         private void ShowColumnChooser(DataGrid grid, string tableKey,
@@ -7264,15 +7357,28 @@ namespace BreakersOfE
                 .FromProperty(DataGridColumn.ActualWidthProperty,
                     typeof(DataGridColumn));
 
+            var visDescriptor = System.ComponentModel.DependencyPropertyDescriptor
+                .FromProperty(DataGridColumn.VisibilityProperty,
+                    typeof(DataGridColumn));
+
             for (int i = 0; i < src.Columns.Count; i++)
             {
                 int idx = i; // capture for closure
                 var srcCol = src.Columns[i];
+
+                // Sync width
                 descriptor.AddValueChanged(srcCol, (s, e) =>
                 {
                     if (idx < summary.Columns.Count)
                         summary.Columns[idx].Width =
                             new DataGridLength(srcCol.ActualWidth);
+                });
+
+                // Sync visibility
+                visDescriptor.AddValueChanged(srcCol, (s, e) =>
+                {
+                    if (idx < summary.Columns.Count)
+                        summary.Columns[idx].Visibility = srcCol.Visibility;
                 });
             }
         }
@@ -7319,7 +7425,7 @@ namespace BreakersOfE
                 { "Available",    "Available" },
                 { "Value",        "TotalValue" },
                 { "Total Value",  "TotalValue" },
-                { "Market Value", "MarketValue" },
+                { "Price Total", "MarketValue" },
                 { "Market...",    "MarketValue" },
                 { "Buy At",       "BuyAt" },
                 { "Sell At",      "SellAt" },

@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Breakers of E"
+        Icon="pack://application:,,,/BreakersOfE;component/Resources/Images/BreakersOfE.ico"
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
         KeyDown="MainWindow_KeyDown"
@@ -624,6 +625,8 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Name"         Binding="{Binding Name}"            Width="200"/>
+                                <DataGridTextColumn Header="Foil"         Binding="{Binding IsFoil}"          Width="40"/>
+                                <DataGridTextColumn Header="Non-Foil"     Binding="{Binding IsNonFoil}"       Width="60"/>
                                 <DataGridTextColumn Header="Edition"      Binding="{Binding SetCode}"         Width="55"/>
                                 <DataGridTextColumn Header="Edition Name" Binding="{Binding SetName}"         Width="160"/>
                                 <DataGridTextColumn Header="Color"        Binding="{Binding ColorDisplay}"    Width="50"/>
@@ -848,7 +851,9 @@
                                 <DataGridTextColumn Header="Sell At"       Binding="{Binding SellAtDisplay}"            Width="70"/>
                                 <DataGridTextColumn Header="Sell At Value" Binding="{Binding SellAtValueDisplay}"       Width="90"/>
                                 <DataGridTextColumn Header="Price High"    Binding="{Binding PriceHighDisplay}"         Width="80"/>
-                                <DataGridTextColumn Header="Market Value"  Binding="{Binding MarketValueDisplay}"       Width="90"/>
+                                <DataGridTextColumn Header="Price Total"  Binding="{Binding MarketValueDisplay}"       Width="90"/>
+                                <DataGridTextColumn Header="Foil Value"    Binding="{Binding FoilValueDisplay}"         Width="80" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Total Value"   Binding="{Binding TotalValueDisplay}"        Width="80" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Needed"        Binding="{Binding Needed}"            Width="60"/>
                                 <DataGridTextColumn Header="Excess"        Binding="{Binding Excess}"            Width="60"/>
                                 <DataGridTextColumn Header="Target"        Binding="{Binding Target}"            Width="60"/>
