@@ -77,7 +77,7 @@ namespace BreakersOfE.Models
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            CardColorService.GetBackground(IsFoil, RowIndex);
+            CardColorService.GetBackground(IsFoil, RowIndex, TableType.Pool);
 
         [NotMapped]
         public Brush CellBorderBrush =>
@@ -152,7 +152,7 @@ namespace BreakersOfE.Models
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            CardColorService.GetBackground(IsFoil, RowIndex);
+            CardColorService.GetBackground(IsFoil, RowIndex, TableType.Pool);
 
         [NotMapped]
         public Brush CellBorderBrush =>
@@ -229,7 +229,7 @@ namespace BreakersOfE.Models
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            CardColorService.GetBackground(IsFoil, RowIndex);
+            CardColorService.GetBackground(IsFoil, RowIndex, TableType.Pool);
 
         [NotMapped]
         public Brush CellBorderBrush =>
@@ -304,7 +304,7 @@ namespace BreakersOfE.Models
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            CardColorService.GetBackground(IsFoil, RowIndex);
+            CardColorService.GetBackground(IsFoil, RowIndex, TableType.Pool);
 
         [NotMapped]
         public Brush CellBorderBrush =>
@@ -352,7 +352,7 @@ namespace BreakersOfE.Models
 
         [NotMapped]
         public Brush RowBackgroundBrush =>
-            CardColorService.GetBackground(IsFoil, RowIndex);
+            CardColorService.GetBackground(IsFoil, RowIndex, TableType.Pool);
 
         [NotMapped]
         public Brush CellBorderBrush =>

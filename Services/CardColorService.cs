@@ -2,6 +2,8 @@
 
 namespace BreakersOfE.Services
 {
+    public enum TableType { Pool, Collection, Deck }
+
     public static class CardColorService
     {
         // ════════════════════════════════════════════════════════════════════
@@ -82,23 +84,42 @@ namespace BreakersOfE.Services
         // ════════════════════════════════════════════════════════════════════
         // BACKGROUND — alternating rows + foil shimmer
         // ════════════════════════════════════════════════════════════════════
-        public static Brush GetBackground(bool isFoil, int rowIndex)
+        public static Brush GetBackground(bool isFoil, int rowIndex,
+            TableType tableType = TableType.Collection)
         {
             bool dark = ThemeService.CurrentTheme == AppTheme.Dark;
             bool isEven = rowIndex % 2 == 0;
 
             if (dark)
-                return isEven
-                    ? new SolidColorBrush(
-                        Color.FromRgb(0x1E, 0x1E, 0x1E))
-                    : new SolidColorBrush(
-                        Color.FromRgb(0x25, 0x25, 0x26));
+            {
+                return tableType switch
+                {
+                    TableType.Pool => isEven
+                        ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1A, 0x1A))  // faded red dark
+                        : new SolidColorBrush(Color.FromRgb(0x25, 0x1F, 0x1F)),
+                    TableType.Deck => isEven
+                        ? new SolidColorBrush(Color.FromRgb(0x1A, 0x1E, 0x1A))  // faded green dark
+                        : new SolidColorBrush(Color.FromRgb(0x1F, 0x25, 0x1F)),
+                    _ => isEven
+                        ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E))
+                        : new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
+                };
+            }
             else
-                return isEven
-                    ? new SolidColorBrush(
-                        Color.FromRgb(0xFF, 0xFF, 0xFF))
-                    : new SolidColorBrush(
-                        Color.FromRgb(0xEE, 0xF2, 0xF7));
+            {
+                return tableType switch
+                {
+                    TableType.Pool => isEven
+                        ? new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF))
+                        : new SolidColorBrush(Color.FromRgb(0xFF, 0xED, 0xED)),  // faded red light
+                    TableType.Deck => isEven
+                        ? new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF))
+                        : new SolidColorBrush(Color.FromRgb(0xED, 0xFF, 0xED)),  // faded green light
+                    _ => isEven
+                        ? new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF))
+                        : new SolidColorBrush(Color.FromRgb(0xEE, 0xF2, 0xF7)),
+                };
+            }
         }
 
         // ════════════════════════════════════════════════════════════════════

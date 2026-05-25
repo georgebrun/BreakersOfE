@@ -160,6 +160,12 @@ namespace BreakersOfE.Models
                 : "—";
 
         [JsonIgnore]
+        public decimal ValueSort => PriceUsd.HasValue ? PriceUsd.Value * Quantity : 0m;
+
+        [JsonIgnore]
+        public decimal FoilValueSort => PriceUsdFoil.HasValue ? PriceUsdFoil.Value * FoilQuantity : 0m;
+
+        [JsonIgnore]
         public string SetSymbolPath
         {
             get
@@ -262,7 +268,8 @@ namespace BreakersOfE.Models
                 : IsCommander
                     ? new System.Windows.Media.SolidColorBrush(
                         System.Windows.Media.Color.FromRgb(0x00, 0x78, 0xD4))
-                    : Services.CardColorService.GetBackground(false, 0);
+                    : Services.CardColorService.GetBackground(false, RowIndex,
+                        Services.TableType.Deck);
 
         [JsonIgnore]
         public System.Windows.Media.Brush CellBorderBrush =>

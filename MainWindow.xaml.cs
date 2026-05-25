@@ -3216,7 +3216,7 @@ namespace BreakersOfE
                     var badge = new DataGridTextColumn
                     {
                         Header = "Foil",
-                        SortMemberPath = CollectionColumnMarker + "FoilBadge",
+                        SortMemberPath = "FoilBadge",
                         Binding = new System.Windows.Data.Binding("FoilBadge"),
                         Width = new DataGridLength(30),
                         IsReadOnly = true
@@ -3245,12 +3245,12 @@ namespace BreakersOfE
             grid.Columns.Clear();
 
             DataGridColumn MakeText(string header, string binding,
-                double width, bool readOnly = false)
+                double width, bool readOnly = false, string? sortBinding = null)
             {
                 var col = new DataGridTextColumn
                 {
                     Header = header,
-                    SortMemberPath = CollectionColumnMarker + binding,
+                    SortMemberPath = sortBinding ?? binding,
                     Binding = new System.Windows.Data.Binding(binding),
                     Width = new DataGridLength(width),
                     IsReadOnly = readOnly
@@ -3328,13 +3328,13 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Foil Qty", "FoilQuantity", 60));
             grid.Columns.Add(MakeText("Used", "UsedCount", 50, true));
             grid.Columns.Add(MakeText("Available", "AvailableCount", 70, true));
-            grid.Columns.Add(MakeText("Buy At", "BuyAtDisplay", 70));
-            grid.Columns.Add(MakeText("Sell At", "SellAtDisplay", 70));
-            grid.Columns.Add(MakeText("Sell At Value", "SellAtValueDisplay", 90, true));
-            grid.Columns.Add(MakeText("Price High", "PriceHighDisplay", 80, true));
-            grid.Columns.Add(MakeText("Price Total", "MarketValueDisplay", 90, true));
-            grid.Columns.Add(MakeText("Foil Value", "FoilValueDisplay", 80, true));
-            grid.Columns.Add(MakeText("Total Value", "TotalValueDisplay", 80, true));
+            grid.Columns.Add(MakeText("Buy At", "BuyAtDisplay", 70, sortBinding: "BuyAtSort"));
+            grid.Columns.Add(MakeText("Sell At", "SellAtDisplay", 70, sortBinding: "SellAtSort"));
+            grid.Columns.Add(MakeText("Sell At Value", "SellAtValueDisplay", 90, true, sortBinding: "SellAtValueSort"));
+            grid.Columns.Add(MakeText("Price High", "PriceHighDisplay", 80, true, sortBinding: "PriceHighSort"));
+            grid.Columns.Add(MakeText("Price Total", "MarketValueDisplay", 90, true, sortBinding: "MarketValueSort"));
+            grid.Columns.Add(MakeText("Foil Value", "FoilValueDisplay", 80, true, sortBinding: "FoilValue"));
+            grid.Columns.Add(MakeText("Total Value", "TotalValueDisplay", 80, true, sortBinding: "TotalValue"));
             grid.Columns.Add(MakeText("Needed", "Needed", 60));
             grid.Columns.Add(MakeText("Excess", "Excess", 60));
             grid.Columns.Add(MakeText("Target", "Target", 60));
@@ -3347,8 +3347,8 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Buy", "BuyStatus", 90));
             grid.Columns.Add(MakeText("Sell", "SellStatus", 90));
             grid.Columns.Add(MakeText("Added", "DateAdded", 130, true));
-            grid.Columns.Add(MakeText("Market Price", "PriceUsdDisplay", 90, true));
-            grid.Columns.Add(MakeText("Price Low", "PriceLowDisplay", 80, true));
+            grid.Columns.Add(MakeText("Market Price", "PriceUsdDisplay", 90, true, sortBinding: "PriceUsdSort"));
+            grid.Columns.Add(MakeText("Price Low", "PriceLowDisplay", 80, true, sortBinding: "PriceLowSort"));
             grid.Columns.Add(MakeText("Color", "ColorDisplay", 50, true));
             grid.Columns.Add(MakeText("Type", "TypeLine", 160, true));
             grid.Columns.Add(MakeText("Rarity", "RarityCode", 50, true));
@@ -3392,12 +3392,12 @@ namespace BreakersOfE
             grid.Columns.Clear();
 
             DataGridColumn MakeText(string header, string binding,
-                double width, bool readOnly = true)
+                double width, bool readOnly = true, string? sortBinding = null)
             {
                 var col = new DataGridTextColumn
                 {
                     Header = header,
-                    SortMemberPath = DeckColumnMarker + binding,
+                    SortMemberPath = sortBinding ?? binding,
                     Binding = new System.Windows.Data.Binding(binding),
                     Width = new DataGridLength(width),
                     IsReadOnly = readOnly
@@ -3451,8 +3451,8 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Non-Foil", "Quantity", 60, readOnly: false));
             grid.Columns.Add(MakeText("Foil", "FoilQuantity", 50, readOnly: false));
             grid.Columns.Add(MakeText("Total", "TotalQuantity", 50));
-            grid.Columns.Add(MakeText("USD", "ValueDisplay", 70));
-            grid.Columns.Add(MakeText("Foil USD", "FoilValueDisplay", 70));
+            grid.Columns.Add(MakeText("USD", "ValueDisplay", 70, sortBinding: "ValueSort"));
+            grid.Columns.Add(MakeText("Foil USD", "FoilValueDisplay", 70, sortBinding: "FoilValueSort"));
             grid.Columns.Add(MakeText("Color", "ColorDisplay", 50));
             grid.Columns.Add(MakeText("Type", "TypeLine", 160));
             grid.Columns.Add(MakeText("Rarity", "RarityCode", 50));

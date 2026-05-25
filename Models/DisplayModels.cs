@@ -37,6 +37,7 @@ namespace BreakersOfE.Models
         public List<DeckUsageRow> DeckUsageRows { get; set; } = new();
         public int CollectionEntryId { get; set; }
         public int PoolId { get; set; }
+        public Services.TableType RowTableType { get; set; } = Services.TableType.Collection;
         public string Name { get; set; } = string.Empty;
         public string SetCode { get; set; } = string.Empty;
         public string SetName { get; set; } = string.Empty;
@@ -75,6 +76,15 @@ namespace BreakersOfE.Models
         public decimal? PriceHigh { get; set; }
         public decimal? MarketValue { get; set; }
         public decimal? PriceLow { get; set; }
+
+        // ── Non-nullable sort helpers (nulls sort as 0) ───────────────────────
+        public decimal BuyAtSort => BuyAt ?? 0m;
+        public decimal SellAtSort => SellAt ?? 0m;
+        public decimal SellAtValueSort => SellAtValue ?? 0m;
+        public decimal PriceHighSort => PriceHigh ?? 0m;
+        public decimal MarketValueSort => MarketValue ?? 0m;
+        public decimal PriceLowSort => PriceLow ?? 0m;
+        public decimal PriceUsdSort => PriceUsd ?? 0m;
         public int Needed { get; set; } = 0;
         public int Excess { get; set; } = 0;
         public int Target { get; set; } = 0;
@@ -216,7 +226,7 @@ namespace BreakersOfE.Models
             IsFooter
                 ? new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromRgb(0xD6, 0xE8, 0xD6))
-                : CardColorService.GetBackground(IsFoil, RowIndex);
+                : CardColorService.GetBackground(IsFoil, RowIndex, RowTableType);
 
         public Brush CellBorderBrush =>
             CardColorService.GetCellBorderBrush();
