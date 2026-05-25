@@ -35,10 +35,10 @@ namespace BreakersOfE.Services
             AppDomain.CurrentDomain.BaseDirectory;
 
         public static string SetSymbolsFolder =>
-            EnsureFolder(Path.Combine(RootFolder, "SetSymbols"));
+            EnsureFolder(Path.Combine(ProgramFolder, "SetSymbols"));
 
         public static string ManaSymbolsFolder =>
-            EnsureFolder(Path.Combine(RootFolder, "ManaSymbols"));
+            EnsureFolder(Path.Combine(ProgramFolder, "ManaSymbols"));
 
         public static string CardImagesFolder =>
             EnsureFolder(Path.Combine(RootFolder, "CardImages"));
