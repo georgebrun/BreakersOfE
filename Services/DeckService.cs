@@ -1,4 +1,5 @@
 ﻿using BreakersOfE.Models;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -51,6 +52,7 @@ namespace BreakersOfE.Services
                 {
                     deck.FilePath = filePath;
                     deck.IsModified = false;
+                    RelinkDeckToPool(deck);
                 }
                 return deck;
             }
@@ -58,6 +60,48 @@ namespace BreakersOfE.Services
             {
                 throw new Exception(
                     $"Could not load deck: {ex.Message}", ex);
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // RELINK TO POOL
+        // ════════════════════════════════════════════════════════════════════
+        // After a pool database rebuild, PoolId values change. A deck stores a full
+        // card snapshot so its display data is unaffected, but the PoolId used to
+        // cross-reference the collection (Used/Available counts) can drift. This
+        // re-resolves each card's PoolId from the current pool via its stable
+        // ScryfallId. Cards with no ScryfallId (older decks) are left untouched.
+        private static void RelinkDeckToPool(Deck deck)
+        {
+            try
+            {
+                if (deck.Cards == null || deck.Cards.Count == 0) return;
+
+                var scryfallIds = deck.Cards
+                    .Where(c => !string.IsNullOrEmpty(c.ScryfallId))
+                    .Select(c => c.ScryfallId)
+                    .Distinct()
+                    .ToHashSet();
+                if (scryfallIds.Count == 0) return;
+
+                using var pdb = new Data.AppDbContext();
+                var map = pdb.PoolCards.AsNoTracking()
+                    .Where(p => scryfallIds.Contains(p.ScryfallId))
+                    .Select(p => new { p.ScryfallId, p.PoolId })
+                    .ToList()
+                    .GroupBy(p => p.ScryfallId)
+                    .ToDictionary(g => g.Key, g => g.First().PoolId);
+
+                foreach (var card in deck.Cards)
+                {
+                    if (!string.IsNullOrEmpty(card.ScryfallId) &&
+                        map.TryGetValue(card.ScryfallId, out int newPoolId))
+                        card.PoolId = newPoolId;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"RelinkDeckToPool error: {ex.Message}");
             }
         }
 
@@ -461,6 +505,7 @@ namespace BreakersOfE.Services
             return new DeckCard
             {
                 PoolId = source.PoolId,
+                ScryfallId = source.ScryfallId,
                 Name = source.Name,
                 SetCode = source.SetCode,
                 SetName = source.SetName,
@@ -545,6 +590,7 @@ namespace BreakersOfE.Services
             return new DeckCard
             {
                 PoolId = pool.PoolId,
+                ScryfallId = pool.ScryfallId,
                 Name = pool.Name,
                 SetCode = pool.SetCode,
                 SetName = pool.SetName,
@@ -580,6 +626,7 @@ namespace BreakersOfE.Services
             return new DeckCard
             {
                 PoolId = row.PoolId,
+                ScryfallId = row.ScryfallId,
                 Name = row.Name,
                 SetCode = row.SetCode,
                 SetName = row.SetName,

@@ -41,6 +41,7 @@ namespace BreakersOfE.Models
         [Key]
         public int TokenCollectionEntryId { get; set; }
         public int TokenId { get; set; }
+        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -72,6 +73,7 @@ namespace BreakersOfE.Models
         [Key]
         public int PlanarCollectionEntryId { get; set; }
         public int PlanarId { get; set; }
+        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -103,6 +105,7 @@ namespace BreakersOfE.Models
         [Key]
         public int SchemeCollectionEntryId { get; set; }
         public int SchemeId { get; set; }
+        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -134,6 +137,7 @@ namespace BreakersOfE.Models
         [Key]
         public int VanguardCollectionEntryId { get; set; }
         public int VanguardId { get; set; }
+        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -165,6 +169,7 @@ namespace BreakersOfE.Models
         [Key]
         public int ConspiracyCollectionEntryId { get; set; }
         public int ConspiracyId { get; set; }
+        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -181,6 +186,7 @@ namespace BreakersOfE.Models
         [Key]
         public int ArtSeriesCollectionEntryId { get; set; }
         public int ArtSeriesId { get; set; }
+        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";

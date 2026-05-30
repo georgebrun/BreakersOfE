@@ -37,6 +37,7 @@ namespace BreakersOfE.Models
         public List<DeckUsageRow> DeckUsageRows { get; set; } = new();
         public int CollectionEntryId { get; set; }
         public int PoolId { get; set; }
+        public string ScryfallId { get; set; } = string.Empty;
         public Services.TableType RowTableType { get; set; } = Services.TableType.Collection;
         public string Name { get; set; } = string.Empty;
         public string SetCode { get; set; } = string.Empty;

@@ -41,6 +41,7 @@ namespace BreakersOfE.Models
     public class DeckCard
     {
         public int PoolId { get; set; }
+        public string ScryfallId { get; set; } = string.Empty;  // stable key for collection relink
         public string Name { get; set; } = string.Empty;
         public string SetCode { get; set; } = string.Empty;
         public string SetName { get; set; } = string.Empty;

@@ -515,6 +515,12 @@ namespace BreakersOfE
             UpdateDeckTabTitle(_activeDeck!);
             UpdateDeckSummary(_activeDeck);
 
+            // Show the just-added card in the deck table (bottom) so its quantity
+            // is visible without scrolling. Only when the deck is the bottom table
+            // (PoolToDeck / CollectionToDeck) — in DeckToCollection the deck is on top.
+            if (_currentMode != "DeckToCollection" && deckCard != null)
+                ScrollBottomToPoolId(deckCard.PoolId);
+
             // In CollectionToDeck mode refresh top grid so Used/Available update immediately
             if (_currentMode == "CollectionToDeck")
             {
@@ -3853,6 +3859,7 @@ namespace BreakersOfE
                 {
                     CollectionEntryId = ce.CollectionEntryId,
                     PoolId = pc.PoolId,
+                    ScryfallId = pc.ScryfallId,
                     Name = pc.Name,
                     SetCode = pc.SetCode,
                     SetName = pc.SetName,
@@ -4196,8 +4203,24 @@ namespace BreakersOfE
                 _syncingDisplayIndex = true;
                 try
                 {
-                    for (int i = 0; i < grid.Columns.Count && i < summary.Columns.Count; i++)
-                        summary.Columns[i].DisplayIndex = grid.Columns[i].DisplayIndex;
+                    int count = Math.Min(grid.Columns.Count, summary.Columns.Count);
+
+                    // Build (summaryColumn, targetDisplayIndex) pairs by creation index,
+                    // which matches between the two grids since the summary is built by
+                    // iterating srcGrid.Columns in the same order.
+                    var pairs = new List<(DataGridColumn col, int target)>(count);
+                    for (int i = 0; i < count; i++)
+                        pairs.Add((summary.Columns[i], grid.Columns[i].DisplayIndex));
+
+                    // Assign in ascending target order. Setting DisplayIndex shuffles the
+                    // other columns to compensate, so applying lowest-to-highest lets each
+                    // column settle into its final slot without scrambling earlier ones.
+                    foreach (var (col, target) in pairs.OrderBy(p => p.target))
+                    {
+                        int clamped = Math.Min(target, summary.Columns.Count - 1);
+                        if (col.DisplayIndex != clamped)
+                            col.DisplayIndex = clamped;
+                    }
                 }
                 finally { _syncingDisplayIndex = false; }
             };
@@ -4808,6 +4831,115 @@ namespace BreakersOfE
         // SEARCH
         // ════════════════════════════════════════════════════════════════════
         // ── Search debounce timer ─────────────────────────────────────────────────
+        // Builds the search-match list in the grid's CURRENT visual sort order
+        // (top-to-bottom), so "first match" is the first appearance of the name
+        // from the top of the table. Then selects it and scrolls it up under the
+        // headers. Returns the matches in visual order.
+        private void RunTableSearch(DataGrid grid)
+        {
+            _lastSearchTerm = SearchBox.Text.Trim();
+            _searchMatches.Clear();
+            _searchMatchIndex = -1;
+
+            if (!string.IsNullOrEmpty(_lastSearchTerm))
+            {
+                // Iterate grid.Items (the sorted/filtered view) rather than
+                // ItemsSource (the raw backing list) so matches follow the
+                // table's current sort order.
+                foreach (var item in grid.Items)
+                {
+                    if (item == null) continue;
+                    string? name = item.GetType()
+                        .GetProperty("Name")?.GetValue(item)?.ToString();
+                    if (name != null &&
+                        name.StartsWith(_lastSearchTerm,
+                            StringComparison.OrdinalIgnoreCase))
+                        _searchMatches.Add(item);
+                }
+            }
+
+            if (_searchMatches.Count > 0)
+            {
+                _searchMatchIndex = 0;
+                ScrollMatchToTop(grid, _searchMatches[0]);
+            }
+        }
+
+        // Selects the item and forces it to the top of the visible area, just
+        // under the column headers — unless it's near the bottom of the list,
+        // where WPF can't scroll it any higher.
+        // Scrolls the bottom table to the row matching the given PoolId and
+        // selects it, so a just-added card is visible for quantity verification.
+        // Deliberately does NOT touch search state (_searchMatches etc.) and
+        // explicitly preserves whatever element currently has keyboard focus,
+        // so focus never jumps from the top table to the bottom table.
+        private void ScrollBottomToPoolId(int poolId)
+        {
+            if (poolId <= 0) return;
+            ScrollBottomToMatch(item =>
+            {
+                var prop = item.GetType().GetProperty("PoolId");
+                return prop?.GetValue(item) is int pid && pid == poolId;
+            });
+        }
+
+        // Name-based variant for tables whose rows don't carry a usable PoolId
+        // (special collections store their own *Id and leave PoolId = 0).
+        private void ScrollBottomToName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            ScrollBottomToMatch(item =>
+            {
+                var prop = item.GetType().GetProperty("Name");
+                return prop?.GetValue(item)?.ToString()?.Equals(
+                    name, StringComparison.OrdinalIgnoreCase) == true;
+            });
+        }
+
+        // Shared core: finds the first bottom-grid row satisfying the predicate
+        // (in current sort order), selects and scrolls it into view, and restores
+        // keyboard focus so it never shifts to the bottom table.
+        private void ScrollBottomToMatch(Func<object, bool> predicate)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                var focused = Keyboard.FocusedElement;
+
+                object? target = null;
+                foreach (var item in BottomDataGrid.Items)
+                {
+                    if (item == null) continue;
+                    if (predicate(item)) { target = item; break; }
+                }
+                if (target == null) return;
+
+                BottomDataGrid.SelectedItem = target;
+                BottomDataGrid.UpdateLayout();
+                BottomDataGrid.ScrollIntoView(target);
+
+                if (focused != null && !Equals(Keyboard.FocusedElement, focused))
+                    focused.Focus();
+            }), System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }
+
+        private void ScrollMatchToTop(DataGrid grid, object item)
+        {
+            grid.SelectedItem = item;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                grid.UpdateLayout();
+                // Scroll to the last row first, then to the match. This forces
+                // the match to the TOP of the viewport rather than just barely
+                // into view at the bottom edge.
+                if (grid.Items.Count > 0)
+                    grid.ScrollIntoView(grid.Items[grid.Items.Count - 1]);
+                grid.UpdateLayout();
+                grid.ScrollIntoView(item);
+                // Keep focus on the search box so Enter / Find Next still work.
+                SearchBox.Focus();
+            }), System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }
+
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             _searchDebounceTimer?.Stop();
@@ -4819,110 +4951,11 @@ namespace BreakersOfE
             {
                 _searchDebounceTimer.Stop();
 
-                if (_bottomTableHasFocus)
-                {
-                    _lastSearchTerm = SearchBox.Text.Trim();
-                    _searchMatches.Clear();
-                    _searchMatchIndex = -1;
-
-                    // Build match list from bottom table WITHOUT filtering
-                    // Sort: exact match first, then StartsWith, then Contains
-                    if (!string.IsNullOrEmpty(_lastSearchTerm) &&
-                        BottomDataGrid.ItemsSource is
-                            System.Collections.IEnumerable bottomItems)
-                    {
-                        var exact = new List<object>();
-                        var startsWith = new List<object>();
-                        var contains = new List<object>();
-                        foreach (var item in bottomItems)
-                        {
-                            string? name = item.GetType()
-                                .GetProperty("Name")?.GetValue(item)?.ToString();
-                            if (name == null) continue;
-                            if (name.Equals(_lastSearchTerm,
-                                    StringComparison.OrdinalIgnoreCase))
-                                exact.Add(item);
-                            else if (name.StartsWith(_lastSearchTerm,
-                                    StringComparison.OrdinalIgnoreCase))
-                                startsWith.Add(item);
-                            else if (name.Contains(_lastSearchTerm,
-                                    StringComparison.OrdinalIgnoreCase))
-                                contains.Add(item);
-                        }
-                        _searchMatches.AddRange(exact);
-                        _searchMatches.AddRange(startsWith);
-                        _searchMatches.AddRange(contains);
-                    }
-
-                    // Scroll to first match
-                    if (_searchMatches.Count > 0)
-                    {
-                        _searchMatchIndex = 0;
-                        var first = _searchMatches[0];
-                        BottomDataGrid.SelectedItem = first;
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            BottomDataGrid.UpdateLayout();
-                            BottomDataGrid.ScrollIntoView(first);
-                        }), System.Windows.Threading.DispatcherPriority.ContextIdle);
-                    }
-                }
-                else
-                {
-                    _lastSearchTerm = SearchBox.Text.Trim();
-                    _searchMatches.Clear();
-                    _searchMatchIndex = -1;
-
-                    // Build match list from top table WITHOUT filtering
-                    // Sort: exact match first, then StartsWith, then Contains
-                    if (!string.IsNullOrEmpty(_lastSearchTerm) &&
-                        TopDataGrid.ItemsSource is
-                            System.Collections.IEnumerable topItems)
-                    {
-                        var exact = new List<object>();
-                        var startsWith = new List<object>();
-                        var contains = new List<object>();
-                        foreach (var item in topItems)
-                        {
-                            string? name = item.GetType()
-                                .GetProperty("Name")?.GetValue(item)?.ToString();
-                            if (name == null) continue;
-                            if (name.Equals(_lastSearchTerm,
-                                    StringComparison.OrdinalIgnoreCase))
-                                exact.Add(item);
-                            else if (name.StartsWith(_lastSearchTerm,
-                                    StringComparison.OrdinalIgnoreCase))
-                                startsWith.Add(item);
-                            else if (name.Contains(_lastSearchTerm,
-                                    StringComparison.OrdinalIgnoreCase))
-                                contains.Add(item);
-                        }
-                        _searchMatches.AddRange(exact);
-                        _searchMatches.AddRange(startsWith);
-                        _searchMatches.AddRange(contains);
-                    }
-
-                    // Scroll to first match — position at top of visible area
-                    if (_searchMatches.Count > 0)
-                    {
-                        _searchMatchIndex = 0;
-                        var first = _searchMatches[0];
-                        TopDataGrid.SelectedItem = first;
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            TopDataGrid.UpdateLayout();
-                            // Scroll to bottom first, then to match — forces it to top
-                            if (TopDataGrid.Items.Count > 0)
-                                TopDataGrid.ScrollIntoView(
-                                    TopDataGrid.Items[TopDataGrid.Items.Count - 1]);
-                            TopDataGrid.UpdateLayout();
-                            TopDataGrid.ScrollIntoView(first);
-                            // Keep focus on the search box so Enter still works
-                            SearchBox.Focus();
-                        }), System.Windows.Threading.DispatcherPriority.ContextIdle);
-                    }
-                }
-
+                // Search whichever table currently has focus. Matches are
+                // collected in the table's current visual sort order, so the
+                // first match is the first appearance of the name from the top.
+                var grid = _bottomTableHasFocus ? BottomDataGrid : TopDataGrid;
+                RunTableSearch(grid);
             };
             _searchDebounceTimer.Start();
         }
@@ -5134,40 +5167,19 @@ namespace BreakersOfE
             string name = win.CardName;
             bool pool = win.SearchInPool;
             var grid = pool ? TopDataGrid : BottomDataGrid;
-            var items = grid.ItemsSource as System.Collections.IEnumerable;
-            if (items == null) return;
 
-            // Build match list
-            _searchMatches.Clear();
-            _lastSearchTerm = name;
-            _searchMatchIndex = -1;
-
-            foreach (var item in items)
-            {
-                string? itemName = item.GetType()
-                    .GetProperty("Name")?.GetValue(item)?.ToString();
-                if (itemName != null &&
-                    itemName.Contains(name, StringComparison.OrdinalIgnoreCase))
-                    _searchMatches.Add(item);
-            }
+            // Drive the same search path as the inline search box so matches
+            // follow the table's current sort order and land under the headers.
+            _bottomTableHasFocus = !pool;
+            SearchBox.Text = name;          // also updates _lastSearchTerm via handler
+            RunTableSearch(grid);
 
             if (_searchMatches.Count == 0)
             {
                 MessageBox.Show($"Card '{name}' not found.",
                     "Search", MessageBoxButton.OK,
                     MessageBoxImage.Information);
-                return;
             }
-
-            // Jump to first match
-            _searchMatchIndex = 0;
-            var match = _searchMatches[0];
-            grid.SelectedItem = match;
-            grid.UpdateLayout();
-            grid.ScrollIntoView(match);
-            var row = grid.ItemContainerGenerator
-                .ContainerFromItem(match) as DataGridRow;
-            row?.BringIntoView();
         }
 
         private void NavigateMatch(bool forward)
@@ -5187,13 +5199,7 @@ namespace BreakersOfE
 
             var grid = _bottomTableHasFocus ? BottomDataGrid : TopDataGrid;
             var item = _searchMatches[_searchMatchIndex];
-
-            grid.SelectedItem = item;
-            grid.UpdateLayout();
-            grid.ScrollIntoView(item);
-            var row = grid.ItemContainerGenerator
-                .ContainerFromItem(item) as DataGridRow;
-            row?.BringIntoView();
+            ScrollMatchToTop(grid, item);
         }
 
         private void BtnFindNext_Click(object sender, RoutedEventArgs e)
@@ -5687,6 +5693,7 @@ namespace BreakersOfE
                     existing.DateModified = DateTime.Now;
                     db.SaveChanges();
                     RefreshBottom();
+                    ScrollBottomToPoolId(poolId);
                     RestoreFocus();
                     return;
                 }
@@ -5716,6 +5723,7 @@ namespace BreakersOfE
 
             db.SaveChanges();
             RefreshBottom();
+            ScrollBottomToPoolId(poolId);
 
             // Download card image in background if not already cached
             using var pdb = new Data.AppDbContext();
@@ -5729,6 +5737,26 @@ namespace BreakersOfE
         {
             using var db = new Data.CollectionDbContext();
 
+            // Look up the card's stable ScryfallId from the pool so the entry
+            // can be remapped after a database rebuild (same protection as the
+            // main collection). Falls back to empty string if not found.
+            string scryfallId = string.Empty;
+            try
+            {
+                using var pdbId = new AppDbContext();
+                scryfallId = type switch
+                {
+                    "Planechase" => pdbId.PlanarCards.Where(x => x.PlanarId == cardId).Select(x => x.ScryfallId).FirstOrDefault(),
+                    "Archenemy" => pdbId.SchemeCards.Where(x => x.SchemeId == cardId).Select(x => x.ScryfallId).FirstOrDefault(),
+                    "Vanguard" => pdbId.VanguardCards.Where(x => x.VanguardId == cardId).Select(x => x.ScryfallId).FirstOrDefault(),
+                    "Token" => pdbId.TokenCards.Where(x => x.TokenId == cardId).Select(x => x.ScryfallId).FirstOrDefault(),
+                    "ArtSeries" => pdbId.ArtSeriesCards.Where(x => x.ArtSeriesId == cardId).Select(x => x.ScryfallId).FirstOrDefault(),
+                    "Conspiracy" => pdbId.ConspiracyCards.Where(x => x.ConspiracyId == cardId).Select(x => x.ScryfallId).FirstOrDefault(),
+                    _ => string.Empty
+                } ?? string.Empty;
+            }
+            catch { scryfallId = string.Empty; }
+
             switch (type)
             {
                 case "Planechase":
@@ -5738,6 +5766,7 @@ namespace BreakersOfE
                         db.PlanarCollectionEntries.Add(new PlanarCollectionEntry
                         {
                             PlanarId = cardId,
+                            ScryfallId = scryfallId,
                             Quantity = foil ? 0 : qty,
                             FoilQuantity = foil ? qty : 0,
                             Condition = "Near Mint",
@@ -5760,6 +5789,7 @@ namespace BreakersOfE
                         db.SchemeCollectionEntries.Add(new SchemeCollectionEntry
                         {
                             SchemeId = cardId,
+                            ScryfallId = scryfallId,
                             Quantity = foil ? 0 : qty,
                             FoilQuantity = foil ? qty : 0,
                             Condition = "Near Mint",
@@ -5783,6 +5813,7 @@ namespace BreakersOfE
                             new VanguardCollectionEntry
                             {
                                 VanguardId = cardId,
+                                ScryfallId = scryfallId,
                                 Quantity = qty,
                                 FoilQuantity = 0,
                                 Condition = "Near Mint",
@@ -5804,6 +5835,7 @@ namespace BreakersOfE
                         db.TokenCollectionEntries.Add(new TokenCollectionEntry
                         {
                             TokenId = cardId,
+                            ScryfallId = scryfallId,
                             Quantity = foil ? 0 : qty,
                             FoilQuantity = foil ? qty : 0,
                             Condition = "Near Mint",
@@ -5827,6 +5859,7 @@ namespace BreakersOfE
                             new ArtSeriesCollectionEntry
                             {
                                 ArtSeriesId = cardId,
+                                ScryfallId = scryfallId,
                                 Quantity = foil ? 0 : qty,
                                 FoilQuantity = foil ? qty : 0,
                                 Condition = "Near Mint",
@@ -5850,6 +5883,7 @@ namespace BreakersOfE
                             new ConspiracyCollectionEntry
                             {
                                 ConspiracyId = cardId,
+                                ScryfallId = scryfallId,
                                 Quantity = foil ? 0 : qty,
                                 FoilQuantity = foil ? qty : 0,
                                 Condition = "Near Mint",
@@ -5868,6 +5902,7 @@ namespace BreakersOfE
 
             db.SaveChanges();
             RefreshBottom();
+            ScrollBottomToName(name);
         }
 
         // ── Trade Binder — Have List operations ───────────────────────────────
@@ -7236,6 +7271,7 @@ namespace BreakersOfE
             {
                 // Remap collection PoolIds — they change after a full pool rebuild
                 RemapCollectionPoolIds();
+                RemapSpecialCollections();
                 LoadCaches();
                 LoadCurrentMode();
             }
@@ -7302,6 +7338,128 @@ namespace BreakersOfE
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"RemapCollectionPoolIds error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// After a full pool rebuild, the auto-increment IDs for the special card
+        /// tables (Token/Planar/Scheme/Vanguard/Conspiracy/ArtSeries) change too.
+        /// This remaps each special collection's stored ID to the new ID using the
+        /// ScryfallId bridge, mirroring RemapCollectionPoolIds for the main set.
+        /// Entries with no usable ScryfallId that can't be matched are removed.
+        /// </summary>
+        private void RemapSpecialCollections()
+        {
+            int totalFixed = 0, totalLost = 0;
+            try
+            {
+                using var pdb = new AppDbContext();
+                using var cdb = new Data.CollectionDbContext();
+
+                var tk = BuildIdMaps(pdb.TokenCards.AsNoTracking()
+                    .Select(x => new { x.ScryfallId, x.TokenId }).ToList()
+                    .Select(x => (x.ScryfallId, x.TokenId)).ToList());
+                RemapOne(tk.map, tk.valid, cdb.TokenCollectionEntries,
+                    e => e.TokenId, (e, id) => e.TokenId = id, e => e.ScryfallId,
+                    e => cdb.TokenCollectionEntries.Remove(e), ref totalFixed, ref totalLost);
+
+                var pl = BuildIdMaps(pdb.PlanarCards.AsNoTracking()
+                    .Select(x => new { x.ScryfallId, x.PlanarId }).ToList()
+                    .Select(x => (x.ScryfallId, x.PlanarId)).ToList());
+                RemapOne(pl.map, pl.valid, cdb.PlanarCollectionEntries,
+                    e => e.PlanarId, (e, id) => e.PlanarId = id, e => e.ScryfallId,
+                    e => cdb.PlanarCollectionEntries.Remove(e), ref totalFixed, ref totalLost);
+
+                var sc = BuildIdMaps(pdb.SchemeCards.AsNoTracking()
+                    .Select(x => new { x.ScryfallId, x.SchemeId }).ToList()
+                    .Select(x => (x.ScryfallId, x.SchemeId)).ToList());
+                RemapOne(sc.map, sc.valid, cdb.SchemeCollectionEntries,
+                    e => e.SchemeId, (e, id) => e.SchemeId = id, e => e.ScryfallId,
+                    e => cdb.SchemeCollectionEntries.Remove(e), ref totalFixed, ref totalLost);
+
+                var vg = BuildIdMaps(pdb.VanguardCards.AsNoTracking()
+                    .Select(x => new { x.ScryfallId, x.VanguardId }).ToList()
+                    .Select(x => (x.ScryfallId, x.VanguardId)).ToList());
+                RemapOne(vg.map, vg.valid, cdb.VanguardCollectionEntries,
+                    e => e.VanguardId, (e, id) => e.VanguardId = id, e => e.ScryfallId,
+                    e => cdb.VanguardCollectionEntries.Remove(e), ref totalFixed, ref totalLost);
+
+                var cn = BuildIdMaps(pdb.ConspiracyCards.AsNoTracking()
+                    .Select(x => new { x.ScryfallId, x.ConspiracyId }).ToList()
+                    .Select(x => (x.ScryfallId, x.ConspiracyId)).ToList());
+                RemapOne(cn.map, cn.valid, cdb.ConspiracyCollectionEntries,
+                    e => e.ConspiracyId, (e, id) => e.ConspiracyId = id, e => e.ScryfallId,
+                    e => cdb.ConspiracyCollectionEntries.Remove(e), ref totalFixed, ref totalLost);
+
+                var ar = BuildIdMaps(pdb.ArtSeriesCards.AsNoTracking()
+                    .Select(x => new { x.ScryfallId, x.ArtSeriesId }).ToList()
+                    .Select(x => (x.ScryfallId, x.ArtSeriesId)).ToList());
+                RemapOne(ar.map, ar.valid, cdb.ArtSeriesCollectionEntries,
+                    e => e.ArtSeriesId, (e, id) => e.ArtSeriesId = id, e => e.ScryfallId,
+                    e => cdb.ArtSeriesCollectionEntries.Remove(e), ref totalFixed, ref totalLost);
+
+                cdb.SaveChanges();
+
+                if (totalLost > 0)
+                    MessageBox.Show(
+                        $"Special collections update: {totalFixed} entries remapped, " +
+                        $"{totalLost} could not be matched and were removed.\n\n" +
+                        "Re-import from a backup to restore missing entries.",
+                        "Special Collections Remapped",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                else if (totalFixed > 0)
+                    System.Diagnostics.Debug.WriteLine(
+                        $"RemapSpecialCollections: {totalFixed} entries remapped.");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"RemapSpecialCollections error: {ex.Message}");
+            }
+        }
+
+        // Builds (ScryfallId -> id) map and a valid-id set from (scryfallId, id) tuples.
+        private static (Dictionary<string, int> map, HashSet<int> valid)
+            BuildIdMaps(List<(string ScryfallId, int Id)> rows)
+        {
+            var map = new Dictionary<string, int>();
+            var valid = new HashSet<int>();
+            foreach (var (sid, id) in rows)
+            {
+                valid.Add(id);
+                if (!string.IsNullOrEmpty(sid) && !map.ContainsKey(sid))
+                    map[sid] = id;
+            }
+            return (map, valid);
+        }
+
+        // Remaps one special table: fixes entries whose stored id is no longer valid
+        // by matching ScryfallId to the new id; removes unmatched orphans.
+        private static void RemapOne<TEntry>(
+            Dictionary<string, int> scryfallToId,
+            HashSet<int> validIds,
+            IEnumerable<TEntry> entries,
+            Func<TEntry, int> getId,
+            Action<TEntry, int> setId,
+            Func<TEntry, string> getScryfallId,
+            Action<TEntry> removeOrphan,
+            ref int fixedCount,
+            ref int lostCount)
+        {
+            if (validIds.Count == 0) return;
+            foreach (var entry in entries.ToList())
+            {
+                if (validIds.Contains(getId(entry))) continue;
+                string sid = getScryfallId(entry) ?? string.Empty;
+                if (!string.IsNullOrEmpty(sid) && scryfallToId.TryGetValue(sid, out int newId))
+                {
+                    setId(entry, newId);
+                    fixedCount++;
+                }
+                else
+                {
+                    removeOrphan(entry);
+                    lostCount++;
+                }
             }
         }
 
