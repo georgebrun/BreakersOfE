@@ -1844,6 +1844,9 @@ namespace BreakersOfE
                 new Thickness(4, 2, 4, 2)));
             sumGrid.CellStyle = cellStyle;
 
+            // Remove stale dictionary entries for old summary columns
+            foreach (var old in sumGrid.Columns.ToList())
+                _summaryToSource.Remove(old);
             sumGrid.Columns.Clear();
 
             var bindings = new Dictionary<string, string>(
@@ -1875,8 +1878,13 @@ namespace BreakersOfE
                 };
                 if (bindings.TryGetValue(hdr, out var prop))
                     sc.Binding = new System.Windows.Data.Binding(prop);
+                _summaryToSource[sc] = col;  // link summary column to its source for sync
                 sumGrid.Columns.Add(sc);
             }
+
+            // Sync summary DisplayIndex + Visibility to match the source grid's
+            // current state (which may already have a restored saved layout).
+            SyncSummaryColumnsFromTags(sumGrid);
 
             sumGrid.ItemsSource = new[]
             {
@@ -4176,25 +4184,8 @@ namespace BreakersOfE
             DataGrid? summary = grid == TopDataGrid ? TopSummaryGrid
                               : grid == BottomDataGrid ? BottomSummaryGrid
                               : null;
-            if (summary == null) return;
-
-            int count = Math.Min(grid.Columns.Count, summary.Columns.Count);
-
-            // Sync visibility first (by creation index, which matches between grids)
-            for (int i = 0; i < count; i++)
-                summary.Columns[i].Visibility = grid.Columns[i].Visibility;
-
-            // Sync display order — assign in ascending target order to avoid
-            // the WPF cascade-shuffle problem (same logic as the live handler).
-            var pairs = new List<(DataGridColumn col, int target)>(count);
-            for (int i = 0; i < count; i++)
-                pairs.Add((summary.Columns[i], grid.Columns[i].DisplayIndex));
-            foreach (var (col, target) in pairs.OrderBy(p => p.target))
-            {
-                int clamped = Math.Min(target, summary.Columns.Count - 1);
-                if (col.DisplayIndex != clamped)
-                    col.DisplayIndex = clamped;
-            }
+            if (summary == null || summary.Columns.Count == 0) return;
+            SyncSummaryColumnsFromTags(summary);
         }
 
         private void AutoSizeColumnsToHeader(DataGrid grid, string tableKey)
@@ -4235,28 +4226,11 @@ namespace BreakersOfE
                 DataGrid? summary = grid == TopDataGrid ? TopSummaryGrid
                                   : grid == BottomDataGrid ? BottomSummaryGrid
                                   : null;
-                if (summary == null) return;
+                if (summary == null || summary.Columns.Count == 0) return;
                 _syncingDisplayIndex = true;
                 try
                 {
-                    int count = Math.Min(grid.Columns.Count, summary.Columns.Count);
-
-                    // Build (summaryColumn, targetDisplayIndex) pairs by creation index,
-                    // which matches between the two grids since the summary is built by
-                    // iterating srcGrid.Columns in the same order.
-                    var pairs = new List<(DataGridColumn col, int target)>(count);
-                    for (int i = 0; i < count; i++)
-                        pairs.Add((summary.Columns[i], grid.Columns[i].DisplayIndex));
-
-                    // Assign in ascending target order. Setting DisplayIndex shuffles the
-                    // other columns to compensate, so applying lowest-to-highest lets each
-                    // column settle into its final slot without scrambling earlier ones.
-                    foreach (var (col, target) in pairs.OrderBy(p => p.target))
-                    {
-                        int clamped = Math.Min(target, summary.Columns.Count - 1);
-                        if (col.DisplayIndex != clamped)
-                            col.DisplayIndex = clamped;
-                    }
+                    SyncSummaryColumnsFromTags(summary);
                 }
                 finally { _syncingDisplayIndex = false; }
             };
@@ -7540,6 +7514,7 @@ namespace BreakersOfE
         }
 
         private readonly HashSet<(DataGrid, DataGrid)> _wiredSummaries = new();
+        private static readonly Dictionary<DataGridColumn, DataGridColumn> _summaryToSource = new();
 
         private void WireSummaryColumnSync(DataGrid src, DataGrid summary)
         {
@@ -7557,23 +7532,64 @@ namespace BreakersOfE
 
             for (int i = 0; i < src.Columns.Count; i++)
             {
-                int idx = i; // capture for closure
                 var srcCol = src.Columns[i];
 
-                // Sync width
+                // Sync width — find matching summary column by Tag
                 descriptor.AddValueChanged(srcCol, (s, e) =>
                 {
-                    if (idx < summary.Columns.Count)
-                        summary.Columns[idx].Width =
-                            new DataGridLength(srcCol.ActualWidth);
+                    var sumCol = FindSummaryColumnBySource(summary, srcCol);
+                    if (sumCol != null)
+                        sumCol.Width = new DataGridLength(srcCol.ActualWidth);
                 });
 
                 // Sync visibility
                 visDescriptor.AddValueChanged(srcCol, (s, e) =>
                 {
-                    if (idx < summary.Columns.Count)
-                        summary.Columns[idx].Visibility = srcCol.Visibility;
+                    var sumCol = FindSummaryColumnBySource(summary, srcCol);
+                    if (sumCol != null)
+                    {
+                        sumCol.Visibility = srcCol.Visibility;
+                        SyncSummaryColumnsFromTags(summary);
+                    }
                 });
+            }
+        }
+
+        // Finds the summary column whose Tag references the given source column.
+        private static DataGridColumn? FindSummaryColumnBySource(
+            DataGrid summary, DataGridColumn srcCol)
+        {
+            foreach (var col in summary.Columns)
+                if (_summaryToSource.TryGetValue(col, out var src) &&
+                    ReferenceEquals(src, srcCol))
+                    return col;
+            return null;
+        }
+
+        // Syncs every summary column's DisplayIndex + Visibility to match its
+        // tagged source column. Applies DisplayIndex in ascending order to avoid
+        // WPF's cascade-shuffle problem. Called from both the summary builders
+        // and after layout restore.
+        private static void SyncSummaryColumnsFromTags(DataGrid summary)
+        {
+            var pairs = new List<(DataGridColumn sumCol, int targetDI, Visibility vis)>();
+            foreach (var sumCol in summary.Columns)
+            {
+                if (_summaryToSource.TryGetValue(sumCol, out var srcCol))
+                    pairs.Add((sumCol, srcCol.DisplayIndex, srcCol.Visibility));
+            }
+            if (pairs.Count == 0) return;
+
+            // Apply visibility
+            foreach (var (sumCol, _, vis) in pairs)
+                sumCol.Visibility = vis;
+
+            // Apply DisplayIndex in ascending target order
+            foreach (var (sumCol, targetDI, _) in pairs.OrderBy(p => p.targetDI))
+            {
+                int clamped = Math.Min(targetDI, summary.Columns.Count - 1);
+                if (sumCol.DisplayIndex != clamped)
+                    sumCol.DisplayIndex = clamped;
             }
         }
 
@@ -7605,6 +7621,9 @@ namespace BreakersOfE
                 new Thickness(4, 2, 4, 2)));
             sumGrid.CellStyle = cellStyle;
 
+            // Remove stale dictionary entries for old summary columns
+            foreach (var old in sumGrid.Columns.ToList())
+                _summaryToSource.Remove(old);
             sumGrid.Columns.Clear();
 
             // Map header names to FooterRow property names — handles both grids
@@ -7648,8 +7667,13 @@ namespace BreakersOfE
                 };
                 if (bindings.TryGetValue(hdr, out var prop))
                     sc.Binding = new System.Windows.Data.Binding(prop);
+                _summaryToSource[sc] = col;  // link summary column to its source for sync
                 sumGrid.Columns.Add(sc);
             }
+
+            // Sync summary DisplayIndex + Visibility to match the source grid's
+            // current state (which may already have a restored saved layout).
+            SyncSummaryColumnsFromTags(sumGrid);
 
             sumGrid.ItemsSource = new[]
             {
