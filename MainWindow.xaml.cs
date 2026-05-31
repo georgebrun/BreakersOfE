@@ -53,7 +53,7 @@ namespace BreakersOfE
         private const string ColVisPrefix = "ColVis_";
         private const string ColOrderPrefix = "ColOrder_";
         private const string ColLayoutVersion = "ColLayoutVer";
-        private const string CurrentColLayoutVersion = "4"; // bump to force resize
+        private const string CurrentColLayoutVersion = "5"; // bump to force resize
         private const string RecentDecksKey = "RecentDecks";
         private const int MaxRecentDecks = 8;
 
@@ -1781,6 +1781,7 @@ namespace BreakersOfE
                 SyncAndPopulateDeckSummary(BottomSummaryGrid, BottomDataGrid, _activeDeck);
                 WireSummaryColumnSync(BottomDataGrid, BottomSummaryGrid);
                 RestoreColumnLayout(BottomDataGrid, "Deck");
+                SyncSummaryAfterRestore(BottomDataGrid);
                 AutoSizeColumnsToHeader(BottomDataGrid, "Deck");
                 WireColumnLayoutSave(BottomDataGrid, "Deck");
             }), System.Windows.Threading.DispatcherPriority.ContextIdle);
@@ -1808,6 +1809,7 @@ namespace BreakersOfE
                 SyncAndPopulateDeckSummary(BottomSummaryGrid, BottomDataGrid, deck);
                 WireSummaryColumnSync(BottomDataGrid, BottomSummaryGrid);
                 RestoreColumnLayout(BottomDataGrid, "Deck");
+                SyncSummaryAfterRestore(BottomDataGrid);
                 AutoSizeColumnsToHeader(BottomDataGrid, "Deck");
                 WireColumnLayoutSave(BottomDataGrid, "Deck");
             }), System.Windows.Threading.DispatcherPriority.ContextIdle);
@@ -2771,8 +2773,12 @@ namespace BreakersOfE
                     _ => "Pool"
                 };
                 RestoreColumnLayout(TopDataGrid, topKey);
+                SyncSummaryAfterRestore(TopDataGrid);
                 if (BottomDataGrid.Visibility == Visibility.Visible)
+                {
                     RestoreColumnLayout(BottomDataGrid, "Collection");
+                    SyncSummaryAfterRestore(BottomDataGrid);
+                }
             }),
             System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
@@ -3338,7 +3344,6 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Sell At", "SellAtDisplay", 70, sortBinding: "SellAtSort"));
             grid.Columns.Add(MakeText("Sell At Value", "SellAtValueDisplay", 90, true, sortBinding: "SellAtValueSort"));
             grid.Columns.Add(MakeText("Price High", "PriceHighDisplay", 80, true, sortBinding: "PriceHighSort"));
-            grid.Columns.Add(MakeText("Price Total", "MarketValueDisplay", 90, true, sortBinding: "MarketValueSort"));
             grid.Columns.Add(MakeText("Foil Value", "FoilValueDisplay", 80, true, sortBinding: "FoilValue"));
             grid.Columns.Add(MakeText("Total Value", "TotalValueDisplay", 80, true, sortBinding: "TotalValue"));
             grid.Columns.Add(MakeText("Needed", "Needed", 60));
@@ -3353,7 +3358,7 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Buy", "BuyStatus", 90));
             grid.Columns.Add(MakeText("Sell", "SellStatus", 90));
             grid.Columns.Add(MakeText("Added", "DateAdded", 130, true));
-            grid.Columns.Add(MakeText("Market Price", "PriceUsdDisplay", 90, true, sortBinding: "PriceUsdSort"));
+            grid.Columns.Add(MakeText("Non-Foil Price", "PriceUsdDisplay", 90, true, sortBinding: "PriceUsdSort"));
             grid.Columns.Add(MakeText("Price Low", "PriceLowDisplay", 80, true, sortBinding: "PriceLowSort"));
             grid.Columns.Add(MakeText("Color", "ColorDisplay", 50, true));
             grid.Columns.Add(MakeText("Type", "TypeLine", 160, true));
@@ -4158,6 +4163,37 @@ namespace BreakersOfE
             finally
             {
                 _suppressLayoutSave = false;
+            }
+        }
+
+        // After RestoreColumnLayout applies a saved arrangement to the main grid,
+        // the summary grid is still in its default order/visibility because the
+        // ColumnDisplayIndexChanged handler hasn't been wired yet at restore time.
+        // This explicitly pushes the main grid's current column order + visibility
+        // onto the matching summary grid so they stay in sync on startup.
+        private void SyncSummaryAfterRestore(DataGrid grid)
+        {
+            DataGrid? summary = grid == TopDataGrid ? TopSummaryGrid
+                              : grid == BottomDataGrid ? BottomSummaryGrid
+                              : null;
+            if (summary == null) return;
+
+            int count = Math.Min(grid.Columns.Count, summary.Columns.Count);
+
+            // Sync visibility first (by creation index, which matches between grids)
+            for (int i = 0; i < count; i++)
+                summary.Columns[i].Visibility = grid.Columns[i].Visibility;
+
+            // Sync display order — assign in ascending target order to avoid
+            // the WPF cascade-shuffle problem (same logic as the live handler).
+            var pairs = new List<(DataGridColumn col, int target)>(count);
+            for (int i = 0; i < count; i++)
+                pairs.Add((summary.Columns[i], grid.Columns[i].DisplayIndex));
+            foreach (var (col, target) in pairs.OrderBy(p => p.target))
+            {
+                int clamped = Math.Min(target, summary.Columns.Count - 1);
+                if (col.DisplayIndex != clamped)
+                    col.DisplayIndex = clamped;
             }
         }
 
@@ -7583,8 +7619,7 @@ namespace BreakersOfE
                 { "Available",    "Available" },
                 { "Value",        "TotalValue" },
                 { "Total Value",  "TotalValue" },
-                { "Price Total", "MarketValue" },
-                { "Market...",    "MarketValue" },
+                { "Non-F...",     "PriceUsd" },
                 { "Buy At",       "BuyAt" },
                 { "Sell At",      "SellAt" },
                 { "Sell At Value","SellAtValue" },

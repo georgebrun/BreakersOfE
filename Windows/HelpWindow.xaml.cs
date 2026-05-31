@@ -512,7 +512,6 @@ namespace BreakersOfE.Windows
                         {
                             S(null,
                                 P("Prices come from Scryfall and are stored when you run Update Card Database or Update Prices Only."),
-                                KV("Price Total",   "Qty × Market Price × Condition — total value of this row"),
                                 KV("Foil Price",    "Scryfall USD foil price"),
                                 KV("Buy At",        "Your personal buy price (what you'd pay)"),
                                 KV("Sell At",       "Your personal sell price (what you'd charge)"),
