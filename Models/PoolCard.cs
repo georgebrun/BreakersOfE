@@ -73,6 +73,20 @@ namespace BreakersOfE.Models
             !string.IsNullOrWhiteSpace(Power) &&
             !string.IsNullOrWhiteSpace(Toughness)
                 ? $"{Power}/{Toughness}" : string.Empty;
+        // ── Numeric sort helpers (extracts number from strings like "3", "X", "123a") ──
+        public double PowerSort => double.TryParse(Power, out var v) ? v : -1;
+        public double ToughnessSort => double.TryParse(Toughness, out var v) ? v : -1;
+        public double PowerToughnessSort => PowerSort;
+        public double CollectorNumberSort
+        {
+            get
+            {
+                if (double.TryParse(CollectorNumber, out var v)) return v;
+                int end = 0;
+                while (end < CollectorNumber.Length && char.IsDigit(CollectorNumber[end])) end++;
+                return end > 0 && double.TryParse(CollectorNumber[..end], out var v2) ? v2 : 9999;
+            }
+        }
 
         [NotMapped]
         public string RarityCode => Rarity?.ToLower() switch

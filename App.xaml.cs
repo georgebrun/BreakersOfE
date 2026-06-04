@@ -1,5 +1,6 @@
 ﻿using BreakersOfE.Services;
 using BreakersOfE.Windows;
+using System.Linq;
 using System.Windows;
 
 namespace BreakersOfE
@@ -24,7 +25,18 @@ namespace BreakersOfE
             // Ensure all app folders exist
             Services.AppFolderService.EnsureAllFolders();
 
-            // Check if installer requested a first-run database download
+            // If called with --update-db (from installer), run the database
+            // update directly and exit without showing the main window.
+            if (e.Args != null && e.Args.Any(a =>
+                a.Equals("--update-db", System.StringComparison.OrdinalIgnoreCase)))
+            {
+                var win = new UpdateDatabaseWindow();
+                win.ShowDialog();
+                Shutdown();
+                return;
+            }
+
+            // Check if installer requested a first-run database download (legacy flag)
             string flagFile = System.IO.Path.Combine(
                 AppDomain.CurrentDomain.BaseDirectory, "first_run_download.flag");
             if (System.IO.File.Exists(flagFile))

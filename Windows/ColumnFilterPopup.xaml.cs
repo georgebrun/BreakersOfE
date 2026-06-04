@@ -54,7 +54,7 @@ namespace BreakersOfE.Windows
 
             Title = $"Filter: {columnName}";
             _state = existingState;
-            _allValues = allValues.OrderBy(v => v).ToList();
+            _allValues = allValues.OrderBy(v => v, Comparer<string>.Create(ColumnFilterState.CompareNatural)).ToList();
 
             BuildItemList();
             PopulateOperatorCombo();

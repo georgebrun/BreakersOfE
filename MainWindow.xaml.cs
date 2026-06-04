@@ -116,6 +116,8 @@ namespace BreakersOfE
         private static string CardImagesFolder =>
             Services.AppFolderService.CardImagesFolder;
 
+        private System.Threading.CancellationTokenSource? _imageLoadCts;
+
         private static string ImageUnavailablePath =>
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                 "Resources", "Images", "image_unavailable.png");
@@ -1244,6 +1246,7 @@ namespace BreakersOfE
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "P/T",
+                SortMemberPath = "PowerToughnessSort",
                 Binding = new System.Windows.Data.Binding("PowerToughness"),
                 Width = new DataGridLength(55)
             });
@@ -1268,6 +1271,7 @@ namespace BreakersOfE
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "Number",
+                SortMemberPath = "CollectorNumberSort",
                 Binding = new System.Windows.Data.Binding("CollectorNumber"),
                 Width = new DataGridLength(65)
             });
@@ -1276,6 +1280,7 @@ namespace BreakersOfE
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "Power",
+                SortMemberPath = "PowerSort",
                 Binding = new System.Windows.Data.Binding("Power"),
                 Width = new DataGridLength(50)
             });
@@ -1284,6 +1289,7 @@ namespace BreakersOfE
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = "Toughness",
+                SortMemberPath = "ToughnessSort",
                 Binding = new System.Windows.Data.Binding("Toughness"),
                 Width = new DataGridLength(70)
             });
@@ -3371,13 +3377,13 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Color", "ColorDisplay", 50, true));
             grid.Columns.Add(MakeText("Type", "TypeLine", 160, true));
             grid.Columns.Add(MakeText("Rarity", "RarityCode", 50, true));
-            grid.Columns.Add(MakeText("P/T", "PowerToughness", 55, true));
+            grid.Columns.Add(MakeText("P/T", "PowerToughness", 55, true, sortBinding: "PowerToughnessSort"));
             grid.Columns.Add(MakeText("Text", "OracleText", 220, true));
             grid.Columns.Add(MakeText("Flavor", "FlavorText", 160, true));
             grid.Columns.Add(MakeText("Artist", "Artist", 130, true));
-            grid.Columns.Add(MakeText("No", "CollectorNumber", 55, true));
-            grid.Columns.Add(MakeText("Power", "Power", 50, true));
-            grid.Columns.Add(MakeText("Toughness", "Toughness", 70, true));
+            grid.Columns.Add(MakeText("No", "CollectorNumber", 55, true, sortBinding: "CollectorNumberSort"));
+            grid.Columns.Add(MakeText("Power", "Power", 50, true, sortBinding: "PowerSort"));
+            grid.Columns.Add(MakeText("Toughness", "Toughness", 70, true, sortBinding: "ToughnessSort"));
             grid.Columns.Add(MakeText("CMC", "ManaValue", 45, true));
             grid.Columns.Add(MakeText("Row", "RowIndex", 45, true));
         }
@@ -3484,12 +3490,12 @@ namespace BreakersOfE
             });
             grid.Columns.Add(MakeText("Text", "OracleText", 200));
             grid.Columns.Add(MakeText("Flavor", "FlavorText", 160));
-            grid.Columns.Add(MakeText("P/T", "PowerToughness", 55));
+            grid.Columns.Add(MakeText("P/T", "PowerToughness", 55, sortBinding: "PowerToughnessSort"));
             grid.Columns.Add(MakeText("Artist", "Artist", 130));
             grid.Columns.Add(MakeText("Edition Name", "SetName", 160));
-            grid.Columns.Add(MakeText("Number", "CollectorNumber", 65));
-            grid.Columns.Add(MakeText("Power", "Power", 50));
-            grid.Columns.Add(MakeText("Toughness", "Toughness", 70));
+            grid.Columns.Add(MakeText("Number", "CollectorNumber", 65, sortBinding: "CollectorNumberSort"));
+            grid.Columns.Add(MakeText("Power", "Power", 50, sortBinding: "PowerSort"));
+            grid.Columns.Add(MakeText("Toughness", "Toughness", 70, sortBinding: "ToughnessSort"));
             grid.Columns.Add(MakeText("CMC", "ManaValue", 45));
             grid.Columns.Add(MakeText("Row", "RowIndex", 45));
         }
@@ -4569,6 +4575,12 @@ namespace BreakersOfE
         }
 
         private ScrollViewer? _bottomDataGridScroller;
+
+        // ── Zoom state ───────────────────────────────────────────────────────
+        private double _topZoom = 1.0;
+        private double _bottomZoom = 1.0;
+        private ScaleTransform? _topScale;
+        private ScaleTransform? _bottomScale;
         private ScrollViewer? _bottomSummaryScroller;
 
         private void BottomSummaryGrid_Loaded(object sender, RoutedEventArgs e)
@@ -4614,6 +4626,92 @@ namespace BreakersOfE
                 _searchText = string.Empty;
             }
         }
+
+        // ── Table zoom ───────────────────────────────────────────────────────
+        private void ApplyZoom(DataGrid grid, DataGrid summaryGrid,
+            ref ScaleTransform? scale, ref double zoom, double delta,
+            TextBox input)
+        {
+            zoom = Math.Clamp(zoom + delta, 0.5, 2.0);
+            zoom = Math.Round(zoom, 2);
+            if (scale == null)
+            {
+                scale = new ScaleTransform(zoom, zoom);
+                grid.LayoutTransform = scale;
+                summaryGrid.LayoutTransform = new ScaleTransform(zoom, zoom);
+            }
+            else
+            {
+                scale.ScaleX = zoom;
+                scale.ScaleY = zoom;
+                if (summaryGrid.LayoutTransform is ScaleTransform ss)
+                { ss.ScaleX = zoom; ss.ScaleY = zoom; }
+                else
+                    summaryGrid.LayoutTransform = new ScaleTransform(zoom, zoom);
+            }
+            input.Text = $"{(int)(zoom * 100)}";
+        }
+
+        private void SetZoomFromInput(TextBox input, DataGrid grid, DataGrid summaryGrid,
+            ref ScaleTransform? scale, ref double zoom)
+        {
+            if (int.TryParse(input.Text.Trim().TrimEnd('%'), out int pct))
+            {
+                double target = Math.Clamp(pct / 100.0, 0.5, 2.0);
+                ApplyZoom(grid, summaryGrid, ref scale, ref zoom,
+                    target - zoom, input);
+            }
+            else
+                input.Text = $"{(int)(zoom * 100)}";
+        }
+
+        private void ZoomInput_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                if (sender is TextBox tb)
+                {
+                    if (tb == TopZoomInput)
+                        SetZoomFromInput(tb, TopDataGrid, TopSummaryGrid,
+                            ref _topScale, ref _topZoom);
+                    else if (tb == BottomZoomInput)
+                        SetZoomFromInput(tb, BottomDataGrid, BottomSummaryGrid,
+                            ref _bottomScale, ref _bottomZoom);
+                    Keyboard.ClearFocus();
+                }
+                e.Handled = true;
+            }
+        }
+
+        private void ZoomInput_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox tb)
+                tb.Dispatcher.BeginInvoke(new Action(() => tb.SelectAll()));
+        }
+
+        private void TopZoomInput_LostFocus(object sender, RoutedEventArgs e)
+            => SetZoomFromInput(TopZoomInput, TopDataGrid, TopSummaryGrid,
+                ref _topScale, ref _topZoom);
+
+        private void BottomZoomInput_LostFocus(object sender, RoutedEventArgs e)
+            => SetZoomFromInput(BottomZoomInput, BottomDataGrid, BottomSummaryGrid,
+                ref _bottomScale, ref _bottomZoom);
+
+        private void BtnTopZoomIn_Click(object sender, RoutedEventArgs e)
+            => ApplyZoom(TopDataGrid, TopSummaryGrid,
+                ref _topScale, ref _topZoom, 0.1, TopZoomInput);
+
+        private void BtnTopZoomOut_Click(object sender, RoutedEventArgs e)
+            => ApplyZoom(TopDataGrid, TopSummaryGrid,
+                ref _topScale, ref _topZoom, -0.1, TopZoomInput);
+
+        private void BtnBottomZoomIn_Click(object sender, RoutedEventArgs e)
+            => ApplyZoom(BottomDataGrid, BottomSummaryGrid,
+                ref _bottomScale, ref _bottomZoom, 0.1, BottomZoomInput);
+
+        private void BtnBottomZoomOut_Click(object sender, RoutedEventArgs e)
+            => ApplyZoom(BottomDataGrid, BottomSummaryGrid,
+                ref _bottomScale, ref _bottomZoom, -0.1, BottomZoomInput);
 
         // Returns keyboard focus to whichever grid the user was last in
         private void RestoreFocus()
@@ -6862,6 +6960,11 @@ namespace BreakersOfE
         internal async Task LoadCardImageAsync(string localPath, string remoteUrl,
             string backLocalPath = "", string backUrl = "")
         {
+            // Cancel any in-flight image download from a previous selection
+            _imageLoadCts?.Cancel();
+            _imageLoadCts = new System.Threading.CancellationTokenSource();
+            var token = _imageLoadCts.Token;
+
             // Reset flip state
             _showingBackFace = false;
             _currentBackLocalPath = backLocalPath;
@@ -6879,7 +6982,7 @@ namespace BreakersOfE
 
             if (!string.IsNullOrWhiteSpace(remoteUrl))
             {
-                await SetCardImageFromUrlAsync(remoteUrl);
+                await SetCardImageFromUrlAsync(remoteUrl, token);
                 return;
             }
 
@@ -6932,14 +7035,20 @@ namespace BreakersOfE
             catch { SetPlaceholderImage(); }
         }
 
-        private async Task SetCardImageFromUrlAsync(string url)
+        private async Task SetCardImageFromUrlAsync(string url,
+            System.Threading.CancellationToken externalToken = default)
         {
             try
             {
-                using var cts = new System.Threading.CancellationTokenSource(
-                    TimeSpan.FromSeconds(3));
+                using var cts = System.Threading.CancellationTokenSource
+                    .CreateLinkedTokenSource(externalToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+
                 using var http = new System.Net.Http.HttpClient();
                 var bytes = await http.GetByteArrayAsync(url, cts.Token);
+
+                // If selection changed while downloading, discard this result
+                if (externalToken.IsCancellationRequested) return;
 
                 var bmp = new BitmapImage();
                 bmp.BeginInit();
@@ -6948,15 +7057,21 @@ namespace BreakersOfE
                 bmp.EndInit();
                 bmp.Freeze();
 
-                Dispatcher.Invoke(() => CardImage.Source = bmp);
+                Dispatcher.Invoke(() =>
+                {
+                    if (!externalToken.IsCancellationRequested)
+                        CardImage.Source = bmp;
+                });
             }
-            catch { SetPlaceholderImage(); }
+            catch (OperationCanceledException) { /* selection changed — expected */ }
+            catch { if (!externalToken.IsCancellationRequested) SetPlaceholderImage(); }
         }
 
         private void SetPlaceholderImage()
         {
             try
             {
+                // Try filesystem path first (installed builds)
                 string fallback = ImageUnavailablePath;
                 if (File.Exists(fallback))
                 {
@@ -6967,9 +7082,14 @@ namespace BreakersOfE
                     bmp.EndInit();
                     bmp.Freeze();
                     CardImage.Source = bmp;
+                    return;
                 }
-                else
-                    CardImage.Source = null;
+
+                // Fall back to embedded WPF resource (Resource build action)
+                var packBmp = new BitmapImage(
+                    new Uri("pack://application:,,,/Resources/Images/image_unavailable.png"));
+                packBmp.Freeze();
+                CardImage.Source = packBmp;
             }
             catch { CardImage.Source = null; }
         }
@@ -7713,10 +7833,17 @@ namespace BreakersOfE
             string propName = GetPropertyNameForColumn(columnName, isTop);
             if (string.IsNullOrEmpty(propName)) return;
 
-            // Always get values from the UNFILTERED source so all options
-            // are visible even when a filter is already active
-            var values = GetUniqueValuesFromCache(propName, isTop);
+            // Get values from the CURRENTLY FILTERED data so other active filters
+            // cascade into this popup (Excel-style). Then merge in any values the
+            // user previously checked for THIS column so they can still uncheck them.
+            var values = GetUniqueValues(grid, propName);
             var state = filters.GetOrCreate(columnName, propName);
+            if (state.IsActive && state.SelectedValues.Count > 0)
+            {
+                var combined = new HashSet<string>(values);
+                combined.UnionWith(state.SelectedValues);
+                values = combined.OrderBy(v => v, Comparer<string>.Create(ColumnFilterState.CompareNatural)).ToList();
+            }
 
             _activeFilterPopup?.Close();
 
@@ -7862,7 +7989,7 @@ namespace BreakersOfE
                 string? val = prop?.GetValue(item)?.ToString();
                 values.Add(val ?? string.Empty);
             }
-            return values.OrderBy(v => v).ToList();
+            return values.OrderBy(v => v, Comparer<string>.Create(ColumnFilterState.CompareNatural)).ToList();
         }
 
         private static List<string> GetUniqueValues(
@@ -7883,7 +8010,7 @@ namespace BreakersOfE
                 values.Add(val ?? string.Empty);
             }
 
-            return values.OrderBy(v => v).ToList();
+            return values.OrderBy(v => v, Comparer<string>.Create(ColumnFilterState.CompareNatural)).ToList();
         }
 
         private static string GetPropertyNameForColumn(

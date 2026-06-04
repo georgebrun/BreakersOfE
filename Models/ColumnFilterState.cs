@@ -120,6 +120,27 @@ namespace BreakersOfE.Models
             TextValue = string.Empty;
         }
 
+        // ── Natural sort comparer (numeric-aware) ────────────────────────────
+        // Sorts numeric strings by value (including $-prefixed prices),
+        // non-numeric strings alphabetically after numbers.
+        public static int CompareNatural(string? a, string? b)
+        {
+            a ??= string.Empty;
+            b ??= string.Empty;
+            string sa = a.TrimStart('$', ' ').TrimEnd('%');
+            string sb = b.TrimStart('$', ' ').TrimEnd('%');
+            bool aNum = double.TryParse(sa,
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out double aVal);
+            bool bNum = double.TryParse(sb,
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out double bVal);
+            if (aNum && bNum) return aVal.CompareTo(bVal);
+            if (aNum) return -1;
+            if (bNum) return 1;
+            return string.Compare(a, b, System.StringComparison.OrdinalIgnoreCase);
+        }
+
         // ── Display label for operator ────────────────────────────────────────
         public static string GetOperatorLabel(ColumnFilterOperator op) =>
             op switch

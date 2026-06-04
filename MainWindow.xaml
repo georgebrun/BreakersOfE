@@ -328,6 +328,13 @@
                 <Button Name="BtnFilter"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE16E;" ToolTip="Filter Cards"                  Click="BtnFilter_Click"         Margin="2,2"/>
                 <Button Name="BtnAdvancedFilter" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE16F;" ToolTip="Advanced Filter"               Click="BtnAdvancedFilter_Click" Margin="2,2"/>
                 <Button Name="BtnSearch"         Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE11A;" ToolTip="Search for Card"               Click="BtnSearch_Click"         Margin="2,2"/>
+                <TextBox Name="SearchBox"
+                         PreviewKeyDown="SearchBox_PreviewKeyDown"
+                         Style="{DynamicResource BaseTextBoxStyle}"
+                         Height="26" Width="200"
+                         VerticalContentAlignment="Center"
+                         Margin="2,2"
+                         TextChanged="SearchBox_TextChanged"/>
                 <Button Name="BtnFindNext"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE70D;" ToolTip="Find Next"                     Click="BtnFindNext_Click"       Margin="2,2"/>
                 <Button Name="BtnFindPrev"       Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE70E;" ToolTip="Find Previous"                 Click="BtnFindPrev_Click"       Margin="2,2"/>
                 <Button Name="BtnClearSearch"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE10A;" ToolTip="Cancel Incremental Search"     Click="BtnClearSearch_Click"    Margin="2,2"/>
@@ -455,7 +462,7 @@
                 <Grid Grid.Row="0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="26"/>
-                        <RowDefinition Height="38"/>
+                        <RowDefinition Height="28"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="28"/>
@@ -485,9 +492,7 @@
                                     Margin="0,0,6,0"
                                     Style="{DynamicResource BaseButtonStyle}"
                                     PreviewMouseLeftButtonDown="ChooserBtn_PreviewMouseDown"/>
-                            <TextBlock Text="&#xE11A;" FontFamily="Segoe MDL2 Assets"
-                                       FontSize="14" Foreground="{DynamicResource MutedTextBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,6,0" DockPanel.Dock="Left"/>
+
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
                                         DockPanel.Dock="Left" Margin="0,0,8,0">
                                 <TextBlock Name="TopSearchLabel" Text="Pool"
@@ -499,13 +504,31 @@
                                             Margin="6,0,0,0"
                                             VerticalAlignment="Center"/>
                             </StackPanel>
-                            <TextBox Name="SearchBox"
-                                     PreviewKeyDown="SearchBox_PreviewKeyDown"
-                                     Style="{DynamicResource BaseTextBoxStyle}"
-                                     Height="28" Width="300"
-                                     VerticalContentAlignment="Center"
-                                     DockPanel.Dock="Left"
-                                     TextChanged="SearchBox_TextChanged"/>
+                            <!-- Top table zoom -->
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
+                                        VerticalAlignment="Center" Margin="8,0,0,0">
+                                <Button Content="−" Width="22" Height="22" FontSize="14"
+                                        Style="{DynamicResource BaseButtonStyle}"
+                                        ToolTip="Zoom Out (Top)" Padding="0"
+                                        Click="BtnTopZoomOut_Click"/>
+                                <TextBox Name="TopZoomInput" Text="100"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         FontSize="11" VerticalAlignment="Center"
+                                         HorizontalContentAlignment="Center"
+                                         Margin="4,0" Width="32" Height="20"
+                                         PreviewKeyDown="ZoomInput_PreviewKeyDown"
+                                         LostFocus="TopZoomInput_LostFocus"
+                                         GotFocus="ZoomInput_GotFocus"/>
+                                <TextBlock Text="%" FontSize="11"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                <Button Content="+" Width="22" Height="22" FontSize="14"
+                                        Style="{DynamicResource BaseButtonStyle}"
+                                        ToolTip="Zoom In (Top)" Padding="0"
+                                        Click="BtnTopZoomIn_Click"/>
+                            </StackPanel>
                         </DockPanel>
                     </Border>
 
@@ -698,10 +721,11 @@
                 </Grid>
 
                 <!-- TOP TABLE SPLITTER -->
-                <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
-                              VerticalAlignment="Bottom"
+                <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              ResizeDirection="Rows"
                               Background="{DynamicResource BorderBrush}"
-                              Cursor="SizeNS" Margin="0,-2,0,0"
+                              Cursor="SizeNS"
                               Focusable="False" IsTabStop="False"/>
 
                 <!-- BOTTOM AREA -->
@@ -739,6 +763,32 @@
                                             Orientation="Horizontal"
                                             Margin="6,0,0,0"
                                             VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- Bottom table zoom -->
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
+                                        VerticalAlignment="Center" Margin="8,0,0,0">
+                                <Button Content="−" Width="22" Height="22" FontSize="14"
+                                        Style="{DynamicResource BaseButtonStyle}"
+                                        ToolTip="Zoom Out (Bottom)" Padding="0"
+                                        Click="BtnBottomZoomOut_Click"/>
+                                <TextBox Name="BottomZoomInput" Text="100"
+                                         Foreground="{DynamicResource MutedTextBrush}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         FontSize="11" VerticalAlignment="Center"
+                                         HorizontalContentAlignment="Center"
+                                         Margin="4,0" Width="32" Height="20"
+                                         PreviewKeyDown="ZoomInput_PreviewKeyDown"
+                                         LostFocus="BottomZoomInput_LostFocus"
+                                         GotFocus="ZoomInput_GotFocus"/>
+                                <TextBlock Text="%" FontSize="11"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                <Button Content="+" Width="22" Height="22" FontSize="14"
+                                        Style="{DynamicResource BaseButtonStyle}"
+                                        ToolTip="Zoom In (Bottom)" Padding="0"
+                                        Click="BtnBottomZoomIn_Click"/>
                             </StackPanel>
                         </DockPanel>
                     </Border>
