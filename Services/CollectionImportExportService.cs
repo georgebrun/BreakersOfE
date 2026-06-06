@@ -638,7 +638,9 @@ namespace BreakersOfE.Services
 
             var existingEntries = cdb.CollectionEntries
                 .ToList()
-                .ToDictionary(e => e.PoolId);
+                .GroupBy(e => e.ScryfallId)
+                .Where(g => !string.IsNullOrEmpty(g.Key))
+                .ToDictionary(g => g.Key, g => g.First());
 
             foreach (var row in rows)
             {
@@ -685,7 +687,7 @@ namespace BreakersOfE.Services
                 }
 
                 // Find or create collection entry
-                if (existingEntries.TryGetValue(pc.PoolId, out var existing))
+                if (existingEntries.TryGetValue(pc.ScryfallId, out var existing))
                 {
                     if (mergeWithExisting)
                     {
@@ -720,6 +722,45 @@ namespace BreakersOfE.Services
                     {
                         PoolId = pc.PoolId,
                         ScryfallId = pc.ScryfallId,
+                        OracleId = pc.OracleId,
+                        Name = pc.Name,
+                        ManaCost = pc.ManaCost,
+                        ManaValue = pc.ManaValue,
+                        TypeLine = pc.TypeLine,
+                        OracleText = pc.OracleText,
+                        FlavorText = pc.FlavorText,
+                        Power = pc.Power,
+                        Toughness = pc.Toughness,
+                        LoyaltyOrDefense = pc.LoyaltyOrDefense,
+                        Colors = pc.Colors,
+                        ColorIdentity = pc.ColorIdentity,
+                        SetCode = pc.SetCode,
+                        SetName = pc.SetName,
+                        SetType = pc.SetType,
+                        CollectorNumber = pc.CollectorNumber,
+                        Rarity = pc.Rarity,
+                        Artist = pc.Artist,
+                        ImageSmallUrl = pc.ImageSmallUrl,
+                        ImageNormalUrl = pc.ImageNormalUrl,
+                        ImageBackUrl = pc.ImageBackUrl,
+                        LocalImagePath = pc.LocalImagePath,
+                        LocalImageBackPath = pc.LocalImageBackPath,
+                        Layout = pc.Layout,
+                        IsFoilAvailable = pc.IsFoil,
+                        IsNonFoilAvailable = pc.IsNonFoil,
+                        IsToken = pc.IsToken,
+                        IsMeld = pc.IsMeld,
+                        ReleasedAt = pc.ReleasedAt,
+                        LegalitiesJson = pc.LegalitiesJson,
+                        IsFavorite = pc.IsFavorite,
+                        Keywords = pc.Keywords,
+                        PriceUsd = pc.PriceUsd,
+                        PriceUsdFoil = pc.PriceUsdFoil,
+                        PriceUsdEtched = pc.PriceUsdEtched,
+                        PriceEur = pc.PriceEur,
+                        PriceEurFoil = pc.PriceEurFoil,
+                        PriceTix = pc.PriceTix,
+                        PricesJson = pc.PricesJson,
                         Quantity = row.IsFoil ? 0 : row.Quantity,
                         FoilQuantity = row.IsFoil ? row.Quantity : 0,
                         Condition = row.Condition,
@@ -733,7 +774,7 @@ namespace BreakersOfE.Services
                         DateModified = DateTime.Now
                     };
                     cdb.CollectionEntries.Add(entry);
-                    existingEntries[pc.PoolId] = entry;
+                    existingEntries[pc.ScryfallId] = entry;
                     result.CardsImported++;
                 }
             }
@@ -758,13 +799,37 @@ namespace BreakersOfE.Services
             ImportExportFormat format)
         {
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
 
             var entries = cdb.CollectionEntries.AsNoTracking().ToList();
-            var poolIds = entries.Select(e => e.PoolId).ToHashSet();
-            var cards = pdb.PoolCards.AsNoTracking()
-                .Where(c => poolIds.Contains(c.PoolId))
-                .ToList().ToDictionary(c => c.PoolId);
+            // Build a PoolId->entry dict for export methods that expect Dictionary<int, PoolCard>
+            // We create lightweight PoolCard wrappers from the self-contained entries
+            var cards = entries.ToDictionary(e => e.CollectionEntryId, e => new PoolCard
+            {
+                PoolId = e.PoolId,
+                ScryfallId = e.ScryfallId,
+                Name = e.Name,
+                SetCode = e.SetCode,
+                SetName = e.SetName,
+                CollectorNumber = e.CollectorNumber,
+                TypeLine = e.TypeLine,
+                OracleText = e.OracleText,
+                ManaCost = e.ManaCost,
+                ManaValue = e.ManaValue,
+                ColorIdentity = e.ColorIdentity,
+                Colors = e.Colors,
+                Rarity = e.Rarity,
+                Artist = e.Artist,
+                Power = e.Power,
+                Toughness = e.Toughness,
+                ImageNormalUrl = e.ImageNormalUrl,
+                LocalImagePath = e.LocalImagePath,
+                PriceUsd = e.PriceUsd,
+                PriceUsdFoil = e.PriceUsdFoil,
+                LegalitiesJson = e.LegalitiesJson,
+            });
+            // Remap entries to use CollectionEntryId as key for the export dict
+            var remapped = entries.Select(e => { var clone = e; return clone; }).ToList();
+            foreach (var e in remapped) e.PoolId = e.CollectionEntryId;
 
             switch (format)
             {
@@ -787,27 +852,33 @@ namespace BreakersOfE.Services
             ImportExportFormat format)
         {
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
 
             var entries = cdb.WantListEntries.AsNoTracking().ToList();
             if (entries.Count == 0) return;
-            var poolIds = entries.Select(e => e.PoolId).ToHashSet();
-            var cards = pdb.PoolCards.AsNoTracking()
-                .Where(c => poolIds.Contains(c.PoolId))
-                .ToList().ToDictionary(c => c.PoolId);
 
             // Convert to CollectionEntry-like for reuse of export methods
+            // Card data is self-contained in the WantListEntry
             var collEntries = entries
-                .Where(e => cards.ContainsKey(e.PoolId))
                 .Select(e => new CollectionEntry
                 {
-                    PoolId = e.PoolId,
+                    PoolId = e.WantListEntryId, // use as dict key
+                    ScryfallId = e.ScryfallId,
                     Quantity = e.IsFoil ? 0 : e.Quantity,
                     FoilQuantity = e.IsFoil ? e.Quantity : 0,
                     Condition = "Near Mint",
                     BuyAt = e.OfferPrice,
                     DateAdded = e.DateAdded
                 }).ToList();
+            var cards = entries.ToDictionary(e => e.WantListEntryId, e => new PoolCard
+            {
+                ScryfallId = e.ScryfallId,
+                Name = e.Name,
+                SetCode = e.SetCode,
+                SetName = e.SetName,
+                CollectorNumber = e.CollectorNumber,
+                PriceUsd = e.PriceUsd,
+                PriceUsdFoil = e.PriceUsdFoil,
+            });
 
             switch (format)
             {
@@ -830,26 +901,31 @@ namespace BreakersOfE.Services
             ImportExportFormat format)
         {
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
 
             var entries = cdb.TradeBinderEntries.AsNoTracking().ToList();
             if (entries.Count == 0) return;
-            var poolIds = entries.Select(e => e.PoolId).ToHashSet();
-            var cards = pdb.PoolCards.AsNoTracking()
-                .Where(c => poolIds.Contains(c.PoolId))
-                .ToList().ToDictionary(c => c.PoolId);
 
             var collEntries = entries
-                .Where(e => cards.ContainsKey(e.PoolId))
                 .Select(e => new CollectionEntry
                 {
-                    PoolId = e.PoolId,
+                    PoolId = e.TradeBinderEntryId, // use as dict key
+                    ScryfallId = e.ScryfallId,
                     Quantity = e.IsFoil ? 0 : e.Quantity,
                     FoilQuantity = e.IsFoil ? e.Quantity : 0,
                     Condition = e.Condition,
                     SellAt = e.AskingPrice,
                     DateAdded = e.DateAdded
                 }).ToList();
+            var cards = entries.ToDictionary(e => e.TradeBinderEntryId, e => new PoolCard
+            {
+                ScryfallId = e.ScryfallId,
+                Name = e.Name,
+                SetCode = e.SetCode,
+                SetName = e.SetName,
+                CollectorNumber = e.CollectorNumber,
+                PriceUsd = e.PriceUsd,
+                PriceUsdFoil = e.PriceUsdFoil,
+            });
 
             switch (format)
             {

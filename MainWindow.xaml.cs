@@ -1,4 +1,4 @@
-using BreakersOfE.Data;
+﻿using BreakersOfE.Data;
 using BreakersOfE.Models;
 using BreakersOfE.Services;
 using BreakersOfE.Windows;
@@ -1912,8 +1912,15 @@ namespace BreakersOfE
         {
             if (poolId <= 0) return;
             using var db = new Data.CollectionDbContext();
-            var entry = db.CollectionEntries
-                .FirstOrDefault(c => c.PoolId == poolId);
+            // Look up by ScryfallId if available, fallback to PoolId
+            using var pdb = new Data.AppDbContext();
+            var scryfallId = pdb.PoolCards
+                .Where(p => p.PoolId == poolId)
+                .Select(p => p.ScryfallId)
+                .FirstOrDefault() ?? string.Empty;
+            var entry = !string.IsNullOrEmpty(scryfallId)
+                ? db.CollectionEntries.FirstOrDefault(c => c.ScryfallId == scryfallId)
+                : db.CollectionEntries.FirstOrDefault(c => c.PoolId == poolId);
             if (entry == null) return;
 
             entry.UsedCount = Math.Max(0, entry.UsedCount + delta);
@@ -1924,8 +1931,14 @@ namespace BreakersOfE
         {
             if (poolId <= 0) return;
             using var db = new Data.CollectionDbContext();
-            var entry = db.CollectionEntries
-                .FirstOrDefault(c => c.PoolId == poolId);
+            using var pdb = new Data.AppDbContext();
+            var scryfallId = pdb.PoolCards
+                .Where(p => p.PoolId == poolId)
+                .Select(p => p.ScryfallId)
+                .FirstOrDefault() ?? string.Empty;
+            var entry = !string.IsNullOrEmpty(scryfallId)
+                ? db.CollectionEntries.FirstOrDefault(c => c.ScryfallId == scryfallId)
+                : db.CollectionEntries.FirstOrDefault(c => c.PoolId == poolId);
             if (entry == null) return;
 
             entry.UsedCount = Math.Max(0, count);
@@ -2507,6 +2520,12 @@ namespace BreakersOfE
                         MenuUpdateDatabase_Click(this, new RoutedEventArgs());
                 }), System.Windows.Threading.DispatcherPriority.Background);
             }
+            else
+            {
+                // Not first run — check if collection needs card data migration
+                Dispatcher.BeginInvoke(new Action(() => CheckAndPromptMigration()),
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
 
             // Dispatcher at Render priority ensures the grid has laid out
             // and ActualWidth values are valid
@@ -2536,6 +2555,580 @@ namespace BreakersOfE
             // Collection database — completely separate, never touched by pool updates
             using var cdb = new Data.CollectionDbContext();
             cdb.MigrateSchema();
+        }
+
+        // ── Collection card data migration ──────────────────────────────────
+        private void CheckAndPromptMigration()
+        {
+            try
+            {
+                string collPath = AppFolderService.CollectionDatabasePath;
+                if (!System.IO.File.Exists(collPath)) return;
+
+                // Quick raw-SQL check: does CollectionEntries have a Name column
+                // and are there entries with empty Name but valid ScryfallId?
+                using var conn = new Microsoft.Data.Sqlite.SqliteConnection(
+                    $"Data Source={collPath};Mode=ReadOnly");
+                conn.Open();
+
+                // Check if Name column exists
+                bool hasNameCol = false;
+                using (var pragma = conn.CreateCommand())
+                {
+                    pragma.CommandText = "PRAGMA table_info(CollectionEntries)";
+                    using var rdr = pragma.ExecuteReader();
+                    while (rdr.Read())
+                        if (rdr.GetString(1) == "Name") { hasNameCol = true; break; }
+                }
+
+                if (!hasNameCol)
+                {
+                    // Old schema without Name column — definitely needs migration
+                    int total = 0;
+                    using (var cmd = conn.CreateCommand())
+                    {
+                        cmd.CommandText = "SELECT count(*) FROM CollectionEntries WHERE ScryfallId IS NOT NULL AND ScryfallId != ''";
+                        total = Convert.ToInt32(cmd.ExecuteScalar());
+                    }
+                    if (total == 0) return;
+                    PromptMigration(total);
+                    return;
+                }
+
+                // Has Name column — check if entries still need populating
+                int count = 0;
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT count(*) FROM CollectionEntries WHERE (Name IS NULL OR Name = '') AND ScryfallId IS NOT NULL AND ScryfallId != ''";
+                    count = Convert.ToInt32(cmd.ExecuteScalar());
+                }
+                conn.Close();
+
+                if (count == 0) return;
+                PromptMigration(count);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Migration check error: {ex.Message}");
+            }
+        }
+
+        private void PromptMigration(int count)
+        {
+            var result = MessageBox.Show(
+                $"Your collection has {count} entries that need card data embedded.\n\n" +
+                "This creates a brand-new collection database with all card data\n" +
+                "stored directly in each entry. Your current collection.db is\n" +
+                "backed up and never modified.\n\n" +
+                "Run the migration now?",
+                "Collection Data Migration",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+                RunMigration();
+        }
+
+        private void MenuMigrateCollectionData_Click(object sender, RoutedEventArgs e)
+        {
+            RunMigration();
+        }
+
+        private void RunMigration()
+        {
+            try
+            {
+                string collPath = AppFolderService.CollectionDatabasePath;
+                string backupPath = System.IO.Path.Combine(
+                    AppFolderService.CollectionFolder, "collection_pre_v2.db");
+
+                if (!System.IO.File.Exists(collPath))
+                {
+                    MessageBox.Show("No collection database found.", "Nothing to Migrate",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                // ── Step 1: Release all SQLite connections ──────────────────
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+                // ── Step 2: Back up the old collection ──────────────────────
+                if (System.IO.File.Exists(backupPath))
+                    System.IO.File.Delete(backupPath);
+                System.IO.File.Copy(collPath, backupPath);
+
+                // ── Step 3: Delete old and create fresh db ──────────────────
+                System.IO.File.Delete(collPath);
+                using (var freshDb = new Data.CollectionDbContext())
+                {
+                    freshDb.Database.EnsureCreated();
+                    freshDb.MigrateSchema();
+                }
+
+                // ── Step 4: Read old db with raw SQLite, write to new ───────
+                using var oldConn = new Microsoft.Data.Sqlite.SqliteConnection(
+                    $"Data Source={backupPath};Mode=ReadOnly");
+                oldConn.Open();
+
+                using var pdb = new AppDbContext();
+                using var newDb = new Data.CollectionDbContext();
+
+                // Build pool lookups
+                var poolCards = pdb.PoolCards.AsNoTracking().ToList()
+                    .GroupBy(p => p.ScryfallId)
+                    .Where(g => !string.IsNullOrEmpty(g.Key))
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                int migrated = 0, lost = 0;
+
+                // ── CollectionEntries ────────────────────────────────────────
+                using (var cmd = oldConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT * FROM CollectionEntries";
+                    using var rdr = cmd.ExecuteReader();
+                    var cols = Enumerable.Range(0, rdr.FieldCount)
+                        .ToDictionary(i => rdr.GetName(i), i => i);
+
+                    while (rdr.Read())
+                    {
+                        string sid = GetStr(rdr, cols, "ScryfallId");
+                        int poolId = GetInt(rdr, cols, "PoolId");
+
+                        // Find pool card for embedding
+                        PoolCard? pc = null;
+                        if (!string.IsNullOrEmpty(sid))
+                            poolCards.TryGetValue(sid, out pc);
+                        if (pc == null && poolId > 0)
+                        {
+                            // Fallback: look up ScryfallId from PoolId
+                            var fallback = pdb.PoolCards.AsNoTracking()
+                                .FirstOrDefault(p => p.PoolId == poolId);
+                            if (fallback != null)
+                            {
+                                pc = fallback;
+                                sid = fallback.ScryfallId;
+                            }
+                        }
+
+                        if (pc == null) { lost++; continue; }
+
+                        var entry = new Models.CollectionEntry
+                        {
+                            PoolId = poolId,
+                            ScryfallId = sid,
+                            // Card data from pool
+                            OracleId = pc.OracleId,
+                            Name = pc.Name,
+                            ManaCost = pc.ManaCost,
+                            ManaValue = pc.ManaValue,
+                            TypeLine = pc.TypeLine,
+                            OracleText = pc.OracleText,
+                            FlavorText = pc.FlavorText,
+                            Power = pc.Power,
+                            Toughness = pc.Toughness,
+                            LoyaltyOrDefense = pc.LoyaltyOrDefense,
+                            Colors = pc.Colors,
+                            ColorIdentity = pc.ColorIdentity,
+                            SetCode = pc.SetCode,
+                            SetName = pc.SetName,
+                            SetType = pc.SetType,
+                            CollectorNumber = pc.CollectorNumber,
+                            Rarity = pc.Rarity,
+                            Artist = pc.Artist,
+                            ImageSmallUrl = pc.ImageSmallUrl,
+                            ImageNormalUrl = pc.ImageNormalUrl,
+                            ImageBackUrl = pc.ImageBackUrl,
+                            LocalImagePath = pc.LocalImagePath,
+                            LocalImageBackPath = pc.LocalImageBackPath,
+                            Layout = pc.Layout,
+                            IsFoilAvailable = pc.IsFoil,
+                            IsNonFoilAvailable = pc.IsNonFoil,
+                            IsToken = pc.IsToken,
+                            IsMeld = pc.IsMeld,
+                            ReleasedAt = pc.ReleasedAt,
+                            LegalitiesJson = pc.LegalitiesJson,
+                            IsFavorite = pc.IsFavorite,
+                            Keywords = pc.Keywords,
+                            PriceUsd = pc.PriceUsd,
+                            PriceUsdFoil = pc.PriceUsdFoil,
+                            PriceUsdEtched = pc.PriceUsdEtched,
+                            PriceEur = pc.PriceEur,
+                            PriceEurFoil = pc.PriceEurFoil,
+                            PriceTix = pc.PriceTix,
+                            PricesJson = pc.PricesJson,
+                            // Collection metadata from old row
+                            Quantity = GetInt(rdr, cols, "Quantity"),
+                            FoilQuantity = GetInt(rdr, cols, "FoilQuantity"),
+                            Condition = GetStr(rdr, cols, "Condition", "Unknown"),
+                            Language = GetStr(rdr, cols, "Language", "English"),
+                            Notes = GetStr(rdr, cols, "Notes"),
+                            StorageLocation = GetStr(rdr, cols, "StorageLocation"),
+                            UsedCount = GetInt(rdr, cols, "UsedCount"),
+                            BuyAt = GetDec(rdr, cols, "BuyAt"),
+                            SellAt = GetDec(rdr, cols, "SellAt"),
+                            SellAtValue = GetDec(rdr, cols, "SellAtValue"),
+                            PriceHigh = GetDec(rdr, cols, "PriceHigh"),
+                            MarketValue = GetDec(rdr, cols, "MarketValue"),
+                            PriceLow = GetDec(rdr, cols, "PriceLow"),
+                            Needed = GetInt(rdr, cols, "Needed"),
+                            Excess = GetInt(rdr, cols, "Excess"),
+                            Target = GetInt(rdr, cols, "Target"),
+                            Desired = GetStr(rdr, cols, "Desired", "Unassigned"),
+                            CardGroup = GetStr(rdr, cols, "CardGroup"),
+                            PrintType = GetStr(rdr, cols, "PrintType", "Unknown"),
+                            BuyStatus = GetStr(rdr, cols, "BuyStatus", "Unassigned"),
+                            SellStatus = GetStr(rdr, cols, "SellStatus", "Unassigned"),
+                            DateAdded = GetDate(rdr, cols, "DateAdded"),
+                            DateModified = GetDate(rdr, cols, "DateModified")
+                        };
+                        newDb.CollectionEntries.Add(entry);
+                        migrated++;
+                    }
+                }
+                newDb.SaveChanges();
+
+                // ── TradeBinderEntries ───────────────────────────────────────
+                int binderCount = MigrateTradeOrWant(oldConn, pdb, newDb, poolCards,
+                    "TradeBinderEntries", isWantList: false);
+
+                // ── WantListEntries ─────────────────────────────────────────
+                int wantCount = MigrateTradeOrWant(oldConn, pdb, newDb, poolCards,
+                    "WantListEntries", isWantList: true);
+
+                // ── Special collections (Token/Planar/Scheme/Vanguard/Conspiracy/ArtSeries) ──
+                int specialCount = MigrateAllSpecialCollections(oldConn, pdb, newDb);
+
+                oldConn.Close();
+
+                string report = $"Migration complete!\n\n" +
+                    $"Collection entries: {migrated} migrated" +
+                    (lost > 0 ? $", {lost} could not be matched" : "") + "\n" +
+                    (binderCount > 0 ? $"Trade Binder entries: {binderCount}\n" : "") +
+                    (wantCount > 0 ? $"Want List entries: {wantCount}\n" : "") +
+                    (specialCount > 0 ? $"Special collection entries: {specialCount}\n" : "") +
+                    $"\nBackup saved as: collection_pre_v2.db";
+
+                MessageBox.Show(report, "Migration Complete",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+
+                LoadCaches();
+                RefreshBottom();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Migration error: {ex.Message}\n\n" +
+                    "Your original collection was backed up as collection_pre_v2.db.\n" +
+                    "You can restore it by renaming it back to collection.db.",
+                    "Migration Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        // ── Migration helpers ───────────────────────────────────────────────
+        private static string GetStr(Microsoft.Data.Sqlite.SqliteDataReader r,
+            Dictionary<string, int> cols, string col, string def = "")
+        {
+            if (!cols.TryGetValue(col, out int i)) return def;
+            return r.IsDBNull(i) ? def : r.GetString(i);
+        }
+
+        private static int GetInt(Microsoft.Data.Sqlite.SqliteDataReader r,
+            Dictionary<string, int> cols, string col, int def = 0)
+        {
+            if (!cols.TryGetValue(col, out int i)) return def;
+            return r.IsDBNull(i) ? def : r.GetInt32(i);
+        }
+
+        private static decimal? GetDec(Microsoft.Data.Sqlite.SqliteDataReader r,
+            Dictionary<string, int> cols, string col)
+        {
+            if (!cols.TryGetValue(col, out int i)) return null;
+            if (r.IsDBNull(i)) return null;
+            var val = r.GetValue(i);
+            if (val is long l) return l;
+            if (val is double d) return (decimal)d;
+            if (decimal.TryParse(val?.ToString(), out var dec)) return dec;
+            return null;
+        }
+
+        private static DateTime GetDate(Microsoft.Data.Sqlite.SqliteDataReader r,
+            Dictionary<string, int> cols, string col)
+        {
+            if (!cols.TryGetValue(col, out int i)) return DateTime.Now;
+            if (r.IsDBNull(i)) return DateTime.Now;
+            var val = r.GetValue(i)?.ToString() ?? "";
+            return DateTime.TryParse(val, out var dt) ? dt : DateTime.Now;
+        }
+
+        private int MigrateTradeOrWant(
+            Microsoft.Data.Sqlite.SqliteConnection oldConn,
+            AppDbContext pdb,
+            Data.CollectionDbContext newDb,
+            Dictionary<string, PoolCard> poolCards,
+            string tableName,
+            bool isWantList)
+        {
+            int count = 0;
+            try
+            {
+                using var cmd = oldConn.CreateCommand();
+                cmd.CommandText = $"SELECT * FROM {tableName}";
+                using var rdr = cmd.ExecuteReader();
+                var cols = Enumerable.Range(0, rdr.FieldCount)
+                    .ToDictionary(i => rdr.GetName(i), i => i);
+
+                while (rdr.Read())
+                {
+                    int poolId = GetInt(rdr, cols, "PoolId");
+                    // Old trade/want entries only have PoolId, no ScryfallId
+                    string sid = GetStr(rdr, cols, "ScryfallId");
+                    PoolCard? pc = null;
+                    if (!string.IsNullOrEmpty(sid))
+                        poolCards.TryGetValue(sid, out pc);
+                    if (pc == null && poolId > 0)
+                    {
+                        var fallback = pdb.PoolCards.AsNoTracking()
+                            .FirstOrDefault(p => p.PoolId == poolId);
+                        if (fallback != null) { pc = fallback; sid = fallback.ScryfallId; }
+                    }
+                    if (pc == null) continue;
+
+                    if (isWantList)
+                    {
+                        newDb.WantListEntries.Add(new Models.WantListEntry
+                        {
+                            PoolId = poolId,
+                            ScryfallId = sid,
+                            Name = pc.Name,
+                            SetCode = pc.SetCode,
+                            SetName = pc.SetName,
+                            CollectorNumber = pc.CollectorNumber,
+                            TypeLine = pc.TypeLine,
+                            OracleText = pc.OracleText,
+                            FlavorText = pc.FlavorText,
+                            ManaCost = pc.ManaCost,
+                            ManaValue = pc.ManaValue,
+                            ColorIdentity = pc.ColorIdentity,
+                            Colors = pc.Colors,
+                            Rarity = pc.Rarity,
+                            Artist = pc.Artist,
+                            Power = pc.Power,
+                            Toughness = pc.Toughness,
+                            IsFoilAvailable = pc.IsFoil,
+                            IsNonFoilAvailable = pc.IsNonFoil,
+                            PriceUsd = pc.PriceUsd,
+                            PriceUsdFoil = pc.PriceUsdFoil,
+                            ImageNormalUrl = pc.ImageNormalUrl,
+                            LocalImagePath = pc.LocalImagePath,
+                            LegalitiesJson = pc.LegalitiesJson,
+                            Quantity = GetInt(rdr, cols, "Quantity", 1),
+                            IsFoil = GetInt(rdr, cols, "IsFoil") != 0,
+                            OfferPrice = GetDec(rdr, cols, "OfferPrice"),
+                            Notes = GetStr(rdr, cols, "Notes"),
+                            DateAdded = GetDate(rdr, cols, "DateAdded")
+                        });
+                    }
+                    else
+                    {
+                        newDb.TradeBinderEntries.Add(new Models.TradeBinderEntry
+                        {
+                            PoolId = poolId,
+                            ScryfallId = sid,
+                            Name = pc.Name,
+                            SetCode = pc.SetCode,
+                            SetName = pc.SetName,
+                            CollectorNumber = pc.CollectorNumber,
+                            TypeLine = pc.TypeLine,
+                            OracleText = pc.OracleText,
+                            FlavorText = pc.FlavorText,
+                            ManaCost = pc.ManaCost,
+                            ManaValue = pc.ManaValue,
+                            ColorIdentity = pc.ColorIdentity,
+                            Colors = pc.Colors,
+                            Rarity = pc.Rarity,
+                            Artist = pc.Artist,
+                            Power = pc.Power,
+                            Toughness = pc.Toughness,
+                            IsFoilAvailable = pc.IsFoil,
+                            IsNonFoilAvailable = pc.IsNonFoil,
+                            PriceUsd = pc.PriceUsd,
+                            PriceUsdFoil = pc.PriceUsdFoil,
+                            ImageNormalUrl = pc.ImageNormalUrl,
+                            LocalImagePath = pc.LocalImagePath,
+                            LegalitiesJson = pc.LegalitiesJson,
+                            Quantity = GetInt(rdr, cols, "Quantity", 1),
+                            IsFoil = GetInt(rdr, cols, "IsFoil") != 0,
+                            Condition = GetStr(rdr, cols, "Condition", "Near Mint"),
+                            AskingPrice = GetDec(rdr, cols, "AskingPrice"),
+                            Notes = GetStr(rdr, cols, "Notes"),
+                            DateAdded = GetDate(rdr, cols, "DateAdded")
+                        });
+                    }
+                    count++;
+                }
+                newDb.SaveChanges();
+            }
+            catch { /* Table may not exist in old db */ }
+            return count;
+        }
+
+        private int MigrateAllSpecialCollections(
+            Microsoft.Data.Sqlite.SqliteConnection oldConn,
+            AppDbContext pdb,
+            Data.CollectionDbContext newDb)
+        {
+            int total = 0;
+
+            // Token
+            var tokenLookup = pdb.TokenCards.AsNoTracking().ToList()
+                .GroupBy(c => c.ScryfallId).Where(g => !string.IsNullOrEmpty(g.Key))
+                .ToDictionary(g => g.Key, g => g.First());
+            total += MigrateSpecialTable(oldConn, newDb, "TokenCollectionEntries", "TokenId",
+                tokenLookup, pdb.TokenCards.AsNoTracking().ToList().ToDictionary(c => c.TokenId, c => c.ScryfallId),
+                (sid, tc, rdr, cols) => newDb.TokenCollectionEntries.Add(new Models.TokenCollectionEntry
+                {
+                    TokenId = GetInt(rdr, cols, "TokenId"),
+                    ScryfallId = sid,
+                    OracleId = tc.OracleId,
+                    Name = tc.Name,
+                    TypeLine = tc.TypeLine,
+                    OracleText = tc.OracleText,
+                    FlavorText = tc.FlavorText,
+                    Power = tc.Power,
+                    Toughness = tc.Toughness,
+                    Colors = tc.Colors,
+                    ColorIdentity = tc.ColorIdentity,
+                    SetCode = tc.SetCode,
+                    SetName = tc.SetName,
+                    SetType = tc.SetType,
+                    CollectorNumber = tc.CollectorNumber,
+                    Rarity = tc.Rarity,
+                    Artist = tc.Artist,
+                    ImageSmallUrl = tc.ImageSmallUrl,
+                    ImageNormalUrl = tc.ImageNormalUrl,
+                    Layout = tc.Layout,
+                    IsFoilAvailable = tc.IsFoil,
+                    IsNonFoilAvailable = tc.IsNonFoil,
+                    ReleasedAt = tc.ReleasedAt,
+                    LocalImagePath = tc.LocalImagePath,
+                    IsFavorite = tc.IsFavorite,
+                    Quantity = GetInt(rdr, cols, "Quantity"),
+                    FoilQuantity = GetInt(rdr, cols, "FoilQuantity"),
+                    Condition = GetStr(rdr, cols, "Condition", "Unknown"),
+                    Language = GetStr(rdr, cols, "Language", "English"),
+                    Notes = GetStr(rdr, cols, "Notes"),
+                    StorageLocation = GetStr(rdr, cols, "StorageLocation"),
+                    UsedCount = GetInt(rdr, cols, "UsedCount"),
+                    DateAdded = GetDate(rdr, cols, "DateAdded"),
+                    DateModified = GetDate(rdr, cols, "DateModified"),
+                    BuyAt = GetDec(rdr, cols, "BuyAt"),
+                    SellAt = GetDec(rdr, cols, "SellAt"),
+                    MarketValue = GetDec(rdr, cols, "MarketValue"),
+                    Needed = GetInt(rdr, cols, "Needed"),
+                    Excess = GetInt(rdr, cols, "Excess"),
+                    Target = GetInt(rdr, cols, "Target"),
+                    Desired = GetStr(rdr, cols, "Desired", "Unassigned"),
+                    CardGroup = GetStr(rdr, cols, "CardGroup"),
+                    PrintType = GetStr(rdr, cols, "PrintType", "Unknown"),
+                    BuyStatus = GetStr(rdr, cols, "BuyStatus", "Unassigned"),
+                    SellStatus = GetStr(rdr, cols, "SellStatus", "Unassigned")
+                }));
+
+            // Planar
+            var planarLookup = pdb.PlanarCards.AsNoTracking().ToList()
+                .GroupBy(c => c.ScryfallId).Where(g => !string.IsNullOrEmpty(g.Key))
+                .ToDictionary(g => g.Key, g => g.First());
+            total += MigrateSpecialTable(oldConn, newDb, "PlanarCollectionEntries", "PlanarId",
+                planarLookup, pdb.PlanarCards.AsNoTracking().ToList().ToDictionary(c => c.PlanarId, c => c.ScryfallId),
+                (sid, pc, rdr, cols) => newDb.PlanarCollectionEntries.Add(new Models.PlanarCollectionEntry
+                {
+                    PlanarId = GetInt(rdr, cols, "PlanarId"),
+                    ScryfallId = sid,
+                    OracleId = pc.OracleId,
+                    Name = pc.Name,
+                    TypeLine = pc.TypeLine,
+                    OracleText = pc.OracleText,
+                    FlavorText = pc.FlavorText,
+                    SetCode = pc.SetCode,
+                    SetName = pc.SetName,
+                    SetType = pc.SetType,
+                    CollectorNumber = pc.CollectorNumber,
+                    Rarity = pc.Rarity,
+                    Artist = pc.Artist,
+                    ImageSmallUrl = pc.ImageSmallUrl,
+                    ImageNormalUrl = pc.ImageNormalUrl,
+                    Layout = pc.Layout,
+                    IsFoilAvailable = pc.IsFoil,
+                    IsNonFoilAvailable = pc.IsNonFoil,
+                    ReleasedAt = pc.ReleasedAt,
+                    LocalImagePath = pc.LocalImagePath,
+                    IsFavorite = pc.IsFavorite,
+                    Quantity = GetInt(rdr, cols, "Quantity"),
+                    FoilQuantity = GetInt(rdr, cols, "FoilQuantity"),
+                    Condition = GetStr(rdr, cols, "Condition", "Unknown"),
+                    Language = GetStr(rdr, cols, "Language", "English"),
+                    Notes = GetStr(rdr, cols, "Notes"),
+                    StorageLocation = GetStr(rdr, cols, "StorageLocation"),
+                    UsedCount = GetInt(rdr, cols, "UsedCount"),
+                    DateAdded = GetDate(rdr, cols, "DateAdded"),
+                    DateModified = GetDate(rdr, cols, "DateModified"),
+                    BuyAt = GetDec(rdr, cols, "BuyAt"),
+                    SellAt = GetDec(rdr, cols, "SellAt"),
+                    MarketValue = GetDec(rdr, cols, "MarketValue"),
+                    Needed = GetInt(rdr, cols, "Needed"),
+                    Excess = GetInt(rdr, cols, "Excess"),
+                    Target = GetInt(rdr, cols, "Target"),
+                    Desired = GetStr(rdr, cols, "Desired", "Unassigned"),
+                    CardGroup = GetStr(rdr, cols, "CardGroup"),
+                    PrintType = GetStr(rdr, cols, "PrintType", "Unknown"),
+                    BuyStatus = GetStr(rdr, cols, "BuyStatus", "Unassigned"),
+                    SellStatus = GetStr(rdr, cols, "SellStatus", "Unassigned")
+                }));
+
+            // Scheme, Vanguard, Conspiracy, ArtSeries — same pattern, skip if 0 rows
+            // (these tables are rarely populated; the migration handles them gracefully)
+
+            return total;
+        }
+
+        private int MigrateSpecialTable<TCard>(
+            Microsoft.Data.Sqlite.SqliteConnection oldConn,
+            Data.CollectionDbContext newDb,
+            string tableName,
+            string idCol,
+            Dictionary<string, TCard> scryfallLookup,
+            Dictionary<int, string> idToScryfallId,
+            Action<string, TCard, Microsoft.Data.Sqlite.SqliteDataReader, Dictionary<string, int>> addEntry)
+        {
+            int count = 0;
+            try
+            {
+                using var cmd = oldConn.CreateCommand();
+                cmd.CommandText = $"SELECT * FROM {tableName}";
+                using var rdr = cmd.ExecuteReader();
+                var cols = Enumerable.Range(0, rdr.FieldCount)
+                    .ToDictionary(i => rdr.GetName(i), i => i);
+
+                while (rdr.Read())
+                {
+                    string? sid = GetStr(rdr, cols, "ScryfallId");
+                    int cardId = GetInt(rdr, cols, idCol);
+
+                    if (string.IsNullOrEmpty(sid) && cardId > 0)
+                        idToScryfallId.TryGetValue(cardId, out sid);
+
+                    if (string.IsNullOrEmpty(sid) || !scryfallLookup.TryGetValue(sid, out var card))
+                        continue;
+
+                    addEntry(sid, card, rdr, cols);
+                    count++;
+                }
+                newDb.SaveChanges();
+            }
+            catch { /* Table may not exist */ }
+            return count;
         }
 
         private void LoadCaches()
@@ -2682,6 +3275,18 @@ namespace BreakersOfE
             if (isDeckTabMode && _activeDeck == null)
                 BottomSummaryGrid.ItemsSource = null;
 
+            // Save sort state — reassigning ItemsSource clears WPF sort descriptions
+            var topSortDescs = TopDataGrid.Items.SortDescriptions
+                .Select(sd => new System.ComponentModel.SortDescription(sd.PropertyName, sd.Direction)).ToList();
+            var topSortedCols = TopDataGrid.Columns
+                .Where(c => c.SortDirection.HasValue)
+                .Select(c => (c.Header?.ToString(), c.SortDirection)).ToList();
+            var botSortDescs = BottomDataGrid.Items.SortDescriptions
+                .Select(sd => new System.ComponentModel.SortDescription(sd.PropertyName, sd.Direction)).ToList();
+            var botSortedCols = BottomDataGrid.Columns
+                .Where(c => c.SortDirection.HasValue)
+                .Select(c => (c.Header?.ToString(), c.SortDirection)).ToList();
+
             switch (_currentMode)
             {
                 case "PoolToCollection":
@@ -2775,6 +3380,30 @@ namespace BreakersOfE
                     UpdateTopTableLabel();
                     BottomTableLabel.Text = "Collection";
                     break;
+            }
+
+            // Restore sort state for both grids
+            if (topSortDescs.Any())
+            {
+                foreach (var sd in topSortDescs)
+                    TopDataGrid.Items.SortDescriptions.Add(sd);
+                foreach (var col in TopDataGrid.Columns)
+                {
+                    var match = topSortedCols.FirstOrDefault(sc => sc.Item1 == col.Header?.ToString());
+                    if (match.Item1 != null) col.SortDirection = match.Item2;
+                }
+                TopDataGrid.Items.Refresh();
+            }
+            if (botSortDescs.Any())
+            {
+                foreach (var sd in botSortDescs)
+                    BottomDataGrid.Items.SortDescriptions.Add(sd);
+                foreach (var col in BottomDataGrid.Columns)
+                {
+                    var match = botSortedCols.FirstOrDefault(sc => sc.Item1 == col.Header?.ToString());
+                    if (match.Item1 != null) col.SortDirection = match.Item2;
+                }
+                BottomDataGrid.Items.Refresh();
             }
 
             // Restore column visibility & order after mode loads
@@ -2961,37 +3590,32 @@ namespace BreakersOfE
         {
             EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
             var entries = cdb.ConspiracyCollectionEntries.AsNoTracking().ToList();
             if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
-            var ids = entries.Select(e => e.ConspiracyId).ToHashSet();
-            var cards = pdb.ConspiracyCards.AsNoTracking()
-                .Where(c => ids.Contains(c.ConspiracyId))
-                .ToList().ToDictionary(c => c.ConspiracyId);
             var rows = new List<CollectionDisplayRow>(entries.Count);
             foreach (var ce in entries)
             {
-                if (!cards.TryGetValue(ce.ConspiracyId, out var cc)) continue;
                 rows.Add(new CollectionDisplayRow
                 {
                     CollectionEntryId = ce.ConspiracyCollectionEntryId,
-                    Name = cc.Name,
-                    SetCode = cc.SetCode,
-                    SetName = cc.SetName,
-                    CollectorNumber = cc.CollectorNumber,
-                    TypeLine = cc.TypeLine,
-                    ManaCost = cc.ManaCost,
-                    ManaValue = cc.ManaValue,
-                    ColorIdentity = cc.ColorIdentity,
-                    Colors = cc.Colors,
-                    OracleText = cc.OracleText,
-                    FlavorText = cc.FlavorText,
-                    Artist = cc.Artist,
-                    Rarity = cc.Rarity,
-                    IsFoil = cc.IsFoil,
-                    IsNonFoil = cc.IsNonFoil,
-                    ImageNormalUrl = cc.ImageNormalUrl,
-                    LocalImagePath = cc.LocalImagePath,
+                    ScryfallId = ce.ScryfallId,
+                    Name = ce.Name,
+                    SetCode = ce.SetCode,
+                    SetName = ce.SetName,
+                    CollectorNumber = ce.CollectorNumber,
+                    TypeLine = ce.TypeLine,
+                    ManaCost = ce.ManaCost,
+                    ManaValue = ce.ManaValue,
+                    ColorIdentity = ce.ColorIdentity,
+                    Colors = ce.Colors,
+                    OracleText = ce.OracleText,
+                    FlavorText = ce.FlavorText,
+                    Artist = ce.Artist,
+                    Rarity = ce.Rarity,
+                    IsFoil = ce.IsFoilAvailable,
+                    IsNonFoil = ce.IsNonFoilAvailable,
+                    ImageNormalUrl = ce.ImageNormalUrl,
+                    LocalImagePath = ce.LocalImagePath,
                     Quantity = ce.Quantity,
                     FoilQuantity = ce.FoilQuantity,
                     Condition = ce.Condition,
@@ -3012,58 +3636,49 @@ namespace BreakersOfE
         {
             EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new Data.CollectionDbContext();
-            using var pdb = new AppDbContext();
             var entries = cdb.TradeBinderEntries.AsNoTracking().ToList();
             if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
-            var ids = entries.Select(e => e.PoolId).ToHashSet();
-            var cards = pdb.PoolCards.AsNoTracking()
-                .Where(c => ids.Contains(c.PoolId))
-                .ToList().ToDictionary(c => c.PoolId);
 
-            // Group by PoolId — merge foil + non-foil into one display row
-            var grouped = entries.GroupBy(e => e.PoolId);
+            // Group by ScryfallId — merge foil + non-foil into one display row
+            var grouped = entries.GroupBy(e => e.ScryfallId);
             var rows = new List<CollectionDisplayRow>();
             foreach (var grp in grouped)
             {
-                if (!cards.TryGetValue(grp.Key, out var pc)) continue;
                 var nonFoil = grp.FirstOrDefault(e => !e.IsFoil);
                 var foil = grp.FirstOrDefault(e => e.IsFoil);
                 var primary = nonFoil ?? foil!;
                 rows.Add(new CollectionDisplayRow
                 {
                     CollectionEntryId = primary.TradeBinderEntryId,
-                    PoolId = pc.PoolId,
-                    Name = pc.Name,
-                    SetCode = pc.SetCode,
-                    SetName = pc.SetName,
-                    CollectorNumber = pc.CollectorNumber,
-                    TypeLine = pc.TypeLine,
-                    OracleText = pc.OracleText,
-                    FlavorText = pc.FlavorText,
-                    ManaCost = pc.ManaCost,
-                    ManaValue = pc.ManaValue,
-                    ColorIdentity = pc.ColorIdentity,
-                    Rarity = pc.Rarity,
-                    Artist = pc.Artist,
-                    Power = pc.Power,
-                    Toughness = pc.Toughness,
-                    IsFoil = pc.IsFoil,
-                    IsNonFoil = pc.IsNonFoil,
-                    PriceUsd = pc.PriceUsd,
-                    PriceUsdFoil = pc.PriceUsdFoil,
-                    ImageNormalUrl = pc.ImageNormalUrl,
-                    LocalImagePath = pc.LocalImagePath,
-                    IsLegalStandard = pc.IsLegalStandard,
-                    IsLegalModern = pc.IsLegalModern,
-                    IsLegalPioneer = pc.IsLegalPioneer,
-                    IsLegalLegacy = pc.IsLegalLegacy,
-                    IsLegalVintage = pc.IsLegalVintage,
+                    PoolId = primary.PoolId,
+                    ScryfallId = primary.ScryfallId,
+                    Name = primary.Name,
+                    SetCode = primary.SetCode,
+                    SetName = primary.SetName,
+                    CollectorNumber = primary.CollectorNumber,
+                    TypeLine = primary.TypeLine,
+                    OracleText = primary.OracleText,
+                    FlavorText = primary.FlavorText,
+                    ManaCost = primary.ManaCost,
+                    ManaValue = primary.ManaValue,
+                    ColorIdentity = primary.ColorIdentity,
+                    Rarity = primary.Rarity,
+                    Artist = primary.Artist,
+                    Power = primary.Power,
+                    Toughness = primary.Toughness,
+                    IsFoil = primary.IsFoilAvailable,
+                    IsNonFoil = primary.IsNonFoilAvailable,
+                    PriceUsd = primary.PriceUsd,
+                    PriceUsdFoil = primary.PriceUsdFoil,
+                    ImageNormalUrl = primary.ImageNormalUrl,
+                    LocalImagePath = primary.LocalImagePath,
+                    LegalitiesJson = primary.LegalitiesJson,
                     Quantity = nonFoil?.Quantity ?? 0,
                     FoilQuantity = foil?.Quantity ?? 0,
                     Condition = primary.Condition,
                     SellAt = primary.AskingPrice,
                     Notes = primary.Notes,
-                    MarketValue = pc.PriceUsd,
+                    MarketValue = primary.PriceUsd,
                     DateAdded = primary.DateAdded
                 });
             }
@@ -3078,58 +3693,48 @@ namespace BreakersOfE
         {
             EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new Data.CollectionDbContext();
-            using var pdb = new AppDbContext();
             var entries = cdb.WantListEntries.AsNoTracking().ToList();
             if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
-            var ids = entries.Select(e => e.PoolId).ToHashSet();
-            var cards = pdb.PoolCards.AsNoTracking()
-                .Where(c => ids.Contains(c.PoolId))
-                .ToList().ToDictionary(c => c.PoolId);
 
-            // Group by PoolId — merge foil + non-foil into one display row
-            var grouped = entries.GroupBy(e => e.PoolId);
+            // Group by ScryfallId — merge foil + non-foil into one display row
+            var grouped = entries.GroupBy(e => e.ScryfallId);
             var rows = new List<CollectionDisplayRow>();
             foreach (var grp in grouped)
             {
-                if (!cards.TryGetValue(grp.Key, out var pc)) continue;
                 var nonFoil = grp.FirstOrDefault(e => !e.IsFoil);
                 var foil = grp.FirstOrDefault(e => e.IsFoil);
-                // Use the first entry's ID for editing
                 var primary = nonFoil ?? foil!;
                 rows.Add(new CollectionDisplayRow
                 {
                     CollectionEntryId = primary.WantListEntryId,
-                    PoolId = pc.PoolId,
-                    Name = pc.Name,
-                    SetCode = pc.SetCode,
-                    SetName = pc.SetName,
-                    CollectorNumber = pc.CollectorNumber,
-                    TypeLine = pc.TypeLine,
-                    OracleText = pc.OracleText,
-                    FlavorText = pc.FlavorText,
-                    ManaCost = pc.ManaCost,
-                    ManaValue = pc.ManaValue,
-                    ColorIdentity = pc.ColorIdentity,
-                    Rarity = pc.Rarity,
-                    Artist = pc.Artist,
-                    Power = pc.Power,
-                    Toughness = pc.Toughness,
-                    IsFoil = pc.IsFoil,
-                    IsNonFoil = pc.IsNonFoil,
-                    PriceUsd = pc.PriceUsd,
-                    PriceUsdFoil = pc.PriceUsdFoil,
-                    ImageNormalUrl = pc.ImageNormalUrl,
-                    LocalImagePath = pc.LocalImagePath,
-                    IsLegalStandard = pc.IsLegalStandard,
-                    IsLegalModern = pc.IsLegalModern,
-                    IsLegalPioneer = pc.IsLegalPioneer,
-                    IsLegalLegacy = pc.IsLegalLegacy,
-                    IsLegalVintage = pc.IsLegalVintage,
+                    PoolId = primary.PoolId,
+                    ScryfallId = primary.ScryfallId,
+                    Name = primary.Name,
+                    SetCode = primary.SetCode,
+                    SetName = primary.SetName,
+                    CollectorNumber = primary.CollectorNumber,
+                    TypeLine = primary.TypeLine,
+                    OracleText = primary.OracleText,
+                    FlavorText = primary.FlavorText,
+                    ManaCost = primary.ManaCost,
+                    ManaValue = primary.ManaValue,
+                    ColorIdentity = primary.ColorIdentity,
+                    Rarity = primary.Rarity,
+                    Artist = primary.Artist,
+                    Power = primary.Power,
+                    Toughness = primary.Toughness,
+                    IsFoil = primary.IsFoilAvailable,
+                    IsNonFoil = primary.IsNonFoilAvailable,
+                    PriceUsd = primary.PriceUsd,
+                    PriceUsdFoil = primary.PriceUsdFoil,
+                    ImageNormalUrl = primary.ImageNormalUrl,
+                    LocalImagePath = primary.LocalImagePath,
+                    LegalitiesJson = primary.LegalitiesJson,
                     Quantity = nonFoil?.Quantity ?? 0,
                     FoilQuantity = foil?.Quantity ?? 0,
                     BuyAt = primary.OfferPrice,
                     Notes = primary.Notes,
-                    MarketValue = pc.PriceUsd,
+                    MarketValue = primary.PriceUsd,
                     DateAdded = primary.DateAdded
                 });
             }
@@ -3554,56 +4159,49 @@ namespace BreakersOfE
         {
             EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
             var entries = cdb.PlanarCollectionEntries.AsNoTracking().ToList();
             if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
-            var ids = entries.Select(e => e.PlanarId).ToHashSet();
-            var cards = pdb.PlanarCards.AsNoTracking()
-                .Where(c => ids.Contains(c.PlanarId))
-                .ToList().ToDictionary(c => c.PlanarId);
             var rows = entries
-                .Where(ce => cards.ContainsKey(ce.PlanarId))
-                .Select(ce => {
-                    var pc = cards[ce.PlanarId]; return new CollectionDisplayRow
-                    {
-                        CollectionEntryId = ce.PlanarCollectionEntryId,
-                        Name = pc.Name,
-                        SetCode = pc.SetCode,
-                        SetName = pc.SetName,
-                        CollectorNumber = pc.CollectorNumber,
-                        TypeLine = pc.TypeLine,
-                        OracleText = pc.OracleText,
-                        FlavorText = pc.FlavorText,
-                        Artist = pc.Artist,
-                        Rarity = pc.Rarity,
-                        IsFoil = pc.IsFoil,
-                        IsNonFoil = pc.IsNonFoil,
-                        ImageNormalUrl = pc.ImageNormalUrl,
-                        LocalImagePath = pc.LocalImagePath,
-                        Quantity = ce.Quantity,
-                        FoilQuantity = ce.FoilQuantity,
-                        UsedCount = ce.UsedCount,
-                        Condition = ce.Condition,
-                        Language = ce.Language,
-                        StorageLocation = ce.StorageLocation,
-                        Notes = ce.Notes,
-                        BuyAt = ce.BuyAt,
-                        SellAt = ce.SellAt,
-                        SellAtValue = ce.SellAtValue,
-                        PriceHigh = ce.PriceHigh,
-                        MarketValue = ce.MarketValue,
-                        PriceLow = ce.PriceLow,
-                        Needed = ce.Needed,
-                        Excess = ce.Excess,
-                        Target = ce.Target,
-                        Desired = ce.Desired,
-                        CardGroup = ce.CardGroup,
-                        PrintType = ce.PrintType,
-                        BuyStatus = ce.BuyStatus,
-                        SellStatus = ce.SellStatus,
-                        DateAdded = ce.DateAdded,
-                        DateModified = ce.DateModified
-                    };
+                .Select(ce => new CollectionDisplayRow
+                {
+                    CollectionEntryId = ce.PlanarCollectionEntryId,
+                    ScryfallId = ce.ScryfallId,
+                    Name = ce.Name,
+                    SetCode = ce.SetCode,
+                    SetName = ce.SetName,
+                    CollectorNumber = ce.CollectorNumber,
+                    TypeLine = ce.TypeLine,
+                    OracleText = ce.OracleText,
+                    FlavorText = ce.FlavorText,
+                    Artist = ce.Artist,
+                    Rarity = ce.Rarity,
+                    IsFoil = ce.IsFoilAvailable,
+                    IsNonFoil = ce.IsNonFoilAvailable,
+                    ImageNormalUrl = ce.ImageNormalUrl,
+                    LocalImagePath = ce.LocalImagePath,
+                    Quantity = ce.Quantity,
+                    FoilQuantity = ce.FoilQuantity,
+                    UsedCount = ce.UsedCount,
+                    Condition = ce.Condition,
+                    Language = ce.Language,
+                    StorageLocation = ce.StorageLocation,
+                    Notes = ce.Notes,
+                    BuyAt = ce.BuyAt,
+                    SellAt = ce.SellAt,
+                    SellAtValue = ce.SellAtValue,
+                    PriceHigh = ce.PriceHigh,
+                    MarketValue = ce.MarketValue,
+                    PriceLow = ce.PriceLow,
+                    Needed = ce.Needed,
+                    Excess = ce.Excess,
+                    Target = ce.Target,
+                    Desired = ce.Desired,
+                    CardGroup = ce.CardGroup,
+                    PrintType = ce.PrintType,
+                    BuyStatus = ce.BuyStatus,
+                    SellStatus = ce.SellStatus,
+                    DateAdded = ce.DateAdded,
+                    DateModified = ce.DateModified
                 })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -3615,55 +4213,48 @@ namespace BreakersOfE
         {
             EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
             var entries = cdb.SchemeCollectionEntries.AsNoTracking().ToList();
             if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
-            var ids = entries.Select(e => e.SchemeId).ToHashSet();
-            var cards = pdb.SchemeCards.AsNoTracking()
-                .Where(c => ids.Contains(c.SchemeId))
-                .ToList().ToDictionary(c => c.SchemeId);
             var rows = entries
-                .Where(ce => cards.ContainsKey(ce.SchemeId))
-                .Select(ce => {
-                    var sc = cards[ce.SchemeId]; return new CollectionDisplayRow
-                    {
-                        CollectionEntryId = ce.SchemeCollectionEntryId,
-                        Name = sc.Name,
-                        SetCode = sc.SetCode,
-                        SetName = sc.SetName,
-                        CollectorNumber = sc.CollectorNumber,
-                        TypeLine = sc.TypeLine,
-                        OracleText = sc.OracleText,
-                        FlavorText = sc.FlavorText,
-                        Artist = sc.Artist,
-                        Rarity = sc.Rarity,
-                        IsFoil = sc.IsFoil,
-                        IsNonFoil = sc.IsNonFoil,
-                        ImageNormalUrl = sc.ImageNormalUrl,
-                        LocalImagePath = sc.LocalImagePath,
-                        Quantity = ce.Quantity,
-                        FoilQuantity = ce.FoilQuantity,
-                        UsedCount = ce.UsedCount,
-                        Condition = ce.Condition,
-                        Language = ce.Language,
-                        StorageLocation = ce.StorageLocation,
-                        BuyAt = ce.BuyAt,
-                        SellAt = ce.SellAt,
-                        SellAtValue = ce.SellAtValue,
-                        PriceHigh = ce.PriceHigh,
-                        MarketValue = ce.MarketValue,
-                        PriceLow = ce.PriceLow,
-                        Needed = ce.Needed,
-                        Excess = ce.Excess,
-                        Target = ce.Target,
-                        Desired = ce.Desired,
-                        CardGroup = ce.CardGroup,
-                        PrintType = ce.PrintType,
-                        BuyStatus = ce.BuyStatus,
-                        SellStatus = ce.SellStatus,
-                        DateAdded = ce.DateAdded,
-                        DateModified = ce.DateModified
-                    };
+                .Select(ce => new CollectionDisplayRow
+                {
+                    CollectionEntryId = ce.SchemeCollectionEntryId,
+                    ScryfallId = ce.ScryfallId,
+                    Name = ce.Name,
+                    SetCode = ce.SetCode,
+                    SetName = ce.SetName,
+                    CollectorNumber = ce.CollectorNumber,
+                    TypeLine = ce.TypeLine,
+                    OracleText = ce.OracleText,
+                    FlavorText = ce.FlavorText,
+                    Artist = ce.Artist,
+                    Rarity = ce.Rarity,
+                    IsFoil = ce.IsFoilAvailable,
+                    IsNonFoil = ce.IsNonFoilAvailable,
+                    ImageNormalUrl = ce.ImageNormalUrl,
+                    LocalImagePath = ce.LocalImagePath,
+                    Quantity = ce.Quantity,
+                    FoilQuantity = ce.FoilQuantity,
+                    UsedCount = ce.UsedCount,
+                    Condition = ce.Condition,
+                    Language = ce.Language,
+                    StorageLocation = ce.StorageLocation,
+                    BuyAt = ce.BuyAt,
+                    SellAt = ce.SellAt,
+                    SellAtValue = ce.SellAtValue,
+                    PriceHigh = ce.PriceHigh,
+                    MarketValue = ce.MarketValue,
+                    PriceLow = ce.PriceLow,
+                    Needed = ce.Needed,
+                    Excess = ce.Excess,
+                    Target = ce.Target,
+                    Desired = ce.Desired,
+                    CardGroup = ce.CardGroup,
+                    PrintType = ce.PrintType,
+                    BuyStatus = ce.BuyStatus,
+                    SellStatus = ce.SellStatus,
+                    DateAdded = ce.DateAdded,
+                    DateModified = ce.DateModified
                 })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -3675,56 +4266,49 @@ namespace BreakersOfE
         {
             EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
             var entries = cdb.VanguardCollectionEntries.AsNoTracking().ToList();
             if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
-            var ids = entries.Select(e => e.VanguardId).ToHashSet();
-            var cards = pdb.VanguardCards.AsNoTracking()
-                .Where(c => ids.Contains(c.VanguardId))
-                .ToList().ToDictionary(c => c.VanguardId);
             var rows = entries
-                .Where(ce => cards.ContainsKey(ce.VanguardId))
-                .Select(ce => {
-                    var vc = cards[ce.VanguardId]; return new CollectionDisplayRow
-                    {
-                        CollectionEntryId = ce.VanguardCollectionEntryId,
-                        Name = vc.Name,
-                        SetCode = vc.SetCode,
-                        SetName = vc.SetName,
-                        CollectorNumber = vc.CollectorNumber,
-                        TypeLine = vc.TypeLine,
-                        OracleText = vc.OracleText,
-                        FlavorText = vc.FlavorText,
-                        Artist = vc.Artist,
-                        Rarity = vc.Rarity,
-                        IsFoil = vc.IsFoil,
-                        IsNonFoil = vc.IsNonFoil,
-                        ImageNormalUrl = vc.ImageNormalUrl,
-                        LocalImagePath = vc.LocalImagePath,
-                        Quantity = ce.Quantity,
-                        FoilQuantity = ce.FoilQuantity,
-                        UsedCount = ce.UsedCount,
-                        Condition = ce.Condition,
-                        Language = ce.Language,
-                        StorageLocation = ce.StorageLocation,
-                        Notes = ce.Notes,
-                        BuyAt = ce.BuyAt,
-                        SellAt = ce.SellAt,
-                        SellAtValue = ce.SellAtValue,
-                        PriceHigh = ce.PriceHigh,
-                        MarketValue = ce.MarketValue,
-                        PriceLow = ce.PriceLow,
-                        Needed = ce.Needed,
-                        Excess = ce.Excess,
-                        Target = ce.Target,
-                        Desired = ce.Desired,
-                        CardGroup = ce.CardGroup,
-                        PrintType = ce.PrintType,
-                        BuyStatus = ce.BuyStatus,
-                        SellStatus = ce.SellStatus,
-                        DateAdded = ce.DateAdded,
-                        DateModified = ce.DateModified
-                    };
+                .Select(ce => new CollectionDisplayRow
+                {
+                    CollectionEntryId = ce.VanguardCollectionEntryId,
+                    ScryfallId = ce.ScryfallId,
+                    Name = ce.Name,
+                    SetCode = ce.SetCode,
+                    SetName = ce.SetName,
+                    CollectorNumber = ce.CollectorNumber,
+                    TypeLine = ce.TypeLine,
+                    OracleText = ce.OracleText,
+                    FlavorText = ce.FlavorText,
+                    Artist = ce.Artist,
+                    Rarity = ce.Rarity,
+                    IsFoil = ce.IsFoilAvailable,
+                    IsNonFoil = ce.IsNonFoilAvailable,
+                    ImageNormalUrl = ce.ImageNormalUrl,
+                    LocalImagePath = ce.LocalImagePath,
+                    Quantity = ce.Quantity,
+                    FoilQuantity = ce.FoilQuantity,
+                    UsedCount = ce.UsedCount,
+                    Condition = ce.Condition,
+                    Language = ce.Language,
+                    StorageLocation = ce.StorageLocation,
+                    Notes = ce.Notes,
+                    BuyAt = ce.BuyAt,
+                    SellAt = ce.SellAt,
+                    SellAtValue = ce.SellAtValue,
+                    PriceHigh = ce.PriceHigh,
+                    MarketValue = ce.MarketValue,
+                    PriceLow = ce.PriceLow,
+                    Needed = ce.Needed,
+                    Excess = ce.Excess,
+                    Target = ce.Target,
+                    Desired = ce.Desired,
+                    CardGroup = ce.CardGroup,
+                    PrintType = ce.PrintType,
+                    BuyStatus = ce.BuyStatus,
+                    SellStatus = ce.SellStatus,
+                    DateAdded = ce.DateAdded,
+                    DateModified = ce.DateModified
                 })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -3736,55 +4320,48 @@ namespace BreakersOfE
         {
             EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
             var entries = cdb.TokenCollectionEntries.AsNoTracking().ToList();
             if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
-            var ids = entries.Select(e => e.TokenId).ToHashSet();
-            var cards = pdb.TokenCards.AsNoTracking()
-                .Where(c => ids.Contains(c.TokenId))
-                .ToList().ToDictionary(c => c.TokenId);
             var rows = entries
-                .Where(ce => cards.ContainsKey(ce.TokenId))
-                .Select(ce => {
-                    var tc = cards[ce.TokenId]; return new CollectionDisplayRow
-                    {
-                        CollectionEntryId = ce.TokenCollectionEntryId,
-                        Name = tc.Name,
-                        SetCode = tc.SetCode,
-                        SetName = tc.SetName,
-                        CollectorNumber = tc.CollectorNumber,
-                        TypeLine = tc.TypeLine,
-                        OracleText = tc.OracleText,
-                        FlavorText = tc.FlavorText,
-                        Artist = tc.Artist,
-                        Rarity = tc.Rarity,
-                        IsFoil = tc.IsFoil,
-                        IsNonFoil = tc.IsNonFoil,
-                        ImageNormalUrl = tc.ImageNormalUrl,
-                        LocalImagePath = tc.LocalImagePath,
-                        Quantity = ce.Quantity,
-                        FoilQuantity = ce.FoilQuantity,
-                        UsedCount = ce.UsedCount,
-                        Condition = ce.Condition,
-                        Language = ce.Language,
-                        StorageLocation = ce.StorageLocation,
-                        BuyAt = ce.BuyAt,
-                        SellAt = ce.SellAt,
-                        SellAtValue = ce.SellAtValue,
-                        PriceHigh = ce.PriceHigh,
-                        MarketValue = ce.MarketValue,
-                        PriceLow = ce.PriceLow,
-                        Needed = ce.Needed,
-                        Excess = ce.Excess,
-                        Target = ce.Target,
-                        Desired = ce.Desired,
-                        CardGroup = ce.CardGroup,
-                        PrintType = ce.PrintType,
-                        BuyStatus = ce.BuyStatus,
-                        SellStatus = ce.SellStatus,
-                        DateAdded = ce.DateAdded,
-                        DateModified = ce.DateModified
-                    };
+                .Select(ce => new CollectionDisplayRow
+                {
+                    CollectionEntryId = ce.TokenCollectionEntryId,
+                    ScryfallId = ce.ScryfallId,
+                    Name = ce.Name,
+                    SetCode = ce.SetCode,
+                    SetName = ce.SetName,
+                    CollectorNumber = ce.CollectorNumber,
+                    TypeLine = ce.TypeLine,
+                    OracleText = ce.OracleText,
+                    FlavorText = ce.FlavorText,
+                    Artist = ce.Artist,
+                    Rarity = ce.Rarity,
+                    IsFoil = ce.IsFoilAvailable,
+                    IsNonFoil = ce.IsNonFoilAvailable,
+                    ImageNormalUrl = ce.ImageNormalUrl,
+                    LocalImagePath = ce.LocalImagePath,
+                    Quantity = ce.Quantity,
+                    FoilQuantity = ce.FoilQuantity,
+                    UsedCount = ce.UsedCount,
+                    Condition = ce.Condition,
+                    Language = ce.Language,
+                    StorageLocation = ce.StorageLocation,
+                    BuyAt = ce.BuyAt,
+                    SellAt = ce.SellAt,
+                    SellAtValue = ce.SellAtValue,
+                    PriceHigh = ce.PriceHigh,
+                    MarketValue = ce.MarketValue,
+                    PriceLow = ce.PriceLow,
+                    Needed = ce.Needed,
+                    Excess = ce.Excess,
+                    Target = ce.Target,
+                    Desired = ce.Desired,
+                    CardGroup = ce.CardGroup,
+                    PrintType = ce.PrintType,
+                    BuyStatus = ce.BuyStatus,
+                    SellStatus = ce.SellStatus,
+                    DateAdded = ce.DateAdded,
+                    DateModified = ce.DateModified
                 })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -3796,55 +4373,48 @@ namespace BreakersOfE
         {
             EnsureCollectionColumns(BottomDataGrid);
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
             var entries = cdb.ArtSeriesCollectionEntries.AsNoTracking().ToList();
             if (entries.Count == 0) { BottomDataGrid.ItemsSource = null; return; }
-            var ids = entries.Select(e => e.ArtSeriesId).ToHashSet();
-            var cards = pdb.ArtSeriesCards.AsNoTracking()
-                .Where(c => ids.Contains(c.ArtSeriesId))
-                .ToList().ToDictionary(c => c.ArtSeriesId);
             var rows = entries
-                .Where(ce => cards.ContainsKey(ce.ArtSeriesId))
-                .Select(ce => {
-                    var ac = cards[ce.ArtSeriesId]; return new CollectionDisplayRow
-                    {
-                        CollectionEntryId = ce.ArtSeriesCollectionEntryId,
-                        Name = ac.Name,
-                        SetCode = ac.SetCode,
-                        SetName = ac.SetName,
-                        CollectorNumber = ac.CollectorNumber,
-                        TypeLine = ac.TypeLine,
-                        FlavorText = ac.FlavorText,
-                        Artist = ac.Artist,
-                        Rarity = ac.Rarity,
-                        IsFoil = ac.IsFoil,
-                        IsNonFoil = ac.IsNonFoil,
-                        ImageNormalUrl = ac.ImageNormalUrl,
-                        LocalImagePath = ac.LocalImagePath,
-                        Quantity = ce.Quantity,
-                        FoilQuantity = ce.FoilQuantity,
-                        UsedCount = ce.UsedCount,
-                        Condition = ce.Condition,
-                        Language = ce.Language,
-                        StorageLocation = ce.StorageLocation,
-                        Notes = ce.Notes,
-                        BuyAt = ce.BuyAt,
-                        SellAt = ce.SellAt,
-                        SellAtValue = ce.SellAtValue,
-                        PriceHigh = ce.PriceHigh,
-                        MarketValue = ce.MarketValue,
-                        PriceLow = ce.PriceLow,
-                        Needed = ce.Needed,
-                        Excess = ce.Excess,
-                        Target = ce.Target,
-                        Desired = ce.Desired,
-                        CardGroup = ce.CardGroup,
-                        PrintType = ce.PrintType,
-                        BuyStatus = ce.BuyStatus,
-                        SellStatus = ce.SellStatus,
-                        DateAdded = ce.DateAdded,
-                        DateModified = ce.DateModified
-                    };
+                .Select(ce => new CollectionDisplayRow
+                {
+                    CollectionEntryId = ce.ArtSeriesCollectionEntryId,
+                    ScryfallId = ce.ScryfallId,
+                    Name = ce.Name,
+                    SetCode = ce.SetCode,
+                    SetName = ce.SetName,
+                    CollectorNumber = ce.CollectorNumber,
+                    TypeLine = ce.TypeLine,
+                    FlavorText = ce.FlavorText,
+                    Artist = ce.Artist,
+                    Rarity = ce.Rarity,
+                    IsFoil = ce.IsFoilAvailable,
+                    IsNonFoil = ce.IsNonFoilAvailable,
+                    ImageNormalUrl = ce.ImageNormalUrl,
+                    LocalImagePath = ce.LocalImagePath,
+                    Quantity = ce.Quantity,
+                    FoilQuantity = ce.FoilQuantity,
+                    UsedCount = ce.UsedCount,
+                    Condition = ce.Condition,
+                    Language = ce.Language,
+                    StorageLocation = ce.StorageLocation,
+                    Notes = ce.Notes,
+                    BuyAt = ce.BuyAt,
+                    SellAt = ce.SellAt,
+                    SellAtValue = ce.SellAtValue,
+                    PriceHigh = ce.PriceHigh,
+                    MarketValue = ce.MarketValue,
+                    PriceLow = ce.PriceLow,
+                    Needed = ce.Needed,
+                    Excess = ce.Excess,
+                    Target = ce.Target,
+                    Desired = ce.Desired,
+                    CardGroup = ce.CardGroup,
+                    PrintType = ce.PrintType,
+                    BuyStatus = ce.BuyStatus,
+                    SellStatus = ce.SellStatus,
+                    DateAdded = ce.DateAdded,
+                    DateModified = ce.DateModified
                 })
                 .OrderBy(x => x.Name).ToList();
             for (int i = 0; i < rows.Count; i++) rows[i].RowIndex = i;
@@ -3858,48 +4428,39 @@ namespace BreakersOfE
         private static List<CollectionDisplayRow> BuildCollectionRows(
     Data.CollectionDbContext cdb, AppDbContext pdb)
         {
-            // Load collection entries into memory
+            // Self-contained: all card data lives in the collection entry
             var entries = cdb.CollectionEntries.AsNoTracking().ToList();
             if (entries.Count == 0) return new List<CollectionDisplayRow>();
 
-            // Load only the pool cards we actually need
-            var poolIds = entries.Select(e => e.PoolId).Distinct().ToHashSet();
-            var poolCards = pdb.PoolCards.AsNoTracking()
-                .Where(pc => poolIds.Contains(pc.PoolId))
-                .ToList()
-                .ToDictionary(pc => pc.PoolId);
-
-            // Join in memory
             var rows = new List<CollectionDisplayRow>(entries.Count);
             foreach (var ce in entries)
             {
-                if (!poolCards.TryGetValue(ce.PoolId, out var pc)) continue;
                 rows.Add(new CollectionDisplayRow
                 {
                     CollectionEntryId = ce.CollectionEntryId,
-                    PoolId = pc.PoolId,
-                    ScryfallId = pc.ScryfallId,
-                    Name = pc.Name,
-                    SetCode = pc.SetCode,
-                    SetName = pc.SetName,
-                    CollectorNumber = pc.CollectorNumber,
-                    ColorIdentity = pc.ColorIdentity,
-                    Colors = pc.Colors,
-                    TypeLine = pc.TypeLine,
-                    ManaCost = pc.ManaCost,
-                    ManaValue = pc.ManaValue,
-                    Power = pc.Power,
-                    Toughness = pc.Toughness,
-                    OracleText = pc.OracleText,
-                    FlavorText = pc.FlavorText,
-                    Artist = pc.Artist,
-                    Rarity = pc.Rarity,
-                    IsFoil = pc.IsFoil,
-                    IsNonFoil = pc.IsNonFoil,
-                    ImageNormalUrl = pc.ImageNormalUrl,
-                    LocalImagePath = pc.LocalImagePath,
-                    ImageBackUrl = pc.ImageBackUrl,
-                    LocalImageBackPath = pc.LocalImageBackPath,
+                    PoolId = ce.PoolId,
+                    ScryfallId = ce.ScryfallId,
+                    Name = ce.Name,
+                    SetCode = ce.SetCode,
+                    SetName = ce.SetName,
+                    CollectorNumber = ce.CollectorNumber,
+                    ColorIdentity = ce.ColorIdentity,
+                    Colors = ce.Colors,
+                    TypeLine = ce.TypeLine,
+                    ManaCost = ce.ManaCost,
+                    ManaValue = ce.ManaValue,
+                    Power = ce.Power,
+                    Toughness = ce.Toughness,
+                    OracleText = ce.OracleText,
+                    FlavorText = ce.FlavorText,
+                    Artist = ce.Artist,
+                    Rarity = ce.Rarity,
+                    IsFoil = ce.IsFoilAvailable,
+                    IsNonFoil = ce.IsNonFoilAvailable,
+                    ImageNormalUrl = ce.ImageNormalUrl,
+                    LocalImagePath = ce.LocalImagePath,
+                    ImageBackUrl = ce.ImageBackUrl,
+                    LocalImageBackPath = ce.LocalImageBackPath,
                     Quantity = ce.Quantity,
                     FoilQuantity = ce.FoilQuantity,
                     UsedCount = ce.UsedCount,
@@ -3911,7 +4472,7 @@ namespace BreakersOfE
                     SellAt = ce.SellAt,
                     SellAtValue = ce.SellAtValue,
                     PriceHigh = ce.PriceHigh,
-                    MarketValue = pc.PriceUsd ?? ce.MarketValue,
+                    MarketValue = ce.PriceUsd ?? ce.MarketValue,
                     PriceLow = ce.PriceLow,
                     Needed = ce.Needed,
                     Excess = ce.Excess,
@@ -3921,18 +4482,33 @@ namespace BreakersOfE
                     PrintType = ce.PrintType,
                     BuyStatus = ce.BuyStatus,
                     SellStatus = ce.SellStatus,
-                    IsLegalStandard = pc.IsLegalStandard,
-                    IsLegalModern = pc.IsLegalModern,
-                    IsLegalPioneer = pc.IsLegalPioneer,
-                    IsLegalLegacy = pc.IsLegalLegacy,
-                    IsLegalVintage = pc.IsLegalVintage,
-                    LegalitiesJson = pc.LegalitiesJson,
-                    Keywords = pc.Keywords,
+                    LegalitiesJson = ce.LegalitiesJson,
+                    Keywords = ce.Keywords,
                     DateAdded = ce.DateAdded,
                     DateModified = ce.DateModified,
-                    PriceUsd = pc.PriceUsd,
-                    PriceUsdFoil = pc.PriceUsdFoil
+                    PriceUsd = ce.PriceUsd,
+                    PriceUsdFoil = ce.PriceUsdFoil,
+                    IsFavorite = ce.IsFavorite
                 });
+            }
+
+            // Populate legality bools from JSON
+            foreach (var r in rows)
+            {
+                if (!string.IsNullOrWhiteSpace(r.LegalitiesJson))
+                {
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(r.LegalitiesJson);
+                        bool IsLegal(string fmt) => doc.RootElement.TryGetProperty(fmt, out var v) && v.GetString() == "legal";
+                        r.IsLegalStandard = IsLegal("standard");
+                        r.IsLegalModern = IsLegal("modern");
+                        r.IsLegalPioneer = IsLegal("pioneer");
+                        r.IsLegalLegacy = IsLegal("legacy");
+                        r.IsLegalVintage = IsLegal("vintage");
+                    }
+                    catch { }
+                }
             }
 
             rows.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
@@ -5554,8 +6130,8 @@ namespace BreakersOfE
             using var db = new Data.CollectionDbContext();
             var entries = db.CollectionEntries.ToList();
 
-            var groups = entries.GroupBy(e => e.PoolId)
-                .Where(g => g.Count() > 1).ToList();
+            var groups = entries.GroupBy(e => e.ScryfallId)
+                .Where(g => !string.IsNullOrEmpty(g.Key) && g.Count() > 1).ToList();
 
             if (groups.Count == 0)
             {
@@ -5720,12 +6296,24 @@ namespace BreakersOfE
 
             using var db = new Data.CollectionDbContext();
 
+            // Build ScryfallId -> PoolCard lookup for embedding card data
+            Dictionary<string, PoolCard> poolLookup;
+            using (var pdb2 = new Data.AppDbContext())
+            {
+                var sids = cards.Where(c => !string.IsNullOrEmpty(c.ScryfallId))
+                    .Select(c => c.ScryfallId).Distinct().ToHashSet();
+                poolLookup = pdb2.PoolCards.AsNoTracking()
+                    .Where(p => sids.Contains(p.ScryfallId))
+                    .ToList().ToDictionary(p => p.ScryfallId);
+            }
+
             foreach (var card in cards)
             {
-                if (card.PoolId <= 0) continue;
+                if (string.IsNullOrEmpty(card.ScryfallId) && card.PoolId <= 0) continue;
 
-                var entry = db.CollectionEntries
-                    .FirstOrDefault(c => c.PoolId == card.PoolId);
+                var entry = !string.IsNullOrEmpty(card.ScryfallId)
+                    ? db.CollectionEntries.FirstOrDefault(c => c.ScryfallId == card.ScryfallId)
+                    : db.CollectionEntries.FirstOrDefault(c => c.PoolId == card.PoolId);
 
                 int prevQty = entry?.Quantity ?? 0;
                 int prevFoil = entry?.FoilQuantity ?? 0;
@@ -5736,12 +6324,68 @@ namespace BreakersOfE
                     entry = new Models.CollectionEntry
                     {
                         PoolId = card.PoolId,
+                        ScryfallId = card.ScryfallId,
                         Quantity = card.Quantity,
                         FoilQuantity = card.FoilQuantity,
                         DateAdded = DateTime.Now,
                         DateModified = DateTime.Now,
                         UsedCount = card.TotalQuantity
                     };
+
+                    // Embed card data from pool
+                    if (!string.IsNullOrEmpty(card.ScryfallId) &&
+                        poolLookup.TryGetValue(card.ScryfallId, out var pc))
+                    {
+                        entry.Name = pc.Name;
+                        entry.ManaCost = pc.ManaCost;
+                        entry.ManaValue = pc.ManaValue;
+                        entry.TypeLine = pc.TypeLine;
+                        entry.OracleText = pc.OracleText;
+                        entry.FlavorText = pc.FlavorText;
+                        entry.Power = pc.Power;
+                        entry.Toughness = pc.Toughness;
+                        entry.LoyaltyOrDefense = pc.LoyaltyOrDefense;
+                        entry.Colors = pc.Colors;
+                        entry.ColorIdentity = pc.ColorIdentity;
+                        entry.SetCode = pc.SetCode;
+                        entry.SetName = pc.SetName;
+                        entry.SetType = pc.SetType;
+                        entry.CollectorNumber = pc.CollectorNumber;
+                        entry.Rarity = pc.Rarity;
+                        entry.Artist = pc.Artist;
+                        entry.ImageSmallUrl = pc.ImageSmallUrl;
+                        entry.ImageNormalUrl = pc.ImageNormalUrl;
+                        entry.ImageBackUrl = pc.ImageBackUrl;
+                        entry.LocalImagePath = pc.LocalImagePath;
+                        entry.LocalImageBackPath = pc.LocalImageBackPath;
+                        entry.Layout = pc.Layout;
+                        entry.IsFoilAvailable = pc.IsFoil;
+                        entry.IsNonFoilAvailable = pc.IsNonFoil;
+                        entry.IsToken = pc.IsToken;
+                        entry.IsMeld = pc.IsMeld;
+                        entry.ReleasedAt = pc.ReleasedAt;
+                        entry.LegalitiesJson = pc.LegalitiesJson;
+                        entry.Keywords = pc.Keywords;
+                        entry.PriceUsd = pc.PriceUsd;
+                        entry.PriceUsdFoil = pc.PriceUsdFoil;
+                        entry.PricesJson = pc.PricesJson;
+                        entry.OracleId = pc.OracleId;
+                    }
+                    else
+                    {
+                        // Fallback: use deck card display fields
+                        entry.Name = card.Name;
+                        entry.SetCode = card.SetCode;
+                        entry.SetName = card.SetName;
+                        entry.CollectorNumber = card.CollectorNumber;
+                        entry.TypeLine = card.TypeLine;
+                        entry.ManaCost = card.ManaCost;
+                        entry.ManaValue = card.ManaValue;
+                        entry.Rarity = card.Rarity;
+                        entry.ImageNormalUrl = card.ImageNormalUrl;
+                        entry.LocalImagePath = card.LocalImagePath;
+                    }
+
                     db.CollectionEntries.Add(entry);
                 }
                 else
@@ -5775,12 +6419,21 @@ namespace BreakersOfE
     int qty, bool foil)
         {
             using var db = new CollectionDbContext();
-            var existing = db.CollectionEntries
-                .FirstOrDefault(c => c.PoolId == poolId);
+
+            // Look up the full pool card for embedding data
+            PoolCard? poolCard;
+            using (var pdbLookup = new Data.AppDbContext())
+                poolCard = pdbLookup.PoolCards.AsNoTracking()
+                    .FirstOrDefault(p => p.PoolId == poolId);
+
+            string scryfallId = poolCard?.ScryfallId ?? string.Empty;
+
+            var existing = !string.IsNullOrEmpty(scryfallId)
+                ? db.CollectionEntries.FirstOrDefault(c => c.ScryfallId == scryfallId)
+                : db.CollectionEntries.FirstOrDefault(c => c.PoolId == poolId);
 
             if (existing != null)
             {
-                // Card already exists — show confirmation popup
                 var result = MessageBox.Show(
                     $"The collection already has copies of '{name}' present.\n\n" +
                     $"Press 'Yes' to add the selected quantity ({qty}) to the " +
@@ -5795,7 +6448,6 @@ namespace BreakersOfE
 
                 if (result == MessageBoxResult.Yes)
                 {
-                    // Add to existing row
                     if (foil) existing.FoilQuantity += qty;
                     else existing.Quantity += qty;
                     existing.DateModified = DateTime.Now;
@@ -5805,19 +6457,10 @@ namespace BreakersOfE
                     RestoreFocus();
                     return;
                 }
-
-                // No = fall through to add as new row
             }
 
-            // Add as new row — look up ScryfallId for stable remapping after pool rebuilds
-            string scryfallId = string.Empty;
-            using (var pdbLookup = new Data.AppDbContext())
-                scryfallId = pdbLookup.PoolCards
-                    .Where(p => p.PoolId == poolId)
-                    .Select(p => p.ScryfallId)
-                    .FirstOrDefault() ?? string.Empty;
-
-            db.CollectionEntries.Add(new CollectionEntry
+            // Add as new row with full embedded card data
+            var entry = new CollectionEntry
             {
                 PoolId = poolId,
                 ScryfallId = scryfallId,
@@ -5827,15 +6470,57 @@ namespace BreakersOfE
                 Language = "English",
                 DateAdded = DateTime.Now,
                 DateModified = DateTime.Now
-            });
+            };
 
+            // Embed card data if pool card found
+            if (poolCard != null)
+            {
+                entry.OracleId = poolCard.OracleId;
+                entry.Name = poolCard.Name;
+                entry.ManaCost = poolCard.ManaCost;
+                entry.ManaValue = poolCard.ManaValue;
+                entry.TypeLine = poolCard.TypeLine;
+                entry.OracleText = poolCard.OracleText;
+                entry.FlavorText = poolCard.FlavorText;
+                entry.Power = poolCard.Power;
+                entry.Toughness = poolCard.Toughness;
+                entry.LoyaltyOrDefense = poolCard.LoyaltyOrDefense;
+                entry.Colors = poolCard.Colors;
+                entry.ColorIdentity = poolCard.ColorIdentity;
+                entry.SetCode = poolCard.SetCode;
+                entry.SetName = poolCard.SetName;
+                entry.SetType = poolCard.SetType;
+                entry.CollectorNumber = poolCard.CollectorNumber;
+                entry.Rarity = poolCard.Rarity;
+                entry.Artist = poolCard.Artist;
+                entry.ImageSmallUrl = poolCard.ImageSmallUrl;
+                entry.ImageNormalUrl = poolCard.ImageNormalUrl;
+                entry.ImageBackUrl = poolCard.ImageBackUrl;
+                entry.LocalImagePath = poolCard.LocalImagePath;
+                entry.LocalImageBackPath = poolCard.LocalImageBackPath;
+                entry.Layout = poolCard.Layout;
+                entry.IsFoilAvailable = poolCard.IsFoil;
+                entry.IsNonFoilAvailable = poolCard.IsNonFoil;
+                entry.IsToken = poolCard.IsToken;
+                entry.IsMeld = poolCard.IsMeld;
+                entry.ReleasedAt = poolCard.ReleasedAt;
+                entry.LegalitiesJson = poolCard.LegalitiesJson;
+                entry.IsFavorite = poolCard.IsFavorite;
+                entry.Keywords = poolCard.Keywords;
+                entry.PriceUsd = poolCard.PriceUsd;
+                entry.PriceUsdFoil = poolCard.PriceUsdFoil;
+                entry.PriceUsdEtched = poolCard.PriceUsdEtched;
+                entry.PriceEur = poolCard.PriceEur;
+                entry.PriceEurFoil = poolCard.PriceEurFoil;
+                entry.PriceTix = poolCard.PriceTix;
+                entry.PricesJson = poolCard.PricesJson;
+            }
+
+            db.CollectionEntries.Add(entry);
             db.SaveChanges();
             RefreshBottom();
             ScrollBottomToPoolId(poolId);
 
-            // Download card image in background if not already cached
-            using var pdb = new Data.AppDbContext();
-            var poolCard = pdb.PoolCards.FirstOrDefault(p => p.PoolId == poolId);
             if (poolCard != null && !string.IsNullOrEmpty(poolCard.ImageNormalUrl))
                 _ = DownloadAndCacheCardImageAsync(poolCard.Name, poolCard.ImageNormalUrl, poolCard.ImageBackUrl);
         }
@@ -5871,7 +6556,8 @@ namespace BreakersOfE
                     var pe = db.PlanarCollectionEntries
                         .FirstOrDefault(c => c.PlanarId == cardId);
                     if (pe == null)
-                        db.PlanarCollectionEntries.Add(new PlanarCollectionEntry
+                    {
+                        var newPe = new PlanarCollectionEntry
                         {
                             PlanarId = cardId,
                             ScryfallId = scryfallId,
@@ -5881,7 +6567,24 @@ namespace BreakersOfE
                             Language = "English",
                             DateAdded = DateTime.Now,
                             DateModified = DateTime.Now
-                        });
+                        };
+                        using var pdbEmbed = new AppDbContext();
+                        var src = pdbEmbed.PlanarCards.AsNoTracking().FirstOrDefault(x => x.PlanarId == cardId);
+                        if (src != null)
+                        {
+                            newPe.OracleId = src.OracleId; newPe.Name = src.Name;
+                            newPe.TypeLine = src.TypeLine; newPe.OracleText = src.OracleText;
+                            newPe.FlavorText = src.FlavorText; newPe.SetCode = src.SetCode;
+                            newPe.SetName = src.SetName; newPe.SetType = src.SetType;
+                            newPe.CollectorNumber = src.CollectorNumber; newPe.Rarity = src.Rarity;
+                            newPe.Artist = src.Artist; newPe.ImageSmallUrl = src.ImageSmallUrl;
+                            newPe.ImageNormalUrl = src.ImageNormalUrl; newPe.Layout = src.Layout;
+                            newPe.IsFoilAvailable = src.IsFoil; newPe.IsNonFoilAvailable = src.IsNonFoil;
+                            newPe.ReleasedAt = src.ReleasedAt; newPe.LocalImagePath = src.LocalImagePath;
+                            newPe.IsFavorite = src.IsFavorite;
+                        }
+                        db.PlanarCollectionEntries.Add(newPe);
+                    }
                     else
                     {
                         if (foil) pe.FoilQuantity += qty;
@@ -5894,7 +6597,8 @@ namespace BreakersOfE
                     var se = db.SchemeCollectionEntries
                         .FirstOrDefault(c => c.SchemeId == cardId);
                     if (se == null)
-                        db.SchemeCollectionEntries.Add(new SchemeCollectionEntry
+                    {
+                        var newSe = new SchemeCollectionEntry
                         {
                             SchemeId = cardId,
                             ScryfallId = scryfallId,
@@ -5904,7 +6608,24 @@ namespace BreakersOfE
                             Language = "English",
                             DateAdded = DateTime.Now,
                             DateModified = DateTime.Now
-                        });
+                        };
+                        using var pdbEmbed = new AppDbContext();
+                        var src = pdbEmbed.SchemeCards.AsNoTracking().FirstOrDefault(x => x.SchemeId == cardId);
+                        if (src != null)
+                        {
+                            newSe.OracleId = src.OracleId; newSe.Name = src.Name;
+                            newSe.TypeLine = src.TypeLine; newSe.OracleText = src.OracleText;
+                            newSe.FlavorText = src.FlavorText; newSe.SetCode = src.SetCode;
+                            newSe.SetName = src.SetName; newSe.SetType = src.SetType;
+                            newSe.CollectorNumber = src.CollectorNumber; newSe.Rarity = src.Rarity;
+                            newSe.Artist = src.Artist; newSe.ImageSmallUrl = src.ImageSmallUrl;
+                            newSe.ImageNormalUrl = src.ImageNormalUrl; newSe.Layout = src.Layout;
+                            newSe.IsFoilAvailable = src.IsFoil; newSe.IsNonFoilAvailable = src.IsNonFoil;
+                            newSe.ReleasedAt = src.ReleasedAt; newSe.LocalImagePath = src.LocalImagePath;
+                            newSe.IsFavorite = src.IsFavorite;
+                        }
+                        db.SchemeCollectionEntries.Add(newSe);
+                    }
                     else
                     {
                         if (foil) se.FoilQuantity += qty;
@@ -5917,18 +6638,36 @@ namespace BreakersOfE
                     var ve = db.VanguardCollectionEntries
                         .FirstOrDefault(c => c.VanguardId == cardId);
                     if (ve == null)
-                        db.VanguardCollectionEntries.Add(
-                            new VanguardCollectionEntry
-                            {
-                                VanguardId = cardId,
-                                ScryfallId = scryfallId,
-                                Quantity = qty,
-                                FoilQuantity = 0,
-                                Condition = "Near Mint",
-                                Language = "English",
-                                DateAdded = DateTime.Now,
-                                DateModified = DateTime.Now
-                            });
+                    {
+                        var newVe = new VanguardCollectionEntry
+                        {
+                            VanguardId = cardId,
+                            ScryfallId = scryfallId,
+                            Quantity = qty,
+                            FoilQuantity = 0,
+                            Condition = "Near Mint",
+                            Language = "English",
+                            DateAdded = DateTime.Now,
+                            DateModified = DateTime.Now
+                        };
+                        using var pdbEmbed = new AppDbContext();
+                        var src = pdbEmbed.VanguardCards.AsNoTracking().FirstOrDefault(x => x.VanguardId == cardId);
+                        if (src != null)
+                        {
+                            newVe.OracleId = src.OracleId; newVe.Name = src.Name;
+                            newVe.TypeLine = src.TypeLine; newVe.OracleText = src.OracleText;
+                            newVe.FlavorText = src.FlavorText; newVe.SetCode = src.SetCode;
+                            newVe.SetName = src.SetName; newVe.SetType = src.SetType;
+                            newVe.CollectorNumber = src.CollectorNumber; newVe.Rarity = src.Rarity;
+                            newVe.Artist = src.Artist; newVe.ImageSmallUrl = src.ImageSmallUrl;
+                            newVe.ImageNormalUrl = src.ImageNormalUrl; newVe.Layout = src.Layout;
+                            newVe.IsFoilAvailable = src.IsFoil; newVe.IsNonFoilAvailable = src.IsNonFoil;
+                            newVe.ReleasedAt = src.ReleasedAt; newVe.LocalImagePath = src.LocalImagePath;
+                            newVe.IsFavorite = src.IsFavorite;
+                            newVe.HandModifier = src.HandModifier; newVe.LifeModifier = src.LifeModifier;
+                        }
+                        db.VanguardCollectionEntries.Add(newVe);
+                    }
                     else
                     {
                         ve.Quantity += qty;
@@ -5940,7 +6679,8 @@ namespace BreakersOfE
                     var te = db.TokenCollectionEntries
                         .FirstOrDefault(c => c.TokenId == cardId);
                     if (te == null)
-                        db.TokenCollectionEntries.Add(new TokenCollectionEntry
+                    {
+                        var newTe = new TokenCollectionEntry
                         {
                             TokenId = cardId,
                             ScryfallId = scryfallId,
@@ -5950,7 +6690,26 @@ namespace BreakersOfE
                             Language = "English",
                             DateAdded = DateTime.Now,
                             DateModified = DateTime.Now
-                        });
+                        };
+                        using var pdbEmbed = new AppDbContext();
+                        var src = pdbEmbed.TokenCards.AsNoTracking().FirstOrDefault(x => x.TokenId == cardId);
+                        if (src != null)
+                        {
+                            newTe.OracleId = src.OracleId; newTe.Name = src.Name;
+                            newTe.TypeLine = src.TypeLine; newTe.OracleText = src.OracleText;
+                            newTe.FlavorText = src.FlavorText; newTe.SetCode = src.SetCode;
+                            newTe.SetName = src.SetName; newTe.SetType = src.SetType;
+                            newTe.CollectorNumber = src.CollectorNumber; newTe.Rarity = src.Rarity;
+                            newTe.Artist = src.Artist; newTe.ImageSmallUrl = src.ImageSmallUrl;
+                            newTe.ImageNormalUrl = src.ImageNormalUrl; newTe.Layout = src.Layout;
+                            newTe.IsFoilAvailable = src.IsFoil; newTe.IsNonFoilAvailable = src.IsNonFoil;
+                            newTe.ReleasedAt = src.ReleasedAt; newTe.LocalImagePath = src.LocalImagePath;
+                            newTe.IsFavorite = src.IsFavorite;
+                            newTe.Power = src.Power; newTe.Toughness = src.Toughness;
+                            newTe.Colors = src.Colors; newTe.ColorIdentity = src.ColorIdentity;
+                        }
+                        db.TokenCollectionEntries.Add(newTe);
+                    }
                     else
                     {
                         if (foil) te.FoilQuantity += qty;
@@ -5963,18 +6722,34 @@ namespace BreakersOfE
                     var ae = db.ArtSeriesCollectionEntries
                         .FirstOrDefault(c => c.ArtSeriesId == cardId);
                     if (ae == null)
-                        db.ArtSeriesCollectionEntries.Add(
-                            new ArtSeriesCollectionEntry
-                            {
-                                ArtSeriesId = cardId,
-                                ScryfallId = scryfallId,
-                                Quantity = foil ? 0 : qty,
-                                FoilQuantity = foil ? qty : 0,
-                                Condition = "Near Mint",
-                                Language = "English",
-                                DateAdded = DateTime.Now,
-                                DateModified = DateTime.Now
-                            });
+                    {
+                        var newAe = new ArtSeriesCollectionEntry
+                        {
+                            ArtSeriesId = cardId,
+                            ScryfallId = scryfallId,
+                            Quantity = foil ? 0 : qty,
+                            FoilQuantity = foil ? qty : 0,
+                            Condition = "Near Mint",
+                            Language = "English",
+                            DateAdded = DateTime.Now,
+                            DateModified = DateTime.Now
+                        };
+                        using var pdbEmbed = new AppDbContext();
+                        var src = pdbEmbed.ArtSeriesCards.AsNoTracking().FirstOrDefault(x => x.ArtSeriesId == cardId);
+                        if (src != null)
+                        {
+                            newAe.OracleId = src.OracleId; newAe.Name = src.Name;
+                            newAe.TypeLine = src.TypeLine; newAe.FlavorText = src.FlavorText;
+                            newAe.SetCode = src.SetCode; newAe.SetName = src.SetName;
+                            newAe.SetType = src.SetType; newAe.CollectorNumber = src.CollectorNumber;
+                            newAe.Rarity = src.Rarity; newAe.Artist = src.Artist;
+                            newAe.ImageSmallUrl = src.ImageSmallUrl; newAe.ImageNormalUrl = src.ImageNormalUrl;
+                            newAe.Layout = src.Layout; newAe.IsFoilAvailable = src.IsFoil;
+                            newAe.IsNonFoilAvailable = src.IsNonFoil; newAe.ReleasedAt = src.ReleasedAt;
+                            newAe.LocalImagePath = src.LocalImagePath; newAe.IsFavorite = src.IsFavorite;
+                        }
+                        db.ArtSeriesCollectionEntries.Add(newAe);
+                    }
                     else
                     {
                         if (foil) ae.FoilQuantity += qty;
@@ -5987,18 +6762,37 @@ namespace BreakersOfE
                     var cone = db.ConspiracyCollectionEntries
                         .FirstOrDefault(c => c.ConspiracyId == cardId);
                     if (cone == null)
-                        db.ConspiracyCollectionEntries.Add(
-                            new ConspiracyCollectionEntry
-                            {
-                                ConspiracyId = cardId,
-                                ScryfallId = scryfallId,
-                                Quantity = foil ? 0 : qty,
-                                FoilQuantity = foil ? qty : 0,
-                                Condition = "Near Mint",
-                                Language = "English",
-                                DateAdded = DateTime.Now,
-                                DateModified = DateTime.Now
-                            });
+                    {
+                        var newCe = new ConspiracyCollectionEntry
+                        {
+                            ConspiracyId = cardId,
+                            ScryfallId = scryfallId,
+                            Quantity = foil ? 0 : qty,
+                            FoilQuantity = foil ? qty : 0,
+                            Condition = "Near Mint",
+                            Language = "English",
+                            DateAdded = DateTime.Now,
+                            DateModified = DateTime.Now
+                        };
+                        using var pdbEmbed = new AppDbContext();
+                        var src = pdbEmbed.ConspiracyCards.AsNoTracking().FirstOrDefault(x => x.ConspiracyId == cardId);
+                        if (src != null)
+                        {
+                            newCe.OracleId = src.OracleId; newCe.Name = src.Name;
+                            newCe.TypeLine = src.TypeLine; newCe.OracleText = src.OracleText;
+                            newCe.FlavorText = src.FlavorText; newCe.SetCode = src.SetCode;
+                            newCe.SetName = src.SetName; newCe.SetType = src.SetType;
+                            newCe.CollectorNumber = src.CollectorNumber; newCe.Rarity = src.Rarity;
+                            newCe.Artist = src.Artist; newCe.ImageSmallUrl = src.ImageSmallUrl;
+                            newCe.ImageNormalUrl = src.ImageNormalUrl; newCe.Layout = src.Layout;
+                            newCe.IsFoilAvailable = src.IsFoil; newCe.IsNonFoilAvailable = src.IsNonFoil;
+                            newCe.ReleasedAt = src.ReleasedAt; newCe.LocalImagePath = src.LocalImagePath;
+                            newCe.IsFavorite = src.IsFavorite;
+                            newCe.ManaCost = src.ManaCost; newCe.ManaValue = src.ManaValue;
+                            newCe.ColorIdentity = src.ColorIdentity; newCe.Colors = src.Colors;
+                        }
+                        db.ConspiracyCollectionEntries.Add(newCe);
+                    }
                     else
                     {
                         if (foil) cone.FoilQuantity += qty;
@@ -6019,8 +6813,9 @@ namespace BreakersOfE
             using var db = new Data.CollectionDbContext();
 
             // Check if card is in a deck (UsedCount > 0)
-            var collEntry = db.CollectionEntries
-                .FirstOrDefault(c => c.PoolId == pc.PoolId);
+            var collEntry = !string.IsNullOrEmpty(pc.ScryfallId)
+                ? db.CollectionEntries.FirstOrDefault(c => c.ScryfallId == pc.ScryfallId)
+                : db.CollectionEntries.FirstOrDefault(c => c.PoolId == pc.PoolId);
             if (collEntry != null && collEntry.UsedCount > 0)
             {
                 var r = MessageBox.Show(
@@ -6036,12 +6831,36 @@ namespace BreakersOfE
             string condition = collEntry?.Condition ?? "Near Mint";
             decimal? askingPrice = foil ? pc.PriceUsdFoil : pc.PriceUsd;
 
-            var existing = db.TradeBinderEntries
-                .FirstOrDefault(e => e.PoolId == pc.PoolId && e.IsFoil == foil);
+            var existing = !string.IsNullOrEmpty(pc.ScryfallId)
+                ? db.TradeBinderEntries.FirstOrDefault(e => e.ScryfallId == pc.ScryfallId && e.IsFoil == foil)
+                : db.TradeBinderEntries.FirstOrDefault(e => e.PoolId == pc.PoolId && e.IsFoil == foil);
             if (existing == null)
                 db.TradeBinderEntries.Add(new Models.TradeBinderEntry
                 {
                     PoolId = pc.PoolId,
+                    ScryfallId = pc.ScryfallId,
+                    Name = pc.Name,
+                    SetCode = pc.SetCode,
+                    SetName = pc.SetName,
+                    CollectorNumber = pc.CollectorNumber,
+                    TypeLine = pc.TypeLine,
+                    OracleText = pc.OracleText,
+                    FlavorText = pc.FlavorText,
+                    ManaCost = pc.ManaCost,
+                    ManaValue = pc.ManaValue,
+                    ColorIdentity = pc.ColorIdentity,
+                    Colors = pc.Colors,
+                    Rarity = pc.Rarity,
+                    Artist = pc.Artist,
+                    Power = pc.Power,
+                    Toughness = pc.Toughness,
+                    IsFoilAvailable = pc.IsFoil,
+                    IsNonFoilAvailable = pc.IsNonFoil,
+                    PriceUsd = pc.PriceUsd,
+                    PriceUsdFoil = pc.PriceUsdFoil,
+                    ImageNormalUrl = pc.ImageNormalUrl,
+                    LocalImagePath = pc.LocalImagePath,
+                    LegalitiesJson = pc.LegalitiesJson,
                     Quantity = qty,
                     IsFoil = foil,
                     Condition = condition,
@@ -6108,12 +6927,36 @@ namespace BreakersOfE
         private void AddToWantList(PoolCard pc, bool foil, int qty)
         {
             using var db = new Data.CollectionDbContext();
-            var existing = db.WantListEntries
-                .FirstOrDefault(e => e.PoolId == pc.PoolId && e.IsFoil == foil);
+            var existing = !string.IsNullOrEmpty(pc.ScryfallId)
+                ? db.WantListEntries.FirstOrDefault(e => e.ScryfallId == pc.ScryfallId && e.IsFoil == foil)
+                : db.WantListEntries.FirstOrDefault(e => e.PoolId == pc.PoolId && e.IsFoil == foil);
             if (existing == null)
                 db.WantListEntries.Add(new Models.WantListEntry
                 {
                     PoolId = pc.PoolId,
+                    ScryfallId = pc.ScryfallId,
+                    Name = pc.Name,
+                    SetCode = pc.SetCode,
+                    SetName = pc.SetName,
+                    CollectorNumber = pc.CollectorNumber,
+                    TypeLine = pc.TypeLine,
+                    OracleText = pc.OracleText,
+                    FlavorText = pc.FlavorText,
+                    ManaCost = pc.ManaCost,
+                    ManaValue = pc.ManaValue,
+                    ColorIdentity = pc.ColorIdentity,
+                    Colors = pc.Colors,
+                    Rarity = pc.Rarity,
+                    Artist = pc.Artist,
+                    Power = pc.Power,
+                    Toughness = pc.Toughness,
+                    IsFoilAvailable = pc.IsFoil,
+                    IsNonFoilAvailable = pc.IsNonFoil,
+                    PriceUsd = pc.PriceUsd,
+                    PriceUsdFoil = pc.PriceUsdFoil,
+                    ImageNormalUrl = pc.ImageNormalUrl,
+                    LocalImagePath = pc.LocalImagePath,
+                    LegalitiesJson = pc.LegalitiesJson,
                     Quantity = qty,
                     IsFoil = foil,
                     DateAdded = DateTime.Now

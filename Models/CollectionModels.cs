@@ -8,8 +8,51 @@ namespace BreakersOfE.Models
     {
         [Key]
         public int CollectionEntryId { get; set; }
-        public int PoolId { get; set; }
-        public string ScryfallId { get; set; } = string.Empty;  // stable key for remapping after pool rebuilds
+        public int PoolId { get; set; }                          // legacy — kept for backward compat
+        public string ScryfallId { get; set; } = string.Empty;   // stable cross-db key
+
+        // ── Embedded card data (self-contained — no pool join needed) ───────
+        public string OracleId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string ManaCost { get; set; } = string.Empty;
+        public double ManaValue { get; set; }
+        public string TypeLine { get; set; } = string.Empty;
+        public string OracleText { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
+        public string Power { get; set; } = string.Empty;
+        public string Toughness { get; set; } = string.Empty;
+        public string LoyaltyOrDefense { get; set; } = string.Empty;
+        public string Colors { get; set; } = string.Empty;
+        public string ColorIdentity { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
+        public string CollectorNumber { get; set; } = string.Empty;
+        public string Rarity { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string ImageSmallUrl { get; set; } = string.Empty;
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public string ImageBackUrl { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public string LocalImageBackPath { get; set; } = string.Empty;
+        public string Layout { get; set; } = string.Empty;
+        public bool IsFoilAvailable { get; set; }
+        public bool IsNonFoilAvailable { get; set; }
+        public bool IsToken { get; set; }
+        public bool IsMeld { get; set; }
+        public string ReleasedAt { get; set; } = string.Empty;
+        public string LegalitiesJson { get; set; } = string.Empty;
+        public bool IsFavorite { get; set; }
+        public string Keywords { get; set; } = string.Empty;
+        public decimal? PriceUsd { get; set; }
+        public decimal? PriceUsdFoil { get; set; }
+        public decimal? PriceUsdEtched { get; set; }
+        public decimal? PriceEur { get; set; }
+        public decimal? PriceEurFoil { get; set; }
+        public decimal? PriceTix { get; set; }
+        public string PricesJson { get; set; } = string.Empty;
+
+        // ── Collection-specific metadata ────────────────────────────────────
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -40,8 +83,35 @@ namespace BreakersOfE.Models
     {
         [Key]
         public int TokenCollectionEntryId { get; set; }
-        public int TokenId { get; set; }
-        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
+        public int TokenId { get; set; }                         // legacy
+        public string ScryfallId { get; set; } = string.Empty;
+
+        // ── Embedded card data ──────────────────────────────────────────────
+        public string OracleId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string TypeLine { get; set; } = string.Empty;
+        public string OracleText { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
+        public string Power { get; set; } = string.Empty;
+        public string Toughness { get; set; } = string.Empty;
+        public string Colors { get; set; } = string.Empty;
+        public string ColorIdentity { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
+        public string CollectorNumber { get; set; } = string.Empty;
+        public string Rarity { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string ImageSmallUrl { get; set; } = string.Empty;
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public string Layout { get; set; } = string.Empty;
+        public bool IsFoilAvailable { get; set; }
+        public bool IsNonFoilAvailable { get; set; }
+        public string ReleasedAt { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public bool IsFavorite { get; set; }
+
+        // ── Collection metadata ─────────────────────────────────────────────
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -72,8 +142,31 @@ namespace BreakersOfE.Models
     {
         [Key]
         public int PlanarCollectionEntryId { get; set; }
-        public int PlanarId { get; set; }
-        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
+        public int PlanarId { get; set; }                        // legacy
+        public string ScryfallId { get; set; } = string.Empty;
+
+        // ── Embedded card data ──────────────────────────────────────────────
+        public string OracleId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string TypeLine { get; set; } = string.Empty;
+        public string OracleText { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
+        public string CollectorNumber { get; set; } = string.Empty;
+        public string Rarity { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string ImageSmallUrl { get; set; } = string.Empty;
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public string Layout { get; set; } = string.Empty;
+        public bool IsFoilAvailable { get; set; }
+        public bool IsNonFoilAvailable { get; set; }
+        public string ReleasedAt { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public bool IsFavorite { get; set; }
+
+        // ── Collection metadata ─────────────────────────────────────────────
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -104,8 +197,31 @@ namespace BreakersOfE.Models
     {
         [Key]
         public int SchemeCollectionEntryId { get; set; }
-        public int SchemeId { get; set; }
-        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
+        public int SchemeId { get; set; }                        // legacy
+        public string ScryfallId { get; set; } = string.Empty;
+
+        // ── Embedded card data ──────────────────────────────────────────────
+        public string OracleId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string TypeLine { get; set; } = string.Empty;
+        public string OracleText { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
+        public string CollectorNumber { get; set; } = string.Empty;
+        public string Rarity { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string ImageSmallUrl { get; set; } = string.Empty;
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public string Layout { get; set; } = string.Empty;
+        public bool IsFoilAvailable { get; set; }
+        public bool IsNonFoilAvailable { get; set; }
+        public string ReleasedAt { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public bool IsFavorite { get; set; }
+
+        // ── Collection metadata ─────────────────────────────────────────────
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -136,8 +252,33 @@ namespace BreakersOfE.Models
     {
         [Key]
         public int VanguardCollectionEntryId { get; set; }
-        public int VanguardId { get; set; }
-        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
+        public int VanguardId { get; set; }                      // legacy
+        public string ScryfallId { get; set; } = string.Empty;
+
+        // ── Embedded card data ──────────────────────────────────────────────
+        public string OracleId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string TypeLine { get; set; } = string.Empty;
+        public string OracleText { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
+        public string CollectorNumber { get; set; } = string.Empty;
+        public string Rarity { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string ImageSmallUrl { get; set; } = string.Empty;
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public string Layout { get; set; } = string.Empty;
+        public bool IsFoilAvailable { get; set; }
+        public bool IsNonFoilAvailable { get; set; }
+        public string ReleasedAt { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public bool IsFavorite { get; set; }
+        public string HandModifier { get; set; } = string.Empty;
+        public string LifeModifier { get; set; } = string.Empty;
+
+        // ── Collection metadata ─────────────────────────────────────────────
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -168,8 +309,35 @@ namespace BreakersOfE.Models
     {
         [Key]
         public int ConspiracyCollectionEntryId { get; set; }
-        public int ConspiracyId { get; set; }
-        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
+        public int ConspiracyId { get; set; }                    // legacy
+        public string ScryfallId { get; set; } = string.Empty;
+
+        // ── Embedded card data ──────────────────────────────────────────────
+        public string OracleId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string TypeLine { get; set; } = string.Empty;
+        public string OracleText { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
+        public string ManaCost { get; set; } = string.Empty;
+        public double ManaValue { get; set; }
+        public string ColorIdentity { get; set; } = string.Empty;
+        public string Colors { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
+        public string CollectorNumber { get; set; } = string.Empty;
+        public string Rarity { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string ImageSmallUrl { get; set; } = string.Empty;
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public string Layout { get; set; } = string.Empty;
+        public bool IsFoilAvailable { get; set; }
+        public bool IsNonFoilAvailable { get; set; }
+        public string ReleasedAt { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public bool IsFavorite { get; set; }
+
+        // ── Collection metadata ─────────────────────────────────────────────
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -185,8 +353,30 @@ namespace BreakersOfE.Models
     {
         [Key]
         public int ArtSeriesCollectionEntryId { get; set; }
-        public int ArtSeriesId { get; set; }
-        public string ScryfallId { get; set; } = string.Empty;  // stable key for remap after pool rebuild
+        public int ArtSeriesId { get; set; }                     // legacy
+        public string ScryfallId { get; set; } = string.Empty;
+
+        // ── Embedded card data ──────────────────────────────────────────────
+        public string OracleId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string TypeLine { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string SetName { get; set; } = string.Empty;
+        public string SetType { get; set; } = string.Empty;
+        public string CollectorNumber { get; set; } = string.Empty;
+        public string Rarity { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string ImageSmallUrl { get; set; } = string.Empty;
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public string Layout { get; set; } = string.Empty;
+        public bool IsFoilAvailable { get; set; }
+        public bool IsNonFoilAvailable { get; set; }
+        public string ReleasedAt { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public bool IsFavorite { get; set; }
+
+        // ── Collection metadata ─────────────────────────────────────────────
         public int Quantity { get; set; }
         public int FoilQuantity { get; set; }
         public string Condition { get; set; } = "Unknown";
@@ -212,17 +402,43 @@ namespace BreakersOfE.Models
         public string SellStatus { get; set; } = "Unassigned";
     }
 
-    // ── Trade Binder ────────────────────────────────────────────────────────
-    // ── Trade Binder — Have list (cards you own and want to trade away) ────────
+    // ── Trade Binder — Have list (cards you own and want to trade away) ────
     public class TradeBinderEntry
     {
         [Key]
         public int TradeBinderEntryId { get; set; }
-        public int PoolId { get; set; }
+        public int PoolId { get; set; }                          // legacy
+        public string ScryfallId { get; set; } = string.Empty;
+
+        // ── Embedded card data ──────────────────────────────────────────────
+        public string Name { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string SetName { get; set; } = string.Empty;
+        public string CollectorNumber { get; set; } = string.Empty;
+        public string TypeLine { get; set; } = string.Empty;
+        public string OracleText { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
+        public string ManaCost { get; set; } = string.Empty;
+        public double ManaValue { get; set; }
+        public string ColorIdentity { get; set; } = string.Empty;
+        public string Colors { get; set; } = string.Empty;
+        public string Rarity { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string Power { get; set; } = string.Empty;
+        public string Toughness { get; set; } = string.Empty;
+        public bool IsFoilAvailable { get; set; }
+        public bool IsNonFoilAvailable { get; set; }
+        public decimal? PriceUsd { get; set; }
+        public decimal? PriceUsdFoil { get; set; }
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public string LegalitiesJson { get; set; } = string.Empty;
+
+        // ── Trade-specific metadata ─────────────────────────────────────────
         public int Quantity { get; set; } = 1;
         public bool IsFoil { get; set; } = false;
         public string Condition { get; set; } = "Near Mint";
-        public decimal? AskingPrice { get; set; }  // your sell price
+        public decimal? AskingPrice { get; set; }
         public string Notes { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
     }
@@ -232,10 +448,37 @@ namespace BreakersOfE.Models
     {
         [Key]
         public int WantListEntryId { get; set; }
-        public int PoolId { get; set; }
+        public int PoolId { get; set; }                          // legacy
+        public string ScryfallId { get; set; } = string.Empty;
+
+        // ── Embedded card data ──────────────────────────────────────────────
+        public string Name { get; set; } = string.Empty;
+        public string SetCode { get; set; } = string.Empty;
+        public string SetName { get; set; } = string.Empty;
+        public string CollectorNumber { get; set; } = string.Empty;
+        public string TypeLine { get; set; } = string.Empty;
+        public string OracleText { get; set; } = string.Empty;
+        public string FlavorText { get; set; } = string.Empty;
+        public string ManaCost { get; set; } = string.Empty;
+        public double ManaValue { get; set; }
+        public string ColorIdentity { get; set; } = string.Empty;
+        public string Colors { get; set; } = string.Empty;
+        public string Rarity { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string Power { get; set; } = string.Empty;
+        public string Toughness { get; set; } = string.Empty;
+        public bool IsFoilAvailable { get; set; }
+        public bool IsNonFoilAvailable { get; set; }
+        public decimal? PriceUsd { get; set; }
+        public decimal? PriceUsdFoil { get; set; }
+        public string ImageNormalUrl { get; set; } = string.Empty;
+        public string LocalImagePath { get; set; } = string.Empty;
+        public string LegalitiesJson { get; set; } = string.Empty;
+
+        // ── Want-specific metadata ──────────────────────────────────────────
         public int Quantity { get; set; } = 1;
         public bool IsFoil { get; set; } = false;
-        public decimal? OfferPrice { get; set; }  // your buy price
+        public decimal? OfferPrice { get; set; }
         public string Notes { get; set; } = string.Empty;
         public DateTime DateAdded { get; set; } = DateTime.Now;
     }

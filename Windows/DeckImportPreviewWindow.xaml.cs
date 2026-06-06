@@ -63,19 +63,23 @@ namespace BreakersOfE.Windows
         {
             using var db = new CollectionDbContext();
 
-            // Build a lookup of current collection quantities by PoolId
+            // Build a lookup of current collection quantities by ScryfallId
             var collLookup = db.CollectionEntries
                 .Where(c => c.Quantity > 0 || c.FoilQuantity > 0)
-                .ToDictionary(c => c.PoolId, c => c);
+                .GroupBy(c => c.ScryfallId)
+                .Where(g => !string.IsNullOrEmpty(g.Key))
+                .ToDictionary(g => g.Key, g => g.First());
 
             foreach (var card in _deck.Cards
                 .OrderBy(c => c.IsCommander ? 0 : 1)
                 .ThenBy(c => c.Category)
                 .ThenBy(c => c.Name))
             {
-                if (card.PoolId <= 0) continue;
+                if (string.IsNullOrEmpty(card.ScryfallId) && card.PoolId <= 0) continue;
 
-                collLookup.TryGetValue(card.PoolId, out var cEntry);
+                CollectionEntry? cEntry = null;
+                if (!string.IsNullOrEmpty(card.ScryfallId))
+                    collLookup.TryGetValue(card.ScryfallId, out cEntry);
 
                 _rows.Add(new PreviewRow
                 {

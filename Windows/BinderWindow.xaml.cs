@@ -66,31 +66,25 @@ namespace BreakersOfE.Windows
         private static List<BinderPocket> LoadHaveCards()
         {
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
             var entries = cdb.TradeBinderEntries.AsNoTracking().ToList();
             if (entries.Count == 0) return new();
-            var ids = entries.Select(e => e.PoolId).ToHashSet();
-            var cards = pdb.PoolCards.AsNoTracking()
-                .Where(c => ids.Contains(c.PoolId))
-                .ToList().ToDictionary(c => c.PoolId);
 
             var pockets = new List<BinderPocket>();
             foreach (var e in entries)
             {
-                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
                 pockets.Add(new BinderPocket
                 {
                     EntryId = e.TradeBinderEntryId,
                     IsWantList = false,
-                    PoolId = pc.PoolId,
-                    Name = pc.Name,
-                    SetCode = pc.SetCode,
+                    PoolId = e.PoolId,
+                    Name = e.Name,
+                    SetCode = e.SetCode,
                     IsFoil = e.IsFoil,
                     Quantity = e.Quantity,
-                    LocalImagePath = pc.LocalImagePath,
-                    ImageNormalUrl = pc.ImageNormalUrl,
+                    LocalImagePath = e.LocalImagePath,
+                    ImageNormalUrl = e.ImageNormalUrl,
                     Price = e.AskingPrice,
-                    MarketPrice = e.IsFoil ? pc.PriceUsdFoil : pc.PriceUsd,
+                    MarketPrice = e.IsFoil ? e.PriceUsdFoil : e.PriceUsd,
                     Condition = e.Condition
                 });
             }
@@ -107,31 +101,25 @@ namespace BreakersOfE.Windows
         private static List<BinderPocket> LoadWantCards()
         {
             using var cdb = new CollectionDbContext();
-            using var pdb = new AppDbContext();
             var entries = cdb.WantListEntries.AsNoTracking().ToList();
             if (entries.Count == 0) return new();
-            var ids = entries.Select(e => e.PoolId).ToHashSet();
-            var cards = pdb.PoolCards.AsNoTracking()
-                .Where(c => ids.Contains(c.PoolId))
-                .ToList().ToDictionary(c => c.PoolId);
 
             var pockets = new List<BinderPocket>();
             foreach (var e in entries)
             {
-                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
                 pockets.Add(new BinderPocket
                 {
                     EntryId = e.WantListEntryId,
                     IsWantList = true,
-                    PoolId = pc.PoolId,
-                    Name = pc.Name,
-                    SetCode = pc.SetCode,
+                    PoolId = e.PoolId,
+                    Name = e.Name,
+                    SetCode = e.SetCode,
                     IsFoil = e.IsFoil,
                     Quantity = e.Quantity,
-                    LocalImagePath = pc.LocalImagePath,
-                    ImageNormalUrl = pc.ImageNormalUrl,
+                    LocalImagePath = e.LocalImagePath,
+                    ImageNormalUrl = e.ImageNormalUrl,
                     Price = e.OfferPrice,
-                    MarketPrice = e.IsFoil ? pc.PriceUsdFoil : pc.PriceUsd,
+                    MarketPrice = e.IsFoil ? e.PriceUsdFoil : e.PriceUsd,
                     Condition = string.Empty
                 });
             }

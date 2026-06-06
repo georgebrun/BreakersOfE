@@ -265,6 +265,9 @@
                 <MenuItem Header="🔗 Combine Duplicate Collection Rows"
                           Click="MenuCombineDuplicates_Click"
                           ToolTip="Merge multiple rows of the same card into one, adding quantities together"/>
+                <MenuItem Header="📦 Migrate Collection Card Data"
+                          Click="MenuMigrateCollectionData_Click"
+                          ToolTip="Populates embedded card data in collection entries from the pool database (one-time upgrade)"/>
                 <Separator/>
                 <MenuItem Header="🂠 _Tabletop Simulator" Name="MenuTabletop"
                           Click="MenuTabletop_Click"/>
