@@ -170,6 +170,7 @@ namespace BreakersOfE.Services
             var cardLookup = pdb.PoolCards.AsNoTracking()
                 .Select(c => new {
                     c.PoolId,
+                    c.ScryfallId,
                     c.Name,
                     c.SetCode,
                     c.CollectorNumber,
@@ -210,6 +211,8 @@ namespace BreakersOfE.Services
 
                 deck.Cards.Add(new DeckCard
                 {
+                    PoolId = match.PoolId,
+                    ScryfallId = match.ScryfallId,
                     Name = match.Name,
                     SetCode = match.SetCode,
                     CollectorNumber = match.CollectorNumber,
@@ -626,8 +629,10 @@ namespace BreakersOfE.Services
 
             // Build lookup dictionaries for fast matching
             var byScryfallId = pdb.PoolCards.AsNoTracking()
-                .Where(c => "" != "")
-                .ToDictionary(c => "", c => c,
+                .Where(c => c.ScryfallId != null && c.ScryfallId != "")
+                .ToList()
+                .GroupBy(c => c.ScryfallId)
+                .ToDictionary(g => g.Key, g => g.First(),
                     StringComparer.OrdinalIgnoreCase);
 
             var byNameSet = pdb.PoolCards.AsNoTracking()
@@ -799,52 +804,22 @@ namespace BreakersOfE.Services
             ImportExportFormat format)
         {
             using var cdb = new CollectionDbContext();
-
             var entries = cdb.CollectionEntries.AsNoTracking().ToList();
-            // Build a PoolId->entry dict for export methods that expect Dictionary<int, PoolCard>
-            // We create lightweight PoolCard wrappers from the self-contained entries
-            var cards = entries.ToDictionary(e => e.CollectionEntryId, e => new PoolCard
-            {
-                PoolId = e.PoolId,
-                ScryfallId = e.ScryfallId,
-                Name = e.Name,
-                SetCode = e.SetCode,
-                SetName = e.SetName,
-                CollectorNumber = e.CollectorNumber,
-                TypeLine = e.TypeLine,
-                OracleText = e.OracleText,
-                ManaCost = e.ManaCost,
-                ManaValue = e.ManaValue,
-                ColorIdentity = e.ColorIdentity,
-                Colors = e.Colors,
-                Rarity = e.Rarity,
-                Artist = e.Artist,
-                Power = e.Power,
-                Toughness = e.Toughness,
-                ImageNormalUrl = e.ImageNormalUrl,
-                LocalImagePath = e.LocalImagePath,
-                PriceUsd = e.PriceUsd,
-                PriceUsdFoil = e.PriceUsdFoil,
-                LegalitiesJson = e.LegalitiesJson,
-            });
-            // Remap entries to use CollectionEntryId as key for the export dict
-            var remapped = entries.Select(e => { var clone = e; return clone; }).ToList();
-            foreach (var e in remapped) e.PoolId = e.CollectionEntryId;
 
             switch (format)
             {
                 case ImportExportFormat.MtgStudioCsv:
-                    ExportMtgStudioCsv(filePath, entries, cards); break;
+                    ExportMtgStudioCsv(filePath, entries); break;
                 case ImportExportFormat.Moxfield:
-                    ExportMoxfieldCsv(filePath, entries, cards); break;
+                    ExportMoxfieldCsv(filePath, entries); break;
                 case ImportExportFormat.TcgPlayer:
-                    ExportTcgPlayerCsv(filePath, entries, cards); break;
+                    ExportTcgPlayerCsv(filePath, entries); break;
                 case ImportExportFormat.Deckbox:
-                    ExportDeckboxCsv(filePath, entries, cards); break;
+                    ExportDeckboxCsv(filePath, entries); break;
                 case ImportExportFormat.DragonShield:
-                    ExportDragonShieldCsv(filePath, entries, cards); break;
+                    ExportDragonShieldCsv(filePath, entries); break;
                 case ImportExportFormat.BreakersOfE:
-                    ExportNativeJson(filePath, entries, cards); break;
+                    ExportNativeJson(filePath, entries); break;
             }
         }
 
@@ -852,48 +827,41 @@ namespace BreakersOfE.Services
             ImportExportFormat format)
         {
             using var cdb = new CollectionDbContext();
-
             var entries = cdb.WantListEntries.AsNoTracking().ToList();
             if (entries.Count == 0) return;
 
-            // Convert to CollectionEntry-like for reuse of export methods
-            // Card data is self-contained in the WantListEntry
+            // Convert to CollectionEntry for reuse of export methods
             var collEntries = entries
                 .Select(e => new CollectionEntry
                 {
-                    PoolId = e.WantListEntryId, // use as dict key
                     ScryfallId = e.ScryfallId,
+                    Name = e.Name,
+                    SetCode = e.SetCode,
+                    SetName = e.SetName,
+                    CollectorNumber = e.CollectorNumber,
+                    Rarity = e.Rarity,
                     Quantity = e.IsFoil ? 0 : e.Quantity,
                     FoilQuantity = e.IsFoil ? e.Quantity : 0,
                     Condition = "Near Mint",
+                    Language = "English",
                     BuyAt = e.OfferPrice,
                     DateAdded = e.DateAdded
                 }).ToList();
-            var cards = entries.ToDictionary(e => e.WantListEntryId, e => new PoolCard
-            {
-                ScryfallId = e.ScryfallId,
-                Name = e.Name,
-                SetCode = e.SetCode,
-                SetName = e.SetName,
-                CollectorNumber = e.CollectorNumber,
-                PriceUsd = e.PriceUsd,
-                PriceUsdFoil = e.PriceUsdFoil,
-            });
 
             switch (format)
             {
                 case ImportExportFormat.MtgStudioCsv:
-                    ExportMtgStudioCsv(filePath, collEntries, cards); break;
+                    ExportMtgStudioCsv(filePath, collEntries); break;
                 case ImportExportFormat.Moxfield:
-                    ExportMoxfieldCsv(filePath, collEntries, cards); break;
+                    ExportMoxfieldCsv(filePath, collEntries); break;
                 case ImportExportFormat.TcgPlayer:
-                    ExportTcgPlayerCsv(filePath, collEntries, cards); break;
+                    ExportTcgPlayerCsv(filePath, collEntries); break;
                 case ImportExportFormat.Deckbox:
-                    ExportDeckboxCsv(filePath, collEntries, cards); break;
+                    ExportDeckboxCsv(filePath, collEntries); break;
                 case ImportExportFormat.DragonShield:
-                    ExportDragonShieldCsv(filePath, collEntries, cards); break;
+                    ExportDragonShieldCsv(filePath, collEntries); break;
                 default:
-                    ExportMtgStudioCsv(filePath, collEntries, cards); break;
+                    ExportMtgStudioCsv(filePath, collEntries); break;
             }
         }
 
@@ -901,46 +869,40 @@ namespace BreakersOfE.Services
             ImportExportFormat format)
         {
             using var cdb = new CollectionDbContext();
-
             var entries = cdb.TradeBinderEntries.AsNoTracking().ToList();
             if (entries.Count == 0) return;
 
             var collEntries = entries
                 .Select(e => new CollectionEntry
                 {
-                    PoolId = e.TradeBinderEntryId, // use as dict key
                     ScryfallId = e.ScryfallId,
+                    Name = e.Name,
+                    SetCode = e.SetCode,
+                    SetName = e.SetName,
+                    CollectorNumber = e.CollectorNumber,
+                    Rarity = e.Rarity,
                     Quantity = e.IsFoil ? 0 : e.Quantity,
                     FoilQuantity = e.IsFoil ? e.Quantity : 0,
                     Condition = e.Condition,
+                    Language = "English",
                     SellAt = e.AskingPrice,
                     DateAdded = e.DateAdded
                 }).ToList();
-            var cards = entries.ToDictionary(e => e.TradeBinderEntryId, e => new PoolCard
-            {
-                ScryfallId = e.ScryfallId,
-                Name = e.Name,
-                SetCode = e.SetCode,
-                SetName = e.SetName,
-                CollectorNumber = e.CollectorNumber,
-                PriceUsd = e.PriceUsd,
-                PriceUsdFoil = e.PriceUsdFoil,
-            });
 
             switch (format)
             {
                 case ImportExportFormat.MtgStudioCsv:
-                    ExportMtgStudioCsv(filePath, collEntries, cards); break;
+                    ExportMtgStudioCsv(filePath, collEntries); break;
                 case ImportExportFormat.Moxfield:
-                    ExportMoxfieldCsv(filePath, collEntries, cards); break;
+                    ExportMoxfieldCsv(filePath, collEntries); break;
                 case ImportExportFormat.TcgPlayer:
-                    ExportTcgPlayerCsv(filePath, collEntries, cards); break;
+                    ExportTcgPlayerCsv(filePath, collEntries); break;
                 case ImportExportFormat.Deckbox:
-                    ExportDeckboxCsv(filePath, collEntries, cards); break;
+                    ExportDeckboxCsv(filePath, collEntries); break;
                 case ImportExportFormat.DragonShield:
-                    ExportDragonShieldCsv(filePath, collEntries, cards); break;
+                    ExportDragonShieldCsv(filePath, collEntries); break;
                 default:
-                    ExportMtgStudioCsv(filePath, collEntries, cards); break;
+                    ExportMtgStudioCsv(filePath, collEntries); break;
             }
         }
 
@@ -1069,8 +1031,7 @@ namespace BreakersOfE.Services
 
         // ── MTG Studio CSV export ─────────────────────────────────────────────
         private static void ExportMtgStudioCsv(string filePath,
-            List<CollectionEntry> entries,
-            Dictionary<int, PoolCard> cards)
+            List<CollectionEntry> entries)
         {
             using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
             sw.WriteLine("CardId,ScryfallId,TcgPlayerId,MtgOnline3Id,Name,SetAbbreviation," +
@@ -1079,28 +1040,23 @@ namespace BreakersOfE.Services
                 "BuyAt,SellAt,Desired,Buy,Sell,Added");
 
             int id = 1;
-            foreach (var e in entries.OrderBy(e =>
-                cards.TryGetValue(e.PoolId, out var c) ? c.Name : ""))
+            foreach (var e in entries.OrderBy(e => e.Name))
             {
-                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
-
                 string cond = MapToMtgStudioCondition(e.Condition);
 
-                // Write non-foil row
                 if (e.Quantity > 0)
-                    sw.WriteLine(CsvRow(id++, pc.ScryfallId, "", "", pc.Name,
-                        pc.SetCode, pc.SetName, pc.CollectorNumber,
-                        pc.CollectorNumber, e.Quantity, "False", cond,
+                    sw.WriteLine(CsvRow(id++, e.ScryfallId, "", "", e.Name,
+                        e.SetCode, e.SetName, e.CollectorNumber,
+                        e.CollectorNumber, e.Quantity, "False", cond,
                         e.Notes, e.StorageLocation, e.UsedCount, e.Target,
                         e.Needed, e.Excess, e.CardGroup, "Paper",
                         e.BuyAt ?? 0, e.SellAt ?? 0, "Unassigned", "", "",
                         e.DateAdded.ToString("O")));
 
-                // Write foil row
                 if (e.FoilQuantity > 0)
-                    sw.WriteLine(CsvRow(id++, pc.ScryfallId, "", "", pc.Name,
-                        pc.SetCode, pc.SetName, pc.CollectorNumber,
-                        pc.CollectorNumber, e.FoilQuantity, "True", cond,
+                    sw.WriteLine(CsvRow(id++, e.ScryfallId, "", "", e.Name,
+                        e.SetCode, e.SetName, e.CollectorNumber,
+                        e.CollectorNumber, e.FoilQuantity, "True", cond,
                         e.Notes, e.StorageLocation, 0, e.Target,
                         e.Needed, e.Excess, e.CardGroup, "Paper",
                         e.BuyAt ?? 0, e.SellAt ?? 0, "Unassigned", "", "",
@@ -1120,25 +1076,23 @@ namespace BreakersOfE.Services
 
         // ── Moxfield CSV export ───────────────────────────────────────────────
         private static void ExportMoxfieldCsv(string filePath,
-            List<CollectionEntry> entries, Dictionary<int, PoolCard> cards)
+            List<CollectionEntry> entries)
         {
             using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
             sw.WriteLine("Count,Tradelist Count,Name,Edition,Condition,Language,Foil,Tags,Collector Number,Alter,Proxy,Purchase Price");
 
-            foreach (var e in entries.OrderBy(e =>
-                cards.TryGetValue(e.PoolId, out var c) ? c.Name : ""))
+            foreach (var e in entries.OrderBy(e => e.Name))
             {
-                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
                 string cond = MapToMoxfieldCondition(e.Condition);
 
                 if (e.Quantity > 0)
-                    sw.WriteLine($"{e.Quantity},0,{Q(pc.Name)},{pc.SetCode},{cond},{e.Language},," +
-                        $"{Q(e.Notes)},{pc.CollectorNumber},,," +
+                    sw.WriteLine($"{e.Quantity},0,{Q(e.Name)},{e.SetCode},{cond},{e.Language},," +
+                        $"{Q(e.Notes)},{e.CollectorNumber},,," +
                         $"{e.BuyAt?.ToString("F2", CultureInfo.InvariantCulture) ?? ""}");
 
                 if (e.FoilQuantity > 0)
-                    sw.WriteLine($"{e.FoilQuantity},0,{Q(pc.Name)},{pc.SetCode},{cond},{e.Language},foil," +
-                        $"{Q(e.Notes)},{pc.CollectorNumber},,,");
+                    sw.WriteLine($"{e.FoilQuantity},0,{Q(e.Name)},{e.SetCode},{cond},{e.Language},foil," +
+                        $"{Q(e.Notes)},{e.CollectorNumber},,,");
             }
         }
 
@@ -1159,101 +1113,91 @@ namespace BreakersOfE.Services
 
         // ── TCGPlayer CSV export ──────────────────────────────────────────────
         private static void ExportTcgPlayerCsv(string filePath,
-            List<CollectionEntry> entries, Dictionary<int, PoolCard> cards)
+            List<CollectionEntry> entries)
         {
             using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
             sw.WriteLine("Quantity,Product Name,Set Name,Number,Rarity,Condition,Add to Quantity");
 
-            foreach (var e in entries.OrderBy(e =>
-                cards.TryGetValue(e.PoolId, out var c) ? c.Name : ""))
+            foreach (var e in entries.OrderBy(e => e.Name))
             {
-                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
                 string cond = MapToMoxfieldCondition(e.Condition);
 
                 if (e.Quantity > 0)
-                    sw.WriteLine($"{e.Quantity},{Q(pc.Name)},{Q(pc.SetName)}," +
-                        $"{pc.CollectorNumber},{CapFirst(pc.Rarity)},{cond},0");
+                    sw.WriteLine($"{e.Quantity},{Q(e.Name)},{Q(e.SetName)}," +
+                        $"{e.CollectorNumber},{CapFirst(e.Rarity)},{cond},0");
 
                 if (e.FoilQuantity > 0)
-                    sw.WriteLine($"{e.FoilQuantity},{Q(pc.Name)},{Q(pc.SetName)}," +
-                        $"{pc.CollectorNumber},{CapFirst(pc.Rarity)},{cond} Foil,0");
+                    sw.WriteLine($"{e.FoilQuantity},{Q(e.Name)},{Q(e.SetName)}," +
+                        $"{e.CollectorNumber},{CapFirst(e.Rarity)},{cond} Foil,0");
             }
         }
 
         // ── Deckbox CSV export ────────────────────────────────────────────────
         private static void ExportDeckboxCsv(string filePath,
-            List<CollectionEntry> entries, Dictionary<int, PoolCard> cards)
+            List<CollectionEntry> entries)
         {
             using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
             sw.WriteLine("Count,Tradelist Count,Name,Edition,Card Number,Condition,Language,Foil,Signed,Artist Proof,Altered Art,Misprint,Promo,Textless,My Price");
 
-            foreach (var e in entries.OrderBy(e =>
-                cards.TryGetValue(e.PoolId, out var c) ? c.Name : ""))
+            foreach (var e in entries.OrderBy(e => e.Name))
             {
-                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
                 string cond = MapToMoxfieldCondition(e.Condition);
 
                 if (e.Quantity > 0)
-                    sw.WriteLine($"{e.Quantity},0,{Q(pc.Name)},{Q(pc.SetName)}," +
-                        $"{pc.CollectorNumber},{cond},{e.Language},,,,,,,,");
+                    sw.WriteLine($"{e.Quantity},0,{Q(e.Name)},{Q(e.SetName)}," +
+                        $"{e.CollectorNumber},{cond},{e.Language},,,,,,,,");
 
                 if (e.FoilQuantity > 0)
-                    sw.WriteLine($"{e.FoilQuantity},0,{Q(pc.Name)},{Q(pc.SetName)}," +
-                        $"{pc.CollectorNumber},{cond},{e.Language},foil,,,,,,,");
+                    sw.WriteLine($"{e.FoilQuantity},0,{Q(e.Name)},{Q(e.SetName)}," +
+                        $"{e.CollectorNumber},{cond},{e.Language},foil,,,,,,,");
             }
         }
 
         // ── Dragon Shield CSV export ──────────────────────────────────────────
         private static void ExportDragonShieldCsv(string filePath,
-            List<CollectionEntry> entries, Dictionary<int, PoolCard> cards)
+            List<CollectionEntry> entries)
         {
             using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
             sw.WriteLine("Quantity,Tradelist Count,Card Name,Set Name,Card Number,Finish,Condition,Date Added,Language");
 
-            foreach (var e in entries.OrderBy(e =>
-                cards.TryGetValue(e.PoolId, out var c) ? c.Name : ""))
+            foreach (var e in entries.OrderBy(e => e.Name))
             {
-                if (!cards.TryGetValue(e.PoolId, out var pc)) continue;
                 string cond = MapToMoxfieldCondition(e.Condition);
                 string added = e.DateAdded.ToString("yyyy-MM-dd");
 
                 if (e.Quantity > 0)
-                    sw.WriteLine($"{e.Quantity},0,{Q(pc.Name)},{Q(pc.SetName)}," +
-                        $"{pc.CollectorNumber},Normal,{cond},{added},{e.Language}");
+                    sw.WriteLine($"{e.Quantity},0,{Q(e.Name)},{Q(e.SetName)}," +
+                        $"{e.CollectorNumber},Normal,{cond},{added},{e.Language}");
 
                 if (e.FoilQuantity > 0)
-                    sw.WriteLine($"{e.FoilQuantity},0,{Q(pc.Name)},{Q(pc.SetName)}," +
-                        $"{pc.CollectorNumber},Foil,{cond},{added},{e.Language}");
+                    sw.WriteLine($"{e.FoilQuantity},0,{Q(e.Name)},{Q(e.SetName)}," +
+                        $"{e.CollectorNumber},Foil,{cond},{added},{e.Language}");
             }
         }
 
         // ── Breakers of E native JSON export ──────────────────────────────────
         private static void ExportNativeJson(string filePath,
-            List<CollectionEntry> entries, Dictionary<int, PoolCard> cards)
+            List<CollectionEntry> entries)
         {
             var export = new
             {
                 ExportedBy = "Breakers of E",
                 ExportedAt = DateTime.Now,
-                Cards = entries.Select(e =>
+                Cards = entries.Select(e => new
                 {
-                    cards.TryGetValue(e.PoolId, out var pc);
-                    return new
-                    {
-                        ScryfallId = pc?.ScryfallId ?? "",
-                        Name = pc?.Name ?? "",
-                        SetCode = pc?.SetCode ?? "",
-                        CollectorNumber = pc?.CollectorNumber ?? "",
-                        Quantity = e.Quantity,
-                        FoilQuantity = e.FoilQuantity,
-                        Condition = e.Condition,
-                        Language = e.Language,
-                        BuyAt = e.BuyAt,
-                        SellAt = e.SellAt,
-                        Notes = e.Notes,
-                        StorageLocation = e.StorageLocation,
-                        DateAdded = e.DateAdded
-                    };
+                    e.ScryfallId,
+                    e.Name,
+                    e.SetCode,
+                    e.CollectorNumber,
+                    e.Quantity,
+                    e.FoilQuantity,
+                    e.Condition,
+                    e.Language,
+                    e.BuyAt,
+                    e.SellAt,
+                    e.Notes,
+                    e.StorageLocation,
+                    e.DateAdded
                 }).ToList()
             };
             File.WriteAllText(filePath,

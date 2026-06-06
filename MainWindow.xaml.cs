@@ -9092,102 +9092,65 @@ namespace BreakersOfE
             var cards = new List<(string Name, string ImageUrl, Action<string> SetPath)>();
 
             using var cdb = new Data.CollectionDbContext();
-            using var db = new Data.AppDbContext();
 
-            // Standard collection — join to PoolCards
-            var poolIds = cdb.CollectionEntries.Select(c => c.PoolId).Distinct().ToList();
-            foreach (var id in poolIds)
+            // Standard collection — card data is self-contained
+            foreach (var ce in cdb.CollectionEntries.AsNoTracking()
+                .Where(c => c.ImageNormalUrl != null && c.ImageNormalUrl != "")
+                .ToList())
             {
-                var card = db.PoolCards.FirstOrDefault(p => p.PoolId == id);
-                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
-                    && (string.IsNullOrEmpty(card.LocalImagePath)
-                        || !File.Exists(card.LocalImagePath)))
-                {
-                    var capturedCard = card;
-                    cards.Add((card.Name, card.ImageNormalUrl,
-                        path => { capturedCard.LocalImagePath = path; }
-                    ));
-                }
+                if (!string.IsNullOrEmpty(ce.LocalImagePath) && File.Exists(ce.LocalImagePath))
+                    continue;
+                cards.Add((ce.Name, ce.ImageNormalUrl, path => { }));
             }
 
             // Token collection
-            var tokenIds = cdb.TokenCollectionEntries.Select(c => c.TokenId).Distinct().ToList();
-            foreach (var id in tokenIds)
+            foreach (var ce in cdb.TokenCollectionEntries.AsNoTracking()
+                .Where(c => c.ImageNormalUrl != null && c.ImageNormalUrl != "")
+                .ToList())
             {
-                var card = db.TokenCards.FirstOrDefault(p => p.TokenId == id);
-                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
-                    && (string.IsNullOrEmpty(card.LocalImagePath)
-                        || !File.Exists(card.LocalImagePath)))
-                {
-                    var capturedCard = card;
-                    cards.Add((card.Name, card.ImageNormalUrl,
-                        path => { capturedCard.LocalImagePath = path; }
-                    ));
-                }
+                if (!string.IsNullOrEmpty(ce.LocalImagePath) && File.Exists(ce.LocalImagePath))
+                    continue;
+                cards.Add((ce.Name, ce.ImageNormalUrl, path => { }));
             }
 
             // Planar collection
-            var planarIds = cdb.PlanarCollectionEntries.Select(c => c.PlanarId).Distinct().ToList();
-            foreach (var id in planarIds)
+            foreach (var ce in cdb.PlanarCollectionEntries.AsNoTracking()
+                .Where(c => c.ImageNormalUrl != null && c.ImageNormalUrl != "")
+                .ToList())
             {
-                var card = db.PlanarCards.FirstOrDefault(p => p.PlanarId == id);
-                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
-                    && (string.IsNullOrEmpty(card.LocalImagePath)
-                        || !File.Exists(card.LocalImagePath)))
-                {
-                    var capturedCard = card;
-                    cards.Add((card.Name, card.ImageNormalUrl,
-                        path => { capturedCard.LocalImagePath = path; }
-                    ));
-                }
+                if (!string.IsNullOrEmpty(ce.LocalImagePath) && File.Exists(ce.LocalImagePath))
+                    continue;
+                cards.Add((ce.Name, ce.ImageNormalUrl, path => { }));
             }
 
             // Scheme collection
-            var schemeIds = cdb.SchemeCollectionEntries.Select(c => c.SchemeId).Distinct().ToList();
-            foreach (var id in schemeIds)
+            foreach (var ce in cdb.SchemeCollectionEntries.AsNoTracking()
+                .Where(c => c.ImageNormalUrl != null && c.ImageNormalUrl != "")
+                .ToList())
             {
-                var card = db.SchemeCards.FirstOrDefault(p => p.SchemeId == id);
-                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
-                    && (string.IsNullOrEmpty(card.LocalImagePath)
-                        || !File.Exists(card.LocalImagePath)))
-                {
-                    var capturedCard = card;
-                    cards.Add((card.Name, card.ImageNormalUrl,
-                        path => { capturedCard.LocalImagePath = path; }
-                    ));
-                }
+                if (!string.IsNullOrEmpty(ce.LocalImagePath) && File.Exists(ce.LocalImagePath))
+                    continue;
+                cards.Add((ce.Name, ce.ImageNormalUrl, path => { }));
             }
 
             // Vanguard collection
-            var vanguardIds = cdb.VanguardCollectionEntries.Select(c => c.VanguardId).Distinct().ToList();
-            foreach (var id in vanguardIds)
+            foreach (var ce in cdb.VanguardCollectionEntries.AsNoTracking()
+                .Where(c => c.ImageNormalUrl != null && c.ImageNormalUrl != "")
+                .ToList())
             {
-                var card = db.VanguardCards.FirstOrDefault(p => p.VanguardId == id);
-                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
-                    && (string.IsNullOrEmpty(card.LocalImagePath)
-                        || !File.Exists(card.LocalImagePath)))
-                {
-                    var capturedCard = card;
-                    cards.Add((card.Name, card.ImageNormalUrl,
-                        path => { capturedCard.LocalImagePath = path; }
-                    ));
-                }
+                if (!string.IsNullOrEmpty(ce.LocalImagePath) && File.Exists(ce.LocalImagePath))
+                    continue;
+                cards.Add((ce.Name, ce.ImageNormalUrl, path => { }));
             }
 
             // Art Series collection
-            var artIds = cdb.ArtSeriesCollectionEntries.Select(c => c.ArtSeriesId).Distinct().ToList();
-            foreach (var id in artIds)
+            foreach (var ce in cdb.ArtSeriesCollectionEntries.AsNoTracking()
+                .Where(c => c.ImageNormalUrl != null && c.ImageNormalUrl != "")
+                .ToList())
             {
-                var card = db.ArtSeriesCards.FirstOrDefault(p => p.ArtSeriesId == id);
-                if (card != null && !string.IsNullOrEmpty(card.ImageNormalUrl)
-                    && (string.IsNullOrEmpty(card.LocalImagePath)
-                        || !File.Exists(card.LocalImagePath)))
-                {
-                    var capturedCard = card;
-                    cards.Add((card.Name, card.ImageNormalUrl,
-                        path => { capturedCard.LocalImagePath = path; }
-                    ));
-                }
+                if (!string.IsNullOrEmpty(ce.LocalImagePath) && File.Exists(ce.LocalImagePath))
+                    continue;
+                cards.Add((ce.Name, ce.ImageNormalUrl, path => { }));
             }
 
             if (cards.Count == 0)
@@ -9226,9 +9189,6 @@ namespace BreakersOfE
                     (failed > 0 ? $" ({failed} failed)" : ""),
                     pct);
             }
-
-            // Save all LocalImagePath updates to DB
-            db.SaveChanges();
 
             SetStatus(
                 $"Done — {done} images downloaded" +
