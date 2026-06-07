@@ -8,11 +8,9 @@ using System.Windows.Controls;
 
 namespace BreakersOfE.Windows
 {
-    // ── One row in the values list ────────────────────────────────────────────
     public class ValueItem : INotifyPropertyChanged
     {
         private bool _isChecked;
-
         public string DisplayValue { get; set; } = string.Empty;
         public string ActualValue { get; set; } = string.Empty;
         public bool IsAll { get; set; } = false;
@@ -35,157 +33,178 @@ namespace BreakersOfE.Windows
     {
         private readonly ColumnFilterState _state;
         private readonly List<string> _allValues;
-        private readonly List<ValueItem> _items = new();
+        private readonly List<ValueItem> _allItems = new();
         private bool _busy = false;
 
-        // Fired whenever the filter changes so MainWindow can reload the grid
-        public event EventHandler? FilterChanged;
+        // Snapshot on open for Cancel
+        private readonly bool _origAllSelected;
+        private readonly HashSet<string> _origSelectedValues;
+        private readonly bool _origUseTextFilter;
+        private readonly ColumnFilterOperator _origTextOperator;
+        private readonly string _origTextValue;
 
-        // ════════════════════════════════════════════════════════════════════
-        // CONSTRUCTOR
-        // ════════════════════════════════════════════════════════════════════
+        /// <summary>Fired when OK or Clear commits the filter.</summary>
+        public event EventHandler? FilterChanged;
+        /// <summary>Fired when Sort A-Z or Z-A is clicked. true = ascending.</summary>
+        public event EventHandler<bool>? SortRequested;
+
         public ColumnFilterPopup(
-            string columnName,
-            string propertyName,
-            List<string> allValues,
-            ColumnFilterState existingState)
+            string columnName, string propertyName,
+            List<string> allValues, ColumnFilterState existingState)
         {
             InitializeComponent();
-
             Title = $"Filter: {columnName}";
             _state = existingState;
-            _allValues = allValues.OrderBy(v => v, Comparer<string>.Create(ColumnFilterState.CompareNatural)).ToList();
+            _allValues = allValues
+                .OrderBy(v => v, Comparer<string>.Create(
+                    ColumnFilterState.CompareNatural)).ToList();
+
+            _origAllSelected = _state.AllSelected;
+            _origSelectedValues = new HashSet<string>(_state.SelectedValues);
+            _origUseTextFilter = _state.UseTextFilter;
+            _origTextOperator = _state.TextOperator;
+            _origTextValue = _state.TextValue;
 
             BuildItemList();
             PopulateOperatorCombo();
             RestoreTextState();
         }
 
-        // ════════════════════════════════════════════════════════════════════
-        // BUILD ITEM LIST
-        // Built once on open. Never rebuilt. Search only scrolls.
-        // ════════════════════════════════════════════════════════════════════
+        // ── Build checkbox list ─────────────────────────────────────────
         private void BuildItemList()
         {
-            _items.Clear();
-
-            // Add every unique value — Select All is now a pinned control above
+            _allItems.Clear();
             foreach (var v in _allValues)
             {
-                _items.Add(new ValueItem
+                _allItems.Add(new ValueItem
                 {
                     DisplayValue = string.IsNullOrEmpty(v) ? "(blank)" : v,
                     ActualValue = v,
-                    IsAll = false,
                     IsChecked = _state.AllSelected ||
-                                   _state.SelectedValues.Contains(v)
+                                _state.SelectedValues.Contains(v)
                 });
             }
-
-            // Store total count so summary can compute exclusions
             _state.TotalValueCount = _allValues.Count;
+            ValuesListBox.ItemsSource = _allItems;
 
-            ValuesListBox.ItemsSource = _items;
-
-            // Sync the pinned Select All checkbox
             _busy = true;
-            ChkSelectAll.IsChecked = _state.AllSelected;
+            SyncSelectAllCheckbox();
             _busy = false;
         }
 
-        // ════════════════════════════════════════════════════════════════════
-        // SEARCH BOX
-        // Scrolls to the first item that starts with the typed text.
-        // Does NOT remove any items from the list.
-        // ════════════════════════════════════════════════════════════════════
+        // ── Search box — FILTERS the visible checkboxes (Excel-style) ───
         private void ValueSearchBox_TextChanged(object sender,
             TextChangedEventArgs e)
         {
-            string txt = ValueSearchBox.Text;
-            if (string.IsNullOrEmpty(txt)) return;
+            string txt = ValueSearchBox.Text.Trim();
+            if (string.IsNullOrEmpty(txt))
+                ValuesListBox.ItemsSource = _allItems;
+            else
+                ValuesListBox.ItemsSource = _allItems
+                    .Where(x => x.DisplayValue.Contains(txt,
+                        StringComparison.OrdinalIgnoreCase)).ToList();
 
-            var match = _items.FirstOrDefault(x =>
-                !x.IsAll &&
-                x.DisplayValue.StartsWith(txt,
-                    StringComparison.OrdinalIgnoreCase));
-
-            if (match == null) return;
-
-            // Scroll matched item to top of visible area
-            ValuesListBox.ScrollIntoView(_items.Last());
-            ValuesListBox.UpdateLayout();
-            ValuesListBox.ScrollIntoView(match);
+            _busy = true;
+            SyncSelectAllCheckbox();
+            _busy = false;
         }
 
-        // ════════════════════════════════════════════════════════════════════
-        // PINNED SELECT ALL CHECKBOX
-        // ════════════════════════════════════════════════════════════════════
+        // ── Select All — toggles only VISIBLE items ─────────────────────
         private void SelectAll_Changed(object sender, RoutedEventArgs e)
         {
             if (_busy) return;
             _busy = true;
-
             bool check = ChkSelectAll.IsChecked == true;
-            foreach (var vi in _items)
-                vi.IsChecked = check;
-
-            _state.AllSelected = check;
-            _state.SelectedValues.Clear();
-            _state.UseTextFilter = false;
-
+            if (ValuesListBox.ItemsSource is IEnumerable<ValueItem> visible)
+                foreach (var vi in visible) vi.IsChecked = check;
             _busy = false;
-            FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        // ════════════════════════════════════════════════════════════════════
-        // CHECKBOX CHANGED
-        // ════════════════════════════════════════════════════════════════════
+        // ── Checkbox changed — sync Select All, no event fired ──────────
         private void ValueCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (_busy) return;
-            if (sender is not CheckBox cb) return;
-            if (cb.DataContext is not ValueItem item) return;
-
             _busy = true;
+            SyncSelectAllCheckbox();
+            _busy = false;
+        }
 
-            if (item.IsChecked)
+        private void SyncSelectAllCheckbox()
+        {
+            if (ValuesListBox.ItemsSource is not IEnumerable<ValueItem> visible)
+                return;
+            var list = visible.ToList();
+            if (list.Count == 0) { ChkSelectAll.IsChecked = false; return; }
+            bool all = list.All(x => x.IsChecked);
+            bool none = list.All(x => !x.IsChecked);
+            ChkSelectAll.IsChecked = all ? true : none ? false : null;
+        }
+
+        // ── Sort buttons — fire immediately ─────────────────────────────
+        private void BtnSortAsc_Click(object sender, RoutedEventArgs e)
+            => SortRequested?.Invoke(this, true);
+        private void BtnSortDesc_Click(object sender, RoutedEventArgs e)
+            => SortRequested?.Invoke(this, false);
+
+        // ── OK — commit checkbox state, fire event, close ───────────────
+        private void BtnOk_Click(object sender, RoutedEventArgs e)
+        {
+            CommitState();
+            FilterChanged?.Invoke(this, EventArgs.Empty);
+            Close();
+        }
+
+        private void CommitState()
+        {
+            if (MainTabControl.SelectedIndex == 1)
             {
-                if (!_state.SelectedValues.Contains(item.ActualValue))
-                    _state.SelectedValues.Add(item.ActualValue);
+                _state.TextValue = TextFilterBox.Text;
+                _state.UseTextFilter = !string.IsNullOrEmpty(_state.TextValue) ||
+                    _state.TextOperator == ColumnFilterOperator.IsBlank ||
+                    _state.TextOperator == ColumnFilterOperator.IsNotBlank;
+                return;
+            }
+
+            _state.UseTextFilter = false;
+            _state.SelectedValues.Clear();
+            bool allChecked = _allItems.All(x => x.IsChecked);
+            if (allChecked)
+            {
+                _state.AllSelected = true;
             }
             else
             {
-                _state.SelectedValues.Remove(item.ActualValue);
                 _state.AllSelected = false;
+                foreach (var item in _allItems.Where(x => x.IsChecked))
+                    _state.SelectedValues.Add(item.ActualValue);
             }
-
-            // If every value row is now checked → treat as AllSelected
-            bool allNowChecked = _items.All(x => x.IsChecked);
-            if (allNowChecked)
-            {
-                _state.AllSelected = true;
-                _state.SelectedValues.Clear();
-            }
-
-            // Sync pinned checkbox
-            ChkSelectAll.IsChecked = _state.AllSelected;
-
-            _state.UseTextFilter = false;
-            _busy = false;
-
-            FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        // ════════════════════════════════════════════════════════════════════
-        // TEXT FILTER TAB
-        // ════════════════════════════════════════════════════════════════════
+        // ── Cancel — revert to snapshot, close ──────────────────────────
+        private void BtnCancel_Click(object sender, RoutedEventArgs e)
+        {
+            _state.AllSelected = _origAllSelected;
+            _state.SelectedValues = new HashSet<string>(_origSelectedValues);
+            _state.UseTextFilter = _origUseTextFilter;
+            _state.TextOperator = _origTextOperator;
+            _state.TextValue = _origTextValue;
+            Close();
+        }
+
+        // ── Clear Filter — clear this column, commit, close ─────────────
+        private void BtnClearFilter_Click(object sender, RoutedEventArgs e)
+        {
+            _state.Clear();
+            FilterChanged?.Invoke(this, EventArgs.Empty);
+            Close();
+        }
+
+        // ── Text filter tab ─────────────────────────────────────────────
         private void PopulateOperatorCombo()
         {
             OperatorCombo.Items.Clear();
-            foreach (ColumnFilterOperator op in
-                Enum.GetValues<ColumnFilterOperator>())
-                OperatorCombo.Items.Add(
-                    ColumnFilterState.GetOperatorLabel(op));
+            foreach (ColumnFilterOperator op in Enum.GetValues<ColumnFilterOperator>())
+                OperatorCombo.Items.Add(ColumnFilterState.GetOperatorLabel(op));
             OperatorCombo.SelectedIndex = (int)_state.TextOperator;
         }
 
@@ -195,8 +214,7 @@ namespace BreakersOfE.Windows
             OperatorCombo.SelectedIndex = (int)_state.TextOperator;
             TextFilterBox.Text = _state.TextValue;
             UpdateTextBoxVisibility();
-            if (_state.UseTextFilter)
-                MainTabControl.SelectedIndex = 1;
+            if (_state.UseTextFilter) MainTabControl.SelectedIndex = 1;
             _busy = false;
         }
 
@@ -213,45 +231,19 @@ namespace BreakersOfE.Windows
             SelectionChangedEventArgs e)
         {
             if (_busy) return;
-            _state.TextOperator =
-                (ColumnFilterOperator)OperatorCombo.SelectedIndex;
+            _state.TextOperator = (ColumnFilterOperator)OperatorCombo.SelectedIndex;
             UpdateTextBoxVisibility();
-            _state.UseTextFilter =
-                !string.IsNullOrEmpty(_state.TextValue) ||
-                _state.TextOperator == ColumnFilterOperator.IsBlank ||
-                _state.TextOperator == ColumnFilterOperator.IsNotBlank;
-            FilterChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private void TextFilterBox_TextChanged(object sender,
             TextChangedEventArgs e)
-        {
-            if (_busy) return;
-            // Only update state, don't fire FilterChanged yet —
-            // firing on every keystroke causes grid reload which steals focus
-            _state.TextValue = TextFilterBox.Text;
-            _state.UseTextFilter = !string.IsNullOrEmpty(_state.TextValue);
-        }
+        { }
 
         private void TextFilterBox_KeyDown(object sender,
             System.Windows.Input.KeyEventArgs e)
         {
             if (e.Key == System.Windows.Input.Key.Enter)
-            {
-                _state.TextValue = TextFilterBox.Text;
-                _state.UseTextFilter = !string.IsNullOrEmpty(_state.TextValue);
-                FilterChanged?.Invoke(this, EventArgs.Empty);
-                e.Handled = true;
-            }
-        }
-
-        private void BtnApplyTextFilter_Click(object sender, RoutedEventArgs e)
-        {
-            _state.TextValue = TextFilterBox.Text;
-            _state.UseTextFilter = !string.IsNullOrEmpty(_state.TextValue) ||
-                _state.TextOperator == ColumnFilterOperator.IsBlank ||
-                _state.TextOperator == ColumnFilterOperator.IsNotBlank;
-            FilterChanged?.Invoke(this, EventArgs.Empty);
+            { BtnOk_Click(sender, e); e.Handled = true; }
         }
 
         private void BtnClearTextFilter_Click(object sender, RoutedEventArgs e)
@@ -260,39 +252,6 @@ namespace BreakersOfE.Windows
             TextFilterBox.Text = string.Empty;
             OperatorCombo.SelectedIndex = 0;
             _busy = false;
-            _state.TextValue = string.Empty;
-            _state.UseTextFilter = false;
-            _state.TextOperator = ColumnFilterOperator.Contains;
-            FilterChanged?.Invoke(this, EventArgs.Empty);
         }
-
-        // ════════════════════════════════════════════════════════════════════
-        // CLEAR FILTER BUTTON
-        // Clears THIS column's filter only.
-        // Other column filters are untouched.
-        // Funnel for this column goes gray.
-        // Funnels for other active columns stay blue.
-        // Popup closes.
-        // ════════════════════════════════════════════════════════════════════
-        private void BtnClearFilter_Click(object sender, RoutedEventArgs e)
-        {
-            _state.Clear();
-
-            _busy = true;
-            foreach (var item in _items)
-                item.IsChecked = true;
-            ChkSelectAll.IsChecked = true;
-            TextFilterBox.Text = string.Empty;
-            OperatorCombo.SelectedIndex = 0;
-            _busy = false;
-
-            FilterChanged?.Invoke(this, EventArgs.Empty);
-
-            Dispatcher.BeginInvoke(new Action(() => Close()),
-                System.Windows.Threading.DispatcherPriority.ContextIdle);
-        }
-
-        private void BtnClose_Click(object sender, RoutedEventArgs e)
-            => Close();
     }
 }

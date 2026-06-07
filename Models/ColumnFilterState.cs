@@ -26,7 +26,7 @@ namespace BreakersOfE.Models
         public string PropertyName { get; set; } = string.Empty;
 
         // Values tab — selected unique values (OR logic)
-        public List<string> SelectedValues { get; set; } = new();
+        public HashSet<string> SelectedValues { get; set; } = new();
         public bool AllSelected { get; set; } = true;
         public int TotalValueCount { get; set; } = 0; // total available values
 
@@ -207,16 +207,22 @@ namespace BreakersOfE.Models
 
             if (activeFilters.Count == 0) return items;
 
+            // Cache PropertyInfo lookups — reflection once, not per item
+            var propCache = new Dictionary<string, System.Reflection.PropertyInfo?>();
+            foreach (var f in activeFilters)
+            {
+                if (!propCache.ContainsKey(f.PropertyName))
+                    propCache[f.PropertyName] = typeof(T).GetProperty(f.PropertyName,
+                        System.Reflection.BindingFlags.Public |
+                        System.Reflection.BindingFlags.Instance |
+                        System.Reflection.BindingFlags.IgnoreCase);
+            }
+
             return items.Where(item =>
             {
                 foreach (var filter in activeFilters)
                 {
-                    // Get property value via reflection
-                    var prop = typeof(T).GetProperty(filter.PropertyName,
-                        System.Reflection.BindingFlags.Public |
-                        System.Reflection.BindingFlags.Instance |
-                        System.Reflection.BindingFlags.IgnoreCase);
-
+                    var prop = propCache[filter.PropertyName];
                     string? value = prop?.GetValue(item)?.ToString();
 
                     if (!filter.Matches(value))

@@ -8676,9 +8676,10 @@ namespace BreakersOfE
             string propName = GetPropertyNameForColumn(columnName, isTop);
             if (string.IsNullOrEmpty(propName)) return;
 
-            // Get values from the CURRENTLY FILTERED data so other active filters
-            // cascade into this popup (Excel-style). Then merge in any values the
-            // user previously checked for THIS column so they can still uncheck them.
+            // Cascading: show values from the currently filtered data (Excel-style)
+            // so other active column filters narrow this popup's value list.
+            // Merge in any values the user previously checked for THIS column
+            // so they can still uncheck them.
             var values = GetUniqueValues(grid, propName);
             var state = filters.GetOrCreate(columnName, propName);
             if (state.IsActive && state.SelectedValues.Count > 0)
@@ -8698,6 +8699,25 @@ namespace BreakersOfE
             popup.Left = screenPos.X;
             popup.Top = screenPos.Y;
 
+            // Sort buttons fire immediately
+            popup.SortRequested += (s, ascending) =>
+            {
+                grid.Items.SortDescriptions.Clear();
+                foreach (var col in grid.Columns) col.SortDirection = null;
+
+                var sortDir = ascending
+                    ? System.ComponentModel.ListSortDirection.Ascending
+                    : System.ComponentModel.ListSortDirection.Descending;
+                grid.Items.SortDescriptions.Add(
+                    new System.ComponentModel.SortDescription(propName, sortDir));
+
+                // Set the arrow on the column header
+                var sortCol = grid.Columns.FirstOrDefault(
+                    c => c.Header?.ToString() == columnName);
+                if (sortCol != null) sortCol.SortDirection = sortDir;
+            };
+
+            // OK / Clear fire this — reloads the grid with new filter state
             popup.FilterChanged += (s, ev) =>
             {
                 UpdateFunnelIcon(header, state.IsActive);
@@ -8809,10 +8829,13 @@ namespace BreakersOfE
             }
             else
             {
-                // Bottom table — always read full collection from DB
-                using var cdb = new Data.CollectionDbContext();
-                using var pdb = new AppDbContext();
-                source = BuildCollectionRows(cdb, pdb);
+                // Bottom table — read from the current grid data.
+                // This is the full collection (only filtered by the
+                // search box / expression filter, not column filters),
+                // so we get all column values for free.
+                var grid = BottomDataGrid;
+                if (grid.ItemsSource != null)
+                    source = (System.Collections.IEnumerable)grid.ItemsSource;
             }
 
             // Fall back to grid ItemsSource if no source found
@@ -8823,13 +8846,14 @@ namespace BreakersOfE
             }
 
             var values = new HashSet<string>();
+            System.Reflection.PropertyInfo? cachedProp = null;
             foreach (var item in source)
             {
-                var prop = item.GetType().GetProperty(propName,
+                cachedProp ??= item.GetType().GetProperty(propName,
                     System.Reflection.BindingFlags.Public |
                     System.Reflection.BindingFlags.Instance |
                     System.Reflection.BindingFlags.IgnoreCase);
-                string? val = prop?.GetValue(item)?.ToString();
+                string? val = cachedProp?.GetValue(item)?.ToString();
                 values.Add(val ?? string.Empty);
             }
             return values.OrderBy(v => v, Comparer<string>.Create(ColumnFilterState.CompareNatural)).ToList();
@@ -8841,15 +8865,16 @@ namespace BreakersOfE
             var values = new System.Collections.Generic.HashSet<string>();
             if (grid.ItemsSource == null) return new List<string>();
 
+            System.Reflection.PropertyInfo? cachedProp = null;
             foreach (var item in
                 (System.Collections.IEnumerable)grid.ItemsSource)
             {
-                var prop = item.GetType().GetProperty(propName,
+                cachedProp ??= item.GetType().GetProperty(propName,
                     System.Reflection.BindingFlags.Public |
                     System.Reflection.BindingFlags.Instance |
                     System.Reflection.BindingFlags.IgnoreCase);
 
-                string? val = prop?.GetValue(item)?.ToString();
+                string? val = cachedProp?.GetValue(item)?.ToString();
                 values.Add(val ?? string.Empty);
             }
 
