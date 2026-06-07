@@ -109,14 +109,25 @@ namespace BreakersOfE.Windows
             _busy = false;
         }
 
-        // ── Select All — toggles only VISIBLE items ─────────────────────
+        // ── Select All ────────────────────────────────────────────────
+        // Uncheck: unchecks ALL items (visible + hidden) so you start fresh
+        // Check: checks only the VISIBLE items (search results)
         private void SelectAll_Changed(object sender, RoutedEventArgs e)
         {
             if (_busy) return;
             _busy = true;
             bool check = ChkSelectAll.IsChecked == true;
-            if (ValuesListBox.ItemsSource is IEnumerable<ValueItem> visible)
-                foreach (var vi in visible) vi.IsChecked = check;
+            if (!check)
+            {
+                // Uncheck everything — visible and hidden
+                foreach (var vi in _allItems) vi.IsChecked = false;
+            }
+            else
+            {
+                // Check only the visible items
+                if (ValuesListBox.ItemsSource is IEnumerable<ValueItem> visible)
+                    foreach (var vi in visible) vi.IsChecked = true;
+            }
             _busy = false;
         }
 
@@ -131,12 +142,10 @@ namespace BreakersOfE.Windows
 
         private void SyncSelectAllCheckbox()
         {
-            if (ValuesListBox.ItemsSource is not IEnumerable<ValueItem> visible)
-                return;
-            var list = visible.ToList();
-            if (list.Count == 0) { ChkSelectAll.IsChecked = false; return; }
-            bool all = list.All(x => x.IsChecked);
-            bool none = list.All(x => !x.IsChecked);
+            if (_allItems.Count == 0) { ChkSelectAll.IsChecked = false; return; }
+            // State reflects ALL items, not just visible search results
+            bool all = _allItems.All(x => x.IsChecked);
+            bool none = _allItems.All(x => !x.IsChecked);
             ChkSelectAll.IsChecked = all ? true : none ? false : null;
         }
 
