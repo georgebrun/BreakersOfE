@@ -9032,9 +9032,163 @@ namespace BreakersOfE
 
             if (win.ShowDialog() == true)
             {
+                PropagatePoolPricesToCollection();
                 LoadCaches();
                 RefreshBottom();
             }
+        }
+
+        /// <summary>
+        /// After a pool price update, copies the new prices from PoolCards
+        /// into every self-contained collection/binder/want entry via ScryfallId.
+        /// </summary>
+        private static void PropagatePoolPricesToCollection()
+        {
+            using var pdb = new AppDbContext();
+            using var cdb = new Data.CollectionDbContext();
+
+            // Build price lookup from pool
+            var prices = pdb.PoolCards.AsNoTracking()
+                .Where(p => p.ScryfallId != null && p.ScryfallId != "")
+                .Select(p => new {
+                    p.ScryfallId,
+                    p.PriceUsd,
+                    p.PriceUsdFoil,
+                    p.PriceUsdEtched,
+                    p.PriceEur,
+                    p.PriceEurFoil,
+                    p.PriceTix,
+                    p.PricesJson
+                })
+                .ToList()
+                .GroupBy(p => p.ScryfallId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // Collection entries
+            foreach (var ce in cdb.CollectionEntries
+                .Where(c => c.ScryfallId != null && c.ScryfallId != ""))
+            {
+                if (prices.TryGetValue(ce.ScryfallId, out var p))
+                {
+                    ce.PriceUsd = p.PriceUsd;
+                    ce.PriceUsdFoil = p.PriceUsdFoil;
+                    ce.PriceUsdEtched = p.PriceUsdEtched;
+                    ce.PriceEur = p.PriceEur;
+                    ce.PriceEurFoil = p.PriceEurFoil;
+                    ce.PriceTix = p.PriceTix;
+                    ce.PricesJson = p.PricesJson;
+                }
+            }
+
+            // Trade Binder
+            foreach (var tb in cdb.TradeBinderEntries
+                .Where(t => t.ScryfallId != null && t.ScryfallId != ""))
+            {
+                if (prices.TryGetValue(tb.ScryfallId, out var p))
+                {
+                    tb.PriceUsd = p.PriceUsd;
+                    tb.PriceUsdFoil = p.PriceUsdFoil;
+                }
+            }
+
+            // Want List
+            foreach (var wl in cdb.WantListEntries
+                .Where(w => w.ScryfallId != null && w.ScryfallId != ""))
+            {
+                if (prices.TryGetValue(wl.ScryfallId, out var p))
+                {
+                    wl.PriceUsd = p.PriceUsd;
+                    wl.PriceUsdFoil = p.PriceUsdFoil;
+                }
+            }
+
+            cdb.SaveChanges();
+        }
+
+        private void MenuUpdateDeckPrices_Click(object sender, RoutedEventArgs e)
+        {
+            if (_openDecks.Count == 0)
+            {
+                MessageBox.Show(
+                    "No decks are currently open.\n\n" +
+                    "Open one or more decks first, then use this tool to update their prices.",
+                    "No Open Decks",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                "Update pool prices from Scryfall before updating decks?\n\n" +
+                "Yes — Download latest prices, update pool + collection, then update open decks\n" +
+                "No — Update open decks from current pool prices only\n" +
+                "Cancel — Do nothing",
+                "Update Deck Prices",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Cancel) return;
+
+            if (result == MessageBoxResult.Yes)
+            {
+                var win = new BreakersOfE.Windows.UpdateDatabaseWindow(priceOnly: true)
+                { Owner = this };
+
+                if (win.ShowDialog() != true) return;
+
+                PropagatePoolPricesToCollection();
+            }
+
+            // Update all open deck cards from pool prices
+            using var pdb = new AppDbContext();
+            var prices = pdb.PoolCards.AsNoTracking()
+                .Where(p => p.ScryfallId != null && p.ScryfallId != "")
+                .Select(p => new { p.ScryfallId, p.PriceUsd, p.PriceUsdFoil })
+                .ToList()
+                .GroupBy(p => p.ScryfallId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            int decksUpdated = 0;
+            int cardsUpdated = 0;
+
+            foreach (var deck in _openDecks)
+            {
+                bool changed = false;
+                foreach (var card in deck.Cards)
+                {
+                    if (string.IsNullOrEmpty(card.ScryfallId)) continue;
+                    if (!prices.TryGetValue(card.ScryfallId, out var p)) continue;
+
+                    if (card.PriceUsd != p.PriceUsd ||
+                        card.PriceUsdFoil != p.PriceUsdFoil)
+                    {
+                        card.PriceUsd = p.PriceUsd;
+                        card.PriceUsdFoil = p.PriceUsdFoil;
+                        cardsUpdated++;
+                        changed = true;
+                    }
+                }
+                if (changed)
+                {
+                    AutoSaveDeck(deck);
+                    decksUpdated++;
+                }
+            }
+
+            // Refresh the active deck grid if visible
+            if (_activeDeck != null)
+                RefreshActiveDeckGrid();
+
+            LoadCaches();
+            RefreshBottom();
+
+            MessageBox.Show(
+                $"Deck prices updated.\n\n" +
+                $"Decks updated: {decksUpdated} of {_openDecks.Count}\n" +
+                $"Cards updated: {cardsUpdated}",
+                "Deck Prices Updated",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
 
         private void ShowDeckCardDetail(DeckCard c)

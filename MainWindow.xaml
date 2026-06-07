@@ -268,6 +268,9 @@
                 <MenuItem Header="📦 Migrate Collection Card Data"
                           Click="MenuMigrateCollectionData_Click"
                           ToolTip="Populates embedded card data in collection entries from the pool database (one-time upgrade)"/>
+                <MenuItem Header="💰 Update Deck Prices"
+                          Click="MenuUpdateDeckPrices_Click"
+                          ToolTip="Updates prices in all currently open decks from the pool"/>
                 <Separator/>
                 <MenuItem Header="🂠 _Tabletop Simulator" Name="MenuTabletop"
                           Click="MenuTabletop_Click"/>
