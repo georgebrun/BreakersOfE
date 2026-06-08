@@ -551,6 +551,7 @@
                               PreviewKeyDown="TopDataGrid_PreviewKeyDown"
                               MouseDoubleClick="TopDataGrid_MouseDoubleClick"
                               CellEditEnding="TopDataGrid_CellEditEnding"
+                              Sorting="DataGrid_Sorting"
                               Background="{DynamicResource GridRowBrush}"
                               Foreground="{DynamicResource PrimaryTextBrush}"
                               BorderThickness="0" GridLinesVisibility="None"
@@ -813,6 +814,7 @@
                               ScrollViewer.ScrollChanged="BottomDataGrid_ScrollChanged"
                               PreviewKeyDown="BottomDataGrid_PreviewKeyDown"
                               Loaded="BottomDataGrid_Loaded"
+                              Sorting="DataGrid_Sorting"
                               Background="{DynamicResource GridRowBrush}"
                               Foreground="{DynamicResource PrimaryTextBrush}"
                               BorderThickness="0" GridLinesVisibility="None"
@@ -899,6 +901,7 @@
                                 </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Name"          Binding="{Binding Name}"              Width="200" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Edition"       Binding="{Binding SetCode}"           Width="55"  IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Edition Name"  Binding="{Binding SetName}"           Width="160" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Qty"           Binding="{Binding Quantity}"          Width="45"/>
                                 <DataGridTextColumn Header="Foil Qty"      Binding="{Binding FoilQuantity}"      Width="60"/>
                                 <DataGridTextColumn Header="Used"          Binding="{Binding UsedCount}"         Width="50"  IsReadOnly="True"/>

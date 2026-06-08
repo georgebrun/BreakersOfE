@@ -136,8 +136,9 @@ namespace BreakersOfE.Services
 
             // Find existing row for this card (one row per card regardless of foil)
             var existing = deck.Cards.FirstOrDefault(c =>
-                c.PoolId == card.PoolId &&
-                c.Category == category);
+                c.Category == category &&
+                ((!string.IsNullOrEmpty(card.ScryfallId) && c.ScryfallId == card.ScryfallId) ||
+                 c.PoolId == card.PoolId));
 
             // Total copies across foil AND non-foil for copy-limit rules
             int totalQty = existing?.TotalQuantity ?? 0;
@@ -246,8 +247,9 @@ namespace BreakersOfE.Services
             Deck deck, DeckCard card, bool removeAll = false)
         {
             var existing = deck.Cards.FirstOrDefault(c =>
-                c.PoolId == card.PoolId &&
-                c.Category == card.Category);
+                c.Category == card.Category &&
+                ((!string.IsNullOrEmpty(card.ScryfallId) && c.ScryfallId == card.ScryfallId) ||
+                 c.PoolId == card.PoolId));
 
             if (existing == null) return;
 
@@ -274,8 +276,9 @@ namespace BreakersOfE.Services
             Deck deck, DeckCard card, bool foil, bool removeAll)
         {
             var existing = deck.Cards.FirstOrDefault(c =>
-                c.PoolId == card.PoolId &&
-                c.Category == card.Category);
+                c.Category == card.Category &&
+                ((!string.IsNullOrEmpty(card.ScryfallId) && c.ScryfallId == card.ScryfallId) ||
+                 c.PoolId == card.PoolId));
 
             if (existing == null) return;
 

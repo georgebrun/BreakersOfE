@@ -519,7 +519,15 @@ namespace BreakersOfE.Windows
                                 KV("Sell At Value", "Calculated: Sell At × Quantity")),
                             S("Updating Prices",
                                 P("Go to Tools → Update Prices Only to refresh market prices without re-downloading all card data."),
-                                Tip("Your personal Buy At and Sell At values are never overwritten by price updates."))
+                                P("When prices are updated, they automatically propagate to your collection, Trade Binder, and Want List entries."),
+                                Tip("Your personal Buy At and Sell At values are never overwritten by price updates.")),
+                            S("Updating Deck Prices",
+                                P("Go to Tools → Update Deck Prices to refresh prices in all currently open decks."),
+                                P("A prompt asks whether to update pool prices from Scryfall first:"),
+                                KV("Yes",    "Downloads latest prices, updates pool + collection + binder + want list, then updates open decks"),
+                                KV("No",     "Updates open decks from current pool prices only (faster)"),
+                                KV("Cancel", "Does nothing"),
+                                Tip("Deck prices are stored in each deck file. Only open decks are updated — closed decks retain their last-saved prices until opened and updated."))
                         }
                     }
                 }
@@ -619,6 +627,35 @@ namespace BreakersOfE.Windows
                                 SK("Shift+F3",   "Jump to previous match"),
                                 SK("Escape",     "Clear search and show all cards"),
                                 Tip("The search also matches set codes — type 'MH3' to see all Modern Horizons 3 cards."))
+                        }
+                    },
+                    new HelpTopic
+                    {
+                        Title    = "Column Filters",
+                        Subtitle = "Excel-style sort and filter on any column",
+                        Sections = new()
+                        {
+                            S(null,
+                                P("Hover over any column header to reveal a funnel icon. Click it to open the column filter popup.")),
+                            S("Sort",
+                                B("Sort A → Z and Sort Z → A buttons at the top sort the entire table by that column immediately.")),
+                            S("Values Tab",
+                                B("Shows every unique value in the column with a checkbox next to each."),
+                                B("When other column filters are active, only values that exist in the already-filtered data are shown (cascading)."),
+                                B("Use the search box to narrow the list — non-matching values are hidden."),
+                                B("(Select All) when unchecked clears ALL values (visible and hidden) so you can start fresh."),
+                                B("(Select All) when checked selects only the visible search results."),
+                                B("The (Select All) checkbox shows ■ (indeterminate) when some but not all values are selected.")),
+                            S("Text Filters Tab",
+                                B("Apply text-based conditions: Contains, Begins With, Ends With, Equals, Does Not Contain, Is Blank, Is Not Blank, and numeric comparisons.")),
+                            S("Buttons",
+                                KV("OK",           "Commits the current selection and closes the popup"),
+                                KV("Cancel",       "Reverts to the state before the popup was opened"),
+                                KV("Clear Filter", "Removes this column's filter and closes")),
+                            S("Combining Filters",
+                                P("Multiple column filters combine with AND logic — a card must match all active column filters to appear."),
+                                P("Column filters work alongside the Advanced Filter and Quick Search simultaneously."),
+                                Tip("Active column filters show a blue funnel icon that stays visible on the column header."))
                         }
                     },
                     new HelpTopic
@@ -908,6 +945,13 @@ namespace BreakersOfE.Windows
                         B("MTG Studio CSV is the most reliable format — it uses ScryfallId for exact matching"),
                         B("Other formats match by Name + Set Code; set codes must match Scryfall's codes exactly"),
                         B("Use 📋 Copy Log or 💾 Save Log after import to review all unmatched cards")),
+                    S("Collection Data Migration",
+                        P("If you upgraded from a version before v1.1.0, your collection entries need card data embedded. The app detects this automatically on first launch and prompts you to migrate."),
+                        P("You can also run this manually from Tools → Migrate Collection Card Data."),
+                        B("Creates a brand-new collection.db with all card data stored directly in each entry"),
+                        B("Your original collection is backed up as collection_pre_v2.db and never modified"),
+                        B("The migration uses ScryfallId to match collection entries to the current card pool"),
+                        Tip("After migration, your collection no longer depends on pool ID matching. Rebuilding the card pool will never break your collection display.")),
                     S("Deck Type Issues",
                         B("To switch between Standard and Commander: right-click any deck card → Switch to Commander/Standard Deck"),
                         B("To mark a commander: right-click the card → Set as Commander"),

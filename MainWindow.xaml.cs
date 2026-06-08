@@ -2355,6 +2355,7 @@ namespace BreakersOfE
                 checkedNames.Add(deck.Name);
 
                 var matches = deck.Cards.Where(c =>
+                    (!string.IsNullOrEmpty(row.ScryfallId) && c.ScryfallId == row.ScryfallId) ||
                     c.Name.Equals(row.Name,
                         StringComparison.OrdinalIgnoreCase) ||
                     (row.PoolId > 0 && c.PoolId == row.PoolId))
@@ -2398,6 +2399,7 @@ namespace BreakersOfE
                         if (checkedNames.Contains(deck.Name)) continue;
 
                         var matches = deck.Cards.Where(c =>
+                            (!string.IsNullOrEmpty(row.ScryfallId) && c.ScryfallId == row.ScryfallId) ||
                             c.Name.Equals(row.Name,
                                 StringComparison.OrdinalIgnoreCase) ||
                             (row.PoolId > 0 && c.PoolId == row.PoolId))
@@ -3486,20 +3488,31 @@ namespace BreakersOfE
             }
 
             if (TopFilterActive && _topColumnFilters.HasActiveFilters)
-                filtered = _topColumnFilters.Apply(filtered);
+            {
+                // Column filters applied via ICollectionView.Filter after ItemsSource is set
+            }
 
             for (int i = 0; i < filtered.Count; i++)
                 filtered[i].RowIndex = i;
 
             TopDataGrid.ItemsSource = filtered;
-            ApplyDefaultSort(TopDataGrid);
-            SetStatus($"{filtered.Count:N0} cards in pool");
-            UpdateTopSummary("Pool",
-                nonFoil: filtered.Cast<PoolCard>().Count(c => c.IsNonFoil),
-                foil: filtered.Cast<PoolCard>().Count(c => c.IsFoil),
-                value: (decimal)filtered.Cast<PoolCard>()
-                    .Where(c => c.PriceUsd.HasValue)
-                    .Sum(c => (double)c.PriceUsd!.Value));
+
+            // Apply column filters via fast view filter (no grid rebuild)
+            if (_topColumnFilters.HasActiveFilters)
+                ApplyTopColumnFilters();
+            else
+                ApplyDefaultSort(TopDataGrid);
+
+            if (!_topColumnFilters.HasActiveFilters)
+            {
+                SetStatus($"{filtered.Count:N0} cards in pool");
+                UpdateTopSummary("Pool",
+                    nonFoil: filtered.Cast<PoolCard>().Count(c => c.IsNonFoil),
+                    foil: filtered.Cast<PoolCard>().Count(c => c.IsFoil),
+                    value: (decimal)filtered.Cast<PoolCard>()
+                        .Where(c => c.PriceUsd.HasValue)
+                        .Sum(c => (double)c.PriceUsd!.Value));
+            }
         }
 
         private void LoadTopTable_Tokens()
@@ -3813,16 +3826,25 @@ namespace BreakersOfE
                 rows = rows.Where(c => c.Name.Contains(
                     _lastSearchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
             if (TopFilterActive && _topColumnFilters.HasActiveFilters)
-                rows = _topColumnFilters.Apply(rows);
+            {
+                // Column filters applied via ICollectionView.Filter after ItemsSource is set
+            }
             for (int i = 0; i < rows.Count; i++)
                 rows[i].RowIndex = i;
             TopDataGrid.ItemsSource = rows;
-            ApplyDefaultSort(TopDataGrid);
-            UpdateTopSummary("Collection",
-                nonFoil: rows.Sum(r => r.Quantity),
-                foil: rows.Sum(r => r.FoilQuantity),
-                total: rows.Sum(r => r.Quantity + r.FoilQuantity),
-                value: rows.Sum(r => r.TotalValue));
+            if (_topColumnFilters.HasActiveFilters)
+                ApplyTopColumnFilters();
+            else
+                ApplyDefaultSort(TopDataGrid);
+
+            if (!_topColumnFilters.HasActiveFilters)
+            {
+                UpdateTopSummary("Collection",
+                    nonFoil: rows.Sum(r => r.Quantity),
+                    foil: rows.Sum(r => r.FoilQuantity),
+                    total: rows.Sum(r => r.Quantity + r.FoilQuantity),
+                    value: rows.Sum(r => r.TotalValue));
+            }
         }
 
         private void SetTopExpandColumnVisibility(Visibility vis)
@@ -3955,6 +3977,7 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Foil", "FoilBadge", 30, true));
             grid.Columns.Add(MakeText("Name", "Name", 200, true));
             grid.Columns.Add(MakeText("Edition", "SetCode", 55, true));
+            grid.Columns.Add(MakeText("Edition Name", "SetName", 160, true));
             grid.Columns.Add(MakeText("Qty", "Quantity", 45));
             grid.Columns.Add(MakeText("Foil Qty", "FoilQuantity", 60));
             grid.Columns.Add(MakeText("Used", "UsedCount", 50, true));
@@ -4146,13 +4169,18 @@ namespace BreakersOfE
             }
 
             if (BottomFilterActive && _bottomColumnFilters.HasActiveFilters)
-                rows = _bottomColumnFilters.Apply(rows);
+            {
+                // Column filters applied via ICollectionView.Filter after ItemsSource is set
+            }
 
             for (int i = 0; i < rows.Count; i++)
                 rows[i].RowIndex = i;
 
             BottomDataGrid.ItemsSource = rows;
-            UpdateSummaryRow(rows);
+            if (_bottomColumnFilters.HasActiveFilters)
+                ApplyBottomColumnFilters();
+            else
+                UpdateSummaryRow(rows);
         }
 
         private void LoadBottomTable_PlanechaseCollection()
@@ -8676,17 +8704,78 @@ namespace BreakersOfE
             string propName = GetPropertyNameForColumn(columnName, isTop);
             if (string.IsNullOrEmpty(propName)) return;
 
-            // Cascading: show values from the currently filtered data (Excel-style)
-            // so other active column filters narrow this popup's value list.
-            // Merge in any values the user previously checked for THIS column
-            // so they can still uncheck them.
-            var values = GetUniqueValues(grid, propName);
+            // Excel-style: cascade from OTHER active column filters,
+            // but show all values for THIS column (so you can change selections).
+            // Get the grid data filtered by everything EXCEPT this column.
             var state = filters.GetOrCreate(columnName, propName);
+            List<string> values;
+
+            var otherFilters = filters.GetActiveFilters()
+                .Where(f => f.ColumnName != columnName).ToList();
+
+            if (otherFilters.Count > 0)
+            {
+                // Apply only the OTHER column filters to get the cascaded source
+                System.Reflection.PropertyInfo? cachedProp = null;
+                var propCacheOther = new Dictionary<string, System.Reflection.PropertyInfo?>();
+                var source = (grid.ItemsSource as System.Collections.IEnumerable)?
+                    .Cast<object>().ToList() ?? new List<object>();
+
+                // Remove this column's view filter temporarily to get unfiltered source
+                var view = System.Windows.Data.CollectionViewSource
+                    .GetDefaultView(grid.ItemsSource);
+                var allItems = view?.SourceCollection?.Cast<object>().ToList()
+                    ?? source;
+
+                // Filter by other columns only
+                foreach (var f in otherFilters)
+                {
+                    if (!propCacheOther.ContainsKey(f.PropertyName))
+                        propCacheOther[f.PropertyName] = allItems.FirstOrDefault()?
+                            .GetType().GetProperty(f.PropertyName,
+                                System.Reflection.BindingFlags.Public |
+                                System.Reflection.BindingFlags.Instance |
+                                System.Reflection.BindingFlags.IgnoreCase);
+                }
+
+                var cascaded = allItems.Where(item =>
+                {
+                    foreach (var f in otherFilters)
+                    {
+                        if (!propCacheOther.TryGetValue(f.PropertyName, out var p) || p == null)
+                            continue;
+                        string? val = p.GetValue(item)?.ToString();
+                        if (!f.Matches(val)) return false;
+                    }
+                    return true;
+                }).ToList();
+
+                // Get unique values of THIS column from the cascaded data
+                var valSet = new HashSet<string>();
+                foreach (var item in cascaded)
+                {
+                    cachedProp ??= item.GetType().GetProperty(propName,
+                        System.Reflection.BindingFlags.Public |
+                        System.Reflection.BindingFlags.Instance |
+                        System.Reflection.BindingFlags.IgnoreCase);
+                    valSet.Add(cachedProp?.GetValue(item)?.ToString() ?? string.Empty);
+                }
+                values = valSet.OrderBy(v => v,
+                    Comparer<string>.Create(ColumnFilterState.CompareNatural)).ToList();
+            }
+            else
+            {
+                // No other filters — show all values from unfiltered source
+                values = GetUniqueValuesFromCache(propName, isTop);
+            }
+
+            // Merge in any values the user previously checked for THIS column
             if (state.IsActive && state.SelectedValues.Count > 0)
             {
                 var combined = new HashSet<string>(values);
                 combined.UnionWith(state.SelectedValues);
-                values = combined.OrderBy(v => v, Comparer<string>.Create(ColumnFilterState.CompareNatural)).ToList();
+                values = combined.OrderBy(v => v,
+                    Comparer<string>.Create(ColumnFilterState.CompareNatural)).ToList();
             }
 
             _activeFilterPopup?.Close();
@@ -8699,7 +8788,7 @@ namespace BreakersOfE
             popup.Left = screenPos.X;
             popup.Top = screenPos.Y;
 
-            // Sort buttons fire immediately
+            // Sort buttons fire immediately with natural/numeric comparison
             popup.SortRequested += (s, ascending) =>
             {
                 grid.Items.SortDescriptions.Clear();
@@ -8708,8 +8797,18 @@ namespace BreakersOfE
                 var sortDir = ascending
                     ? System.ComponentModel.ListSortDirection.Ascending
                     : System.ComponentModel.ListSortDirection.Descending;
-                grid.Items.SortDescriptions.Add(
-                    new System.ComponentModel.SortDescription(propName, sortDir));
+
+                // Use CustomSort for natural ordering (1, 2, 10 not 1, 10, 2)
+                var lcv = System.Windows.Data.CollectionViewSource.GetDefaultView(grid.ItemsSource) as System.Windows.Data.ListCollectionView;
+                if (lcv != null)
+                {
+                    lcv.CustomSort = new NaturalPropertyComparer(propName, ascending);
+                }
+                else
+                {
+                    grid.Items.SortDescriptions.Add(
+                        new System.ComponentModel.SortDescription(propName, sortDir));
+                }
 
                 // Set the arrow on the column header
                 var sortCol = grid.Columns.FirstOrDefault(
@@ -8919,12 +9018,106 @@ namespace BreakersOfE
 
         private void ApplyTopColumnFilters()
         {
-            LoadCurrentMode();
+            var view = System.Windows.Data.CollectionViewSource
+                .GetDefaultView(TopDataGrid.ItemsSource);
+
+            if (view == null) { LoadCurrentMode(); return; }
+
+            if (_topColumnFilters.HasActiveFilters)
+            {
+                // Cache reflection per active filter
+                var activeFilters = _topColumnFilters.GetActiveFilters();
+                var propCache = new Dictionary<string, System.Reflection.PropertyInfo?>();
+                foreach (var f in activeFilters)
+                    if (!propCache.ContainsKey(f.PropertyName))
+                        propCache[f.PropertyName] = view.SourceCollection
+                            .Cast<object>().FirstOrDefault()?.GetType()
+                            .GetProperty(f.PropertyName,
+                                System.Reflection.BindingFlags.Public |
+                                System.Reflection.BindingFlags.Instance |
+                                System.Reflection.BindingFlags.IgnoreCase);
+
+                view.Filter = item =>
+                {
+                    foreach (var filter in activeFilters)
+                    {
+                        if (!propCache.TryGetValue(filter.PropertyName, out var prop) || prop == null)
+                            continue;
+                        string? val = prop.GetValue(item)?.ToString();
+                        if (!filter.Matches(val)) return false;
+                    }
+                    return true;
+                };
+            }
+            else
+            {
+                view.Filter = null;
+            }
+
+            // Update summary with visible items only
+            var poolVisible = view.OfType<PoolCard>().ToList();
+            var collVisible = view.OfType<CollectionDisplayRow>().ToList();
+            SetStatus($"{poolVisible.Count + collVisible.Count:N0} cards");
+
+            if (poolVisible.Count > 0)
+            {
+                UpdateTopSummary("Pool",
+                    nonFoil: poolVisible.Count(c => c.IsNonFoil),
+                    foil: poolVisible.Count(c => c.IsFoil),
+                    value: (decimal)poolVisible.Where(c => c.PriceUsd.HasValue)
+                        .Sum(c => (double)c.PriceUsd!.Value));
+            }
+            else if (collVisible.Count > 0)
+            {
+                UpdateTopSummary("Collection",
+                    nonFoil: collVisible.Sum(r => r.Quantity),
+                    foil: collVisible.Sum(r => r.FoilQuantity),
+                    total: collVisible.Sum(r => r.Quantity + r.FoilQuantity),
+                    value: collVisible.Sum(r => r.TotalValue));
+            }
         }
 
         private void ApplyBottomColumnFilters()
         {
-            RefreshBottom();
+            var view = System.Windows.Data.CollectionViewSource
+                .GetDefaultView(BottomDataGrid.ItemsSource);
+
+            if (view == null) { RefreshBottom(); return; }
+
+            if (_bottomColumnFilters.HasActiveFilters)
+            {
+                var activeFilters = _bottomColumnFilters.GetActiveFilters();
+                var propCache = new Dictionary<string, System.Reflection.PropertyInfo?>();
+                foreach (var f in activeFilters)
+                    if (!propCache.ContainsKey(f.PropertyName))
+                        propCache[f.PropertyName] = view.SourceCollection
+                            .Cast<object>().FirstOrDefault()?.GetType()
+                            .GetProperty(f.PropertyName,
+                                System.Reflection.BindingFlags.Public |
+                                System.Reflection.BindingFlags.Instance |
+                                System.Reflection.BindingFlags.IgnoreCase);
+
+                view.Filter = item =>
+                {
+                    foreach (var filter in activeFilters)
+                    {
+                        if (!propCache.TryGetValue(filter.PropertyName, out var prop) || prop == null)
+                            continue;
+                        string? val = prop.GetValue(item)?.ToString();
+                        if (!filter.Matches(val)) return false;
+                    }
+                    return true;
+                };
+            }
+            else
+            {
+                view.Filter = null;
+            }
+
+            // Update summary row with visible items only
+            var visibleRows = view.OfType<CollectionDisplayRow>().ToList();
+            if (visibleRows.Count > 0)
+                UpdateSummaryRow(visibleRows);
         }
 
         private void UpdateColumnFilterSummary(bool isTop)
@@ -9578,6 +9771,86 @@ namespace BreakersOfE
                 MessageBox.Show($"Could not open deck:\n{ex.Message}",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+    }
+
+    /// <summary>
+    /// Intercepts column header click sorting to apply natural/numeric comparison.
+    /// </summary>
+    public partial class MainWindow
+    {
+        private void DataGrid_Sorting(object sender, DataGridSortingEventArgs e)
+        {
+            e.Handled = true; // prevent default sort
+            var grid = (DataGrid)sender;
+            var propName = e.Column.SortMemberPath ??
+                e.Column.Header?.ToString() ?? "";
+
+            // Toggle direction
+            var dir = e.Column.SortDirection ==
+                System.ComponentModel.ListSortDirection.Ascending
+                    ? System.ComponentModel.ListSortDirection.Descending
+                    : System.ComponentModel.ListSortDirection.Ascending;
+
+            // Clear all column arrows
+            foreach (var col in grid.Columns) col.SortDirection = null;
+            e.Column.SortDirection = dir;
+
+            // Apply natural sort
+            var lcv = System.Windows.Data.CollectionViewSource.GetDefaultView(grid.ItemsSource) as System.Windows.Data.ListCollectionView;
+            if (lcv != null)
+            {
+                lcv.CustomSort = new NaturalPropertyComparer(
+                    propName, dir == System.ComponentModel.ListSortDirection.Ascending);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Comparer for DataGrid sorting that handles numeric values naturally
+    /// (1, 2, 10, 20 instead of 1, 10, 2, 20). Uses reflection to read
+    /// a named property, then applies numeric-aware comparison.
+    /// </summary>
+    internal class NaturalPropertyComparer : System.Collections.IComparer
+    {
+        private readonly string _propName;
+        private readonly int _direction;
+        private System.Reflection.PropertyInfo? _cachedProp;
+
+        public NaturalPropertyComparer(string propertyName, bool ascending)
+        {
+            _propName = propertyName;
+            _direction = ascending ? 1 : -1;
+        }
+
+        public int Compare(object? x, object? y)
+        {
+            if (x == null && y == null) return 0;
+            if (x == null) return -1 * _direction;
+            if (y == null) return 1 * _direction;
+
+            _cachedProp ??= x.GetType().GetProperty(_propName,
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.IgnoreCase);
+
+            if (_cachedProp == null) return 0;
+
+            var valA = _cachedProp.GetValue(x);
+            var valB = _cachedProp.GetValue(y);
+
+            // Direct numeric types — compare natively
+            if (valA is double da && valB is double db)
+                return da.CompareTo(db) * _direction;
+            if (valA is decimal ma && valB is decimal mb)
+                return ma.CompareTo(mb) * _direction;
+            if (valA is int ia && valB is int ib)
+                return ia.CompareTo(ib) * _direction;
+
+            // String values — use natural comparison
+            string sa = valA?.ToString() ?? string.Empty;
+            string sb = valB?.ToString() ?? string.Empty;
+            return Models.ColumnFilterState.CompareNatural(sa, sb) * _direction;
         }
     }
 }
