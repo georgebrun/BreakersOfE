@@ -55,6 +55,13 @@ namespace BreakersOfE.Windows
             AddRow("Mana Symbols", result.ManaSymbolsDownloaded);
             AddRow("Set Symbols", result.SetSymbolsDownloaded);
 
+            // ── Keywords ─────────────────────────────────────────────────────
+            AddSectionHeader("KEYWORD DICTIONARY");
+            AddRow("Keyword Abilities", result.KeywordAbilitiesCount);
+            AddRow("Keyword Actions", result.KeywordActionsCount);
+            AddRow("Ability Words", result.AbilityWordsCount);
+            AddRow("New Keywords Discovered", result.NewKeywordsDiscovered);
+
             // ── Basic verification ───────────────────────────────────────────
             AddSectionHeader("BASIC VERIFICATION");
             AddRow("Scryfall Total", result.ScryfallReportedTotal);

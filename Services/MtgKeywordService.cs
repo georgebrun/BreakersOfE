@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace BreakersOfE.Services
@@ -18,6 +19,7 @@ namespace BreakersOfE.Services
         Cost,
         Replacement,
         FormatSpecific,
+        Discovered,
         Other
     }
 
@@ -28,7 +30,7 @@ namespace BreakersOfE.Services
     {
         public string Name { get; init; } = string.Empty;
         public KeywordCategory Category { get; init; }
-        public string Definition { get; init; } = string.Empty;
+        public string Definition { get; set; } = string.Empty;
         /// <summary>
         /// Display name of the category for grouping in the UI.
         /// </summary>
@@ -44,6 +46,8 @@ namespace BreakersOfE.Services
             KeywordCategory.Cost => "Cost / Payment",
             KeywordCategory.Replacement => "Replacement",
             KeywordCategory.FormatSpecific => "Format-Specific",
+            KeywordCategory.Discovered => "Discovered",
+            KeywordCategory.Other => "Other",
             _ => "Other"
         };
     }
@@ -783,7 +787,230 @@ namespace BreakersOfE.Services
         // ── Public API ────────────────────────────────────────────────────────
 
         /// <summary>All keywords, deduplicated by name.</summary>
-        public static IReadOnlyList<MtgKeyword> All { get; } =
+        private static List<MtgKeyword> _merged = new();
+        private static bool _initialized = false;
+
+        /// <summary>All keywords — built-in definitions merged with pool-discovered keywords.</summary>
+        public static IReadOnlyList<MtgKeyword> All
+        {
+            get
+            {
+                if (!_initialized) RefreshFromPool();
+                return _merged.AsReadOnly();
+            }
+        }
+
+        /// <summary>
+        /// Scans the pool database for keywords not in the built-in list and adds
+        /// them with a placeholder definition. Safe to call multiple times.
+        /// </summary>
+        public static void RefreshFromPool()
+        {
+            var known = new Dictionary<string, MtgKeyword>(
+                System.StringComparer.OrdinalIgnoreCase);
+            foreach (var kw in _all)
+                known[kw.Name] = kw;
+
+            try
+            {
+                using var db = new Data.AppDbContext();
+                var poolKeywords = db.PoolCards.AsNoTracking()
+                    .Where(c => c.Keywords != null && c.Keywords != "")
+                    .Select(c => c.Keywords)
+                    .ToList();
+
+                foreach (var kwList in poolKeywords)
+                {
+                    foreach (var kw in kwList.Split('|',
+                        System.StringSplitOptions.RemoveEmptyEntries |
+                        System.StringSplitOptions.TrimEntries))
+                    {
+                        if (!known.ContainsKey(kw))
+                        {
+                            known[kw] = new MtgKeyword
+                            {
+                                Name = kw,
+                                Category = KeywordCategory.Discovered,
+                                Definition = "No definition available."
+                            };
+                        }
+                    }
+                }
+
+                // For discovered keywords with no definition, extract reminder
+                // text from oracle text of a card that has the keyword.
+                // MTG reminder text appears in parentheses: "Flying (This creature
+                // can't be blocked except by creatures with flying or reach.)"
+                //
+                // Pass 1: cards with the keyword in their Keywords field
+                // Pass 2: cards that mention the keyword in oracle text (catches
+                //          keyword actions like Scry, Mill, etc.)
+                var needDefs = known.Values
+                    .Where(k => k.Definition == "No definition available.")
+                    .Select(k => k.Name).ToList();
+
+                if (needDefs.Count > 0)
+                {
+                    foreach (var kwName in needDefs)
+                    {
+                        string? reminder = null;
+
+                        // Pass 1 — keyword field match
+                        var card = db.PoolCards.AsNoTracking()
+                            .FirstOrDefault(c =>
+                                c.Keywords != null && c.Keywords.Contains(kwName) &&
+                                c.OracleText != null && c.OracleText.Contains("("));
+
+                        // Pass 2 — oracle text mention (broader, catches actions)
+                        if (card == null)
+                        {
+                            card = db.PoolCards.AsNoTracking()
+                                .FirstOrDefault(c =>
+                                    c.OracleText != null &&
+                                    c.OracleText.Contains(kwName) &&
+                                    c.OracleText.Contains("("));
+                        }
+
+                        if (card == null) continue;
+
+                        var text = card.OracleText ?? "";
+                        // Strategy A: find a line containing the keyword name
+                        // with parenthesized reminder text
+                        foreach (var line in text.Split('\n'))
+                        {
+                            if (!line.Contains(kwName, System.StringComparison.OrdinalIgnoreCase))
+                                continue;
+                            int open = line.IndexOf('(');
+                            int close = line.LastIndexOf(')');
+                            if (open >= 0 && close > open)
+                            {
+                                reminder = line.Substring(open + 1, close - open - 1).Trim();
+                                break;
+                            }
+                        }
+
+                        // Strategy B: keyword on one line, reminder on the next
+                        // e.g. "Scry 2\n(Look at the top 2 cards...)"
+                        if (reminder == null)
+                        {
+                            var lines = text.Split('\n');
+                            for (int i = 0; i < lines.Length - 1; i++)
+                            {
+                                if (!lines[i].Contains(kwName,
+                                    System.StringComparison.OrdinalIgnoreCase))
+                                    continue;
+                                var next = lines[i + 1].Trim();
+                                if (next.StartsWith('(') && next.EndsWith(')'))
+                                {
+                                    reminder = next.Substring(1, next.Length - 2).Trim();
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Strategy C: any parenthesized text anywhere in oracle
+                        // that mentions the keyword name inside the parens
+                        if (reminder == null)
+                        {
+                            int search = 0;
+                            while (search < text.Length)
+                            {
+                                int open = text.IndexOf('(', search);
+                                if (open < 0) break;
+                                int close = text.IndexOf(')', open);
+                                if (close < 0) break;
+                                var inner = text.Substring(open + 1, close - open - 1);
+                                if (inner.Contains(kwName,
+                                    System.StringComparison.OrdinalIgnoreCase))
+                                {
+                                    reminder = inner.Trim();
+                                    break;
+                                }
+                                search = close + 1;
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(reminder))
+                            known[kwName].Definition = reminder;
+                    }
+                }
+            }
+            catch { /* Pool may not exist yet */ }
+
+            _merged = known.Values
+                .OrderBy(k => k.CategoryName)
+                .ThenBy(k => k.Name)
+                .ToList();
+            _initialized = true;
+        }
+
+        /// <summary>
+        /// Merges keyword names fetched from Scryfall's catalog endpoints into
+        /// the dictionary.  Any keyword not already present is added as
+        /// <see cref="KeywordCategory.Discovered"/> with a placeholder definition
+        /// that will be replaced by reminder-text extraction on the next
+        /// <see cref="RefreshFromPool"/> call.  Returns the count of newly added
+        /// keywords.
+        /// </summary>
+        public static int MergeScryfallCatalogs(
+            IEnumerable<string>? keywordAbilities,
+            IEnumerable<string>? keywordActions,
+            IEnumerable<string>? abilityWords)
+        {
+            // Ensure base data is loaded first
+            if (!_initialized) RefreshFromPool();
+
+            var known = new Dictionary<string, MtgKeyword>(
+                System.StringComparer.OrdinalIgnoreCase);
+            foreach (var kw in _merged)
+                known[kw.Name] = kw;
+
+            int added = 0;
+
+            void Merge(IEnumerable<string>? source)
+            {
+                if (source == null) return;
+                foreach (var name in source)
+                {
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+                    if (known.ContainsKey(name)) continue;
+
+                    known[name] = new MtgKeyword
+                    {
+                        Name = name,
+                        Category = KeywordCategory.Discovered,
+                        Definition = "No definition available."
+                    };
+                    added++;
+                }
+            }
+
+            Merge(keywordAbilities);
+            Merge(keywordActions);
+            Merge(abilityWords);
+
+            if (added > 0)
+            {
+                _merged = known.Values
+                    .OrderBy(k => k.CategoryName)
+                    .ThenBy(k => k.Name)
+                    .ToList();
+            }
+
+            return added;
+        }
+
+        /// <summary>
+        /// Forces the keyword dictionary to re-scan the pool on the next access
+        /// to <see cref="All"/>.
+        /// </summary>
+        public static void Reset()
+        {
+            _initialized = false;
+            _merged = new();
+        }
+
+        public static IReadOnlyList<MtgKeyword> BuiltIn =
             _all.GroupBy(k => k.Name, System.StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())
                 .OrderBy(k => k.CategoryName)
@@ -792,7 +1019,7 @@ namespace BreakersOfE.Services
                 .AsReadOnly();
 
         /// <summary>All keywords grouped by category for UI display.</summary>
-        public static IReadOnlyDictionary<string, IReadOnlyList<MtgKeyword>> ByCategory { get; } =
+        public static IReadOnlyDictionary<string, IReadOnlyList<MtgKeyword>> ByCategory =>
             All.GroupBy(k => k.CategoryName)
                .OrderBy(g => g.Key)
                .ToDictionary(

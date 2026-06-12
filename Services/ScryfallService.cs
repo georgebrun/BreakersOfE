@@ -40,6 +40,12 @@ namespace BreakersOfE.Services
         public int ManaSymbolsDownloaded { get; set; }
         public int SetSymbolsDownloaded { get; set; }
 
+        // Keyword catalog
+        public int KeywordAbilitiesCount { get; set; }
+        public int KeywordActionsCount { get; set; }
+        public int AbilityWordsCount { get; set; }
+        public int NewKeywordsDiscovered { get; set; }
+
         // Basic verification
         public int ScryfallReportedTotal { get; set; }
         public int DatabaseTotal { get; set; }
@@ -147,7 +153,12 @@ namespace BreakersOfE.Services
                 // Step 7 — Deep verification
                 Report(progress, "Running deep verification...", 90);
                 ct.ThrowIfCancellationRequested();
-                await DeepVerifyAsync(result, progress, 90, 99, ct);
+                await DeepVerifyAsync(result, progress, 90, 95, ct);
+
+                // Step 8 — Fetch keyword catalogs from Scryfall
+                Report(progress, "Updating keyword dictionary...", 96);
+                ct.ThrowIfCancellationRequested();
+                await FetchAndMergeKeywordCatalogsAsync(result, progress, ct);
 
                 try { File.Delete(tempFile); } catch { }
 
@@ -1078,6 +1089,79 @@ namespace BreakersOfE.Services
         // ════════════════════════════════════════════════════════════════════
         // UTILITY
         // ════════════════════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════════════════════
+        // KEYWORD CATALOGS — fetches Scryfall keyword/ability-word catalogs
+        // ════════════════════════════════════════════════════════════════════
+
+        private async Task FetchAndMergeKeywordCatalogsAsync(
+            ImportResult result,
+            IProgress<ImportProgress> progress,
+            CancellationToken ct)
+        {
+            List<string>? abilities = null;
+            List<string>? actions = null;
+            List<string>? abilityWords = null;
+
+            try
+            {
+                Report(progress, "Updating keyword dictionary...", 96,
+                    "Fetching keyword abilities...");
+                abilities = await FetchCatalogAsync(
+                    "https://api.scryfall.com/catalog/keyword-abilities", ct);
+                result.KeywordAbilitiesCount = abilities?.Count ?? 0;
+
+                Report(progress, "Updating keyword dictionary...", 97,
+                    "Fetching keyword actions...");
+                await Task.Delay(100, ct);           // Scryfall rate-limit courtesy
+                actions = await FetchCatalogAsync(
+                    "https://api.scryfall.com/catalog/keyword-actions", ct);
+                result.KeywordActionsCount = actions?.Count ?? 0;
+
+                Report(progress, "Updating keyword dictionary...", 98,
+                    "Fetching ability words...");
+                await Task.Delay(100, ct);
+                abilityWords = await FetchCatalogAsync(
+                    "https://api.scryfall.com/catalog/ability-words", ct);
+                result.AbilityWordsCount = abilityWords?.Count ?? 0;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch
+            {
+                // Non-fatal — the keyword catalog is a nice-to-have
+            }
+
+            // Merge catalogs + pool-discovered keywords into the dictionary
+            Report(progress, "Updating keyword dictionary...", 99,
+                "Merging keywords...");
+            MtgKeywordService.Reset();
+            MtgKeywordService.RefreshFromPool();
+            result.NewKeywordsDiscovered =
+                MtgKeywordService.MergeScryfallCatalogs(
+                    abilities, actions, abilityWords);
+        }
+
+        /// <summary>
+        /// Fetches a single Scryfall catalog endpoint and returns its data array.
+        /// </summary>
+        private async Task<List<string>?> FetchCatalogAsync(
+            string url, CancellationToken ct)
+        {
+            var response = await _http.GetAsync(url, ct);
+            response.EnsureSuccessStatusCode();
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("data", out var dataArray)
+                && dataArray.ValueKind == JsonValueKind.Array)
+            {
+                return dataArray.EnumerateArray()
+                    .Where(e => e.ValueKind == JsonValueKind.String)
+                    .Select(e => e.GetString()!)
+                    .ToList();
+            }
+            return null;
+        }
+
         private static void Report(IProgress<ImportProgress> p,
             string step, int pct, string detail = "")
         {

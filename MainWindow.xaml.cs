@@ -1808,6 +1808,10 @@ namespace BreakersOfE
             EnsureDeckColumns(BottomDataGrid);
             RefreshDeckGrid(BottomDataGrid, _activeDeck);
 
+            // Apply column filters if active
+            if (BottomFilterActive && _bottomColumnFilters.HasActiveFilters)
+                ApplyBottomColumnFilters();
+
             var deck = _activeDeck;
             Dispatcher.BeginInvoke(new Action(() =>
             {
@@ -1827,6 +1831,13 @@ namespace BreakersOfE
         // ── Sync deck summary grid columns then populate ─────────────────────────
         private static void SyncAndPopulateDeckSummary(
             DataGrid sumGrid, DataGrid? srcGrid, Deck deck)
+        {
+            SyncAndPopulateDeckSummary(sumGrid, srcGrid, deck, null);
+        }
+
+        private static void SyncAndPopulateDeckSummary(
+            DataGrid sumGrid, DataGrid? srcGrid, Deck deck,
+            List<DeckCard>? visibleCards)
         {
             if (srcGrid == null) return;
 
@@ -1892,16 +1903,18 @@ namespace BreakersOfE
             // current state (which may already have a restored saved layout).
             SyncSummaryColumnsFromTags(sumGrid);
 
+            // Use filtered cards for totals if provided, otherwise full deck
+            var cards = visibleCards ?? deck.Cards.Where(c => !c.IsFooter).ToList();
             sumGrid.ItemsSource = new[]
             {
                 new Models.DeckCard
                 {
                     IsFooter     = true,
-                    Quantity     = deck.NonFoilCount,
-                    FoilQuantity = deck.FoilCount,
-                    PriceUsd     = deck.TotalValue
-                    // TotalQuantity computed as Quantity + FoilQuantity
-                    // ValueDisplay uses PriceUsd as the total value display
+                    Quantity     = cards.Sum(c => c.Quantity),
+                    FoilQuantity = cards.Sum(c => c.FoilQuantity),
+                    PriceUsd     = cards.Sum(c =>
+                        (c.PriceUsd ?? 0m) * c.Quantity +
+                        (c.PriceUsdFoil ?? c.PriceUsd ?? 0m) * c.FoilQuantity)
                 }
             };
         }
@@ -3498,12 +3511,18 @@ namespace BreakersOfE
             TopDataGrid.ItemsSource = filtered;
 
             // Apply column filters via fast view filter (no grid rebuild)
-            if (_topColumnFilters.HasActiveFilters)
+            if (TopFilterActive && _topColumnFilters.HasActiveFilters)
                 ApplyTopColumnFilters();
             else
+            {
+                // Clear any lingering view filter when suspended
+                var clearView = System.Windows.Data.CollectionViewSource
+                    .GetDefaultView(TopDataGrid.ItemsSource);
+                if (clearView != null) clearView.Filter = null;
                 ApplyDefaultSort(TopDataGrid);
+            }
 
-            if (!_topColumnFilters.HasActiveFilters)
+            if (!TopFilterActive || !_topColumnFilters.HasActiveFilters)
             {
                 SetStatus($"{filtered.Count:N0} cards in pool");
                 UpdateTopSummary("Pool",
@@ -3525,8 +3544,12 @@ namespace BreakersOfE
             for (int i = 0; i < filtered.Count; i++)
                 filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
-            ApplyDefaultSort(TopDataGrid);
-            UpdateTopSummary("Tokens", filtered.Count);
+            if (TopFilterActive && _topColumnFilters.HasActiveFilters)
+                ApplyTopColumnFilters();
+            else
+                ApplyDefaultSort(TopDataGrid);
+            if (!TopFilterActive || !_topColumnFilters.HasActiveFilters)
+                UpdateTopSummary("Tokens", filtered.Count);
         }
 
         private void LoadTopTable_Planechase()
@@ -3539,8 +3562,12 @@ namespace BreakersOfE
                     _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
-            ApplyDefaultSort(TopDataGrid);
-            UpdateTopSummary("Planechase", filtered.Count);
+            if (TopFilterActive && _topColumnFilters.HasActiveFilters)
+                ApplyTopColumnFilters();
+            else
+                ApplyDefaultSort(TopDataGrid);
+            if (!TopFilterActive || !_topColumnFilters.HasActiveFilters)
+                UpdateTopSummary("Planechase", filtered.Count);
         }
 
         private void LoadTopTable_Archenemy()
@@ -3553,8 +3580,12 @@ namespace BreakersOfE
                     _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
-            ApplyDefaultSort(TopDataGrid);
-            UpdateTopSummary("Archenemy", filtered.Count);
+            if (TopFilterActive && _topColumnFilters.HasActiveFilters)
+                ApplyTopColumnFilters();
+            else
+                ApplyDefaultSort(TopDataGrid);
+            if (!TopFilterActive || !_topColumnFilters.HasActiveFilters)
+                UpdateTopSummary("Archenemy", filtered.Count);
         }
 
         private void LoadTopTable_Vanguard()
@@ -3567,8 +3598,12 @@ namespace BreakersOfE
                     _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
-            ApplyDefaultSort(TopDataGrid);
-            UpdateTopSummary("Vanguard", filtered.Count);
+            if (TopFilterActive && _topColumnFilters.HasActiveFilters)
+                ApplyTopColumnFilters();
+            else
+                ApplyDefaultSort(TopDataGrid);
+            if (!TopFilterActive || !_topColumnFilters.HasActiveFilters)
+                UpdateTopSummary("Vanguard", filtered.Count);
         }
 
         private void LoadTopTable_ArtSeries()
@@ -3581,8 +3616,12 @@ namespace BreakersOfE
                     _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
-            ApplyDefaultSort(TopDataGrid);
-            UpdateTopSummary("Art Series", filtered.Count);
+            if (TopFilterActive && _topColumnFilters.HasActiveFilters)
+                ApplyTopColumnFilters();
+            else
+                ApplyDefaultSort(TopDataGrid);
+            if (!TopFilterActive || !_topColumnFilters.HasActiveFilters)
+                UpdateTopSummary("Art Series", filtered.Count);
         }
 
         private void LoadTopTable_Conspiracy()
@@ -3595,8 +3634,12 @@ namespace BreakersOfE
                     _searchText, StringComparison.OrdinalIgnoreCase)).ToList();
             for (int i = 0; i < filtered.Count; i++) filtered[i].RowIndex = i;
             TopDataGrid.ItemsSource = filtered;
-            ApplyDefaultSort(TopDataGrid);
-            UpdateTopSummary("Conspiracy", filtered.Count);
+            if (TopFilterActive && _topColumnFilters.HasActiveFilters)
+                ApplyTopColumnFilters();
+            else
+                ApplyDefaultSort(TopDataGrid);
+            if (!TopFilterActive || !_topColumnFilters.HasActiveFilters)
+                UpdateTopSummary("Conspiracy", filtered.Count);
         }
 
         private void LoadBottomTable_ConspiracyCollection()
@@ -3796,18 +3839,27 @@ namespace BreakersOfE
                 .ToList();
 
             TopDataGrid.ItemsSource = rows;
-            ApplyDefaultSort(TopDataGrid);
+            if (TopFilterActive && _topColumnFilters.HasActiveFilters)
+                ApplyTopColumnFilters();
+            else
+                ApplyDefaultSort(TopDataGrid);
 
             // In DeckToCollection mode populate TopSummaryGrid with deck totals
             if (_currentMode == "DeckToCollection" && _activeDeck != null)
             {
                 var deck = _activeDeck;
-                // Remove from wired set so we always re-attach listeners
-                // after SyncAndPopulateDeckSummary rebuilds the columns
                 _wiredSummaries.Remove((TopDataGrid, TopSummaryGrid));
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    SyncAndPopulateDeckSummary(TopSummaryGrid, TopDataGrid, deck);
+                    // If column filters active, pass visible cards for summary
+                    List<DeckCard>? visCards = null;
+                    if (TopFilterActive && _topColumnFilters.HasActiveFilters)
+                    {
+                        var v = System.Windows.Data.CollectionViewSource
+                            .GetDefaultView(TopDataGrid.ItemsSource);
+                        if (v != null) visCards = v.OfType<DeckCard>().ToList();
+                    }
+                    SyncAndPopulateDeckSummary(TopSummaryGrid, TopDataGrid, deck, visCards);
                     _wiredSummaries.Remove((TopDataGrid, TopSummaryGrid));
                     WireSummaryColumnSync(TopDataGrid, TopSummaryGrid);
                 }),
@@ -3832,12 +3884,17 @@ namespace BreakersOfE
             for (int i = 0; i < rows.Count; i++)
                 rows[i].RowIndex = i;
             TopDataGrid.ItemsSource = rows;
-            if (_topColumnFilters.HasActiveFilters)
+            if (TopFilterActive && _topColumnFilters.HasActiveFilters)
                 ApplyTopColumnFilters();
             else
+            {
+                var clearView = System.Windows.Data.CollectionViewSource
+                    .GetDefaultView(TopDataGrid.ItemsSource);
+                if (clearView != null) clearView.Filter = null;
                 ApplyDefaultSort(TopDataGrid);
+            }
 
-            if (!_topColumnFilters.HasActiveFilters)
+            if (!TopFilterActive || !_topColumnFilters.HasActiveFilters)
             {
                 UpdateTopSummary("Collection",
                     nonFoil: rows.Sum(r => r.Quantity),
@@ -4177,10 +4234,15 @@ namespace BreakersOfE
                 rows[i].RowIndex = i;
 
             BottomDataGrid.ItemsSource = rows;
-            if (_bottomColumnFilters.HasActiveFilters)
+            if (BottomFilterActive && _bottomColumnFilters.HasActiveFilters)
                 ApplyBottomColumnFilters();
             else
+            {
+                var clearView = System.Windows.Data.CollectionViewSource
+                    .GetDefaultView(BottomDataGrid.ItemsSource);
+                if (clearView != null) clearView.Filter = null;
                 UpdateSummaryRow(rows);
+            }
         }
 
         private void LoadBottomTable_PlanechaseCollection()
@@ -8919,10 +8981,13 @@ namespace BreakersOfE
                 source = _currentMode switch
                 {
                     "PoolToCollection" or "PoolToDeck" or
-                    "PoolToWantList" or "PoolToPlanechase" or
-                    "PoolToArchenemy" or "PoolToVanguard" or
-                    "PoolToTokens" or "PoolToArtSeries" or
-                    "PoolToConspiracy" => _poolCache,
+                    "PoolToWantList" => _poolCache,
+                    "PoolToTokens" => _tokenCache,
+                    "PoolToPlanechase" => _planarCache,
+                    "PoolToArchenemy" => _schemeCache,
+                    "PoolToVanguard" => _vanguardCache,
+                    "PoolToArtSeries" => _artSeriesCache,
+                    "PoolToConspiracy" => _conspiracyCache,
                     _ => null
                 };
             }
@@ -9057,7 +9122,8 @@ namespace BreakersOfE
             // Update summary with visible items only
             var poolVisible = view.OfType<PoolCard>().ToList();
             var collVisible = view.OfType<CollectionDisplayRow>().ToList();
-            SetStatus($"{poolVisible.Count + collVisible.Count:N0} cards");
+            var deckVisible = view.OfType<DeckCard>().Where(c => !c.IsFooter).ToList();
+            SetStatus($"{poolVisible.Count + collVisible.Count + deckVisible.Count:N0} cards");
 
             if (poolVisible.Count > 0)
             {
@@ -9074,6 +9140,11 @@ namespace BreakersOfE
                     foil: collVisible.Sum(r => r.FoilQuantity),
                     total: collVisible.Sum(r => r.Quantity + r.FoilQuantity),
                     value: collVisible.Sum(r => r.TotalValue));
+            }
+            else if (deckVisible.Count > 0 && _activeDeck != null)
+            {
+                SyncAndPopulateDeckSummary(TopSummaryGrid, TopDataGrid,
+                    _activeDeck, deckVisible);
             }
         }
 
@@ -9115,9 +9186,17 @@ namespace BreakersOfE
             }
 
             // Update summary row with visible items only
-            var visibleRows = view.OfType<CollectionDisplayRow>().ToList();
-            if (visibleRows.Count > 0)
-                UpdateSummaryRow(visibleRows);
+            var visibleCollRows = view.OfType<CollectionDisplayRow>().ToList();
+            if (visibleCollRows.Count > 0)
+                UpdateSummaryRow(visibleCollRows);
+
+            // Deck summary — update if deck cards are visible
+            var visibleDeckCards = view.OfType<DeckCard>().ToList();
+            if (visibleDeckCards.Count > 0 && _activeDeck != null)
+            {
+                SyncAndPopulateDeckSummary(BottomSummaryGrid, BottomDataGrid,
+                    _activeDeck, visibleDeckCards);
+            }
         }
 
         private void UpdateColumnFilterSummary(bool isTop)

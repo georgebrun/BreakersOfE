@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -102,18 +103,28 @@ namespace BreakersOfE.Windows
             {
                 StepLabel.Text = p.Step;
                 DetailLabel.Text = p.Detail;
-                MainProgressBar.Value = p.Percentage;
                 PercentLabel.Text = $"{p.Percentage}%";
+
+                var anim = new DoubleAnimation
+                {
+                    To = p.Percentage,
+                    Duration = TimeSpan.FromMilliseconds(350),
+                    EasingFunction = new QuadraticEase
+                    { EasingMode = EasingMode.EaseOut }
+                };
+                MainProgressBar.BeginAnimation(
+                    System.Windows.Controls.Primitives.RangeBase.ValueProperty,
+                    anim);
             });
 
             var service = new ScryfallService();
 
             if (_priceOnly)
-                Result = await service.RunPriceUpdateAsync(
-                    progress, _cts.Token);
+                Result = await Task.Run(() =>
+                    service.RunPriceUpdateAsync(progress, _cts.Token));
             else
-                Result = await service.RunFullUpdateAsync(
-                    progress, _cts.Token);
+                Result = await Task.Run(() =>
+                    service.RunFullUpdateAsync(progress, _cts.Token));
 
             StopAnimation();
             StopElapsedTimer();

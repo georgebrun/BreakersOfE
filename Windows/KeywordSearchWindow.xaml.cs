@@ -42,36 +42,29 @@ namespace BreakersOfE.Windows
             var entries = cdb.CollectionEntries.AsNoTracking().ToList();
             if (entries.Count > 0)
             {
-                var ids = entries.Select(e => e.PoolId).ToHashSet();
-                var cards = _pool.Where(c => ids.Contains(c.PoolId))
-                                 .ToDictionary(c => c.PoolId);
                 _collection = entries
-                    .Where(e => cards.ContainsKey(e.PoolId))
-                    .Select(e =>
+                    .Select(e => new CollectionDisplayRow
                     {
-                        var pc = cards[e.PoolId];
-                        return new CollectionDisplayRow
-                        {
-                            PoolId = pc.PoolId,
-                            Name = pc.Name,
-                            TypeLine = pc.TypeLine,
-                            ManaCost = pc.ManaCost,
-                            ManaValue = pc.ManaValue,
-                            SetCode = pc.SetCode,
-                            Rarity = pc.Rarity,
-                            Power = pc.Power,
-                            Toughness = pc.Toughness,
-                            ColorIdentity = pc.ColorIdentity,
-                            Colors = pc.Colors,
-                            LegalitiesJson = pc.LegalitiesJson,
-                            Keywords = pc.Keywords,
-                            Quantity = e.Quantity,
-                            FoilQuantity = e.FoilQuantity,
-                            LocalImagePath = pc.LocalImagePath,
-                            ImageNormalUrl = pc.ImageNormalUrl,
-                            PriceUsd = pc.PriceUsd,
-                            PriceUsdFoil = pc.PriceUsdFoil,
-                        };
+                        PoolId = e.PoolId,
+                        ScryfallId = e.ScryfallId,
+                        Name = e.Name,
+                        TypeLine = e.TypeLine,
+                        ManaCost = e.ManaCost,
+                        ManaValue = e.ManaValue,
+                        SetCode = e.SetCode,
+                        Rarity = e.Rarity,
+                        Power = e.Power,
+                        Toughness = e.Toughness,
+                        ColorIdentity = e.ColorIdentity,
+                        Colors = e.Colors,
+                        LegalitiesJson = e.LegalitiesJson,
+                        Keywords = e.Keywords,
+                        Quantity = e.Quantity,
+                        FoilQuantity = e.FoilQuantity,
+                        LocalImagePath = e.LocalImagePath,
+                        ImageNormalUrl = e.ImageNormalUrl,
+                        PriceUsd = e.PriceUsd,
+                        PriceUsdFoil = e.PriceUsdFoil,
                     })
                     .OrderBy(r => r.Name)
                     .ToList();
@@ -187,7 +180,9 @@ namespace BreakersOfE.Windows
                 // We match on the underlying pool card properties
                 var collFiltered = _collection.AsEnumerable();
                 filtered = FilterPoolCards(
-                    _pool.Where(pc => _collection.Any(cr => cr.PoolId == pc.PoolId)),
+                    _pool.Where(pc => _collection.Any(cr =>
+                        (!string.IsNullOrEmpty(pc.ScryfallId) && cr.ScryfallId == pc.ScryfallId) ||
+                        (pc.PoolId > 0 && cr.PoolId == pc.PoolId))),
                     andLogic, selColors, atMost, includes, exact,
                     anyLegality, needStandard, needPioneer, needModern,
                     needLegacy, needVintage, needCommander, needPauper);
@@ -494,12 +489,53 @@ namespace BreakersOfE.Windows
         {
             if (ResultsGrid.SelectedItem is not PoolCard pc) return;
             using var cdb = new CollectionDbContext();
-            var existing = cdb.CollectionEntries
-                .FirstOrDefault(c => c.PoolId == pc.PoolId);
+            var existing = !string.IsNullOrEmpty(pc.ScryfallId)
+                ? cdb.CollectionEntries.FirstOrDefault(c => c.ScryfallId == pc.ScryfallId)
+                : cdb.CollectionEntries.FirstOrDefault(c => c.PoolId == pc.PoolId);
             if (existing == null)
                 cdb.CollectionEntries.Add(new CollectionEntry
                 {
                     PoolId = pc.PoolId,
+                    ScryfallId = pc.ScryfallId,
+                    OracleId = pc.OracleId,
+                    Name = pc.Name,
+                    ManaCost = pc.ManaCost,
+                    ManaValue = pc.ManaValue,
+                    TypeLine = pc.TypeLine,
+                    OracleText = pc.OracleText,
+                    FlavorText = pc.FlavorText,
+                    Power = pc.Power,
+                    Toughness = pc.Toughness,
+                    LoyaltyOrDefense = pc.LoyaltyOrDefense,
+                    Colors = pc.Colors,
+                    ColorIdentity = pc.ColorIdentity,
+                    SetCode = pc.SetCode,
+                    SetName = pc.SetName,
+                    SetType = pc.SetType,
+                    CollectorNumber = pc.CollectorNumber,
+                    Rarity = pc.Rarity,
+                    Artist = pc.Artist,
+                    ImageSmallUrl = pc.ImageSmallUrl,
+                    ImageNormalUrl = pc.ImageNormalUrl,
+                    ImageBackUrl = pc.ImageBackUrl,
+                    LocalImagePath = pc.LocalImagePath,
+                    LocalImageBackPath = pc.LocalImageBackPath,
+                    Layout = pc.Layout,
+                    IsFoilAvailable = pc.IsFoil,
+                    IsNonFoilAvailable = pc.IsNonFoil,
+                    IsToken = pc.IsToken,
+                    IsMeld = pc.IsMeld,
+                    ReleasedAt = pc.ReleasedAt,
+                    LegalitiesJson = pc.LegalitiesJson,
+                    IsFavorite = pc.IsFavorite,
+                    Keywords = pc.Keywords,
+                    PriceUsd = pc.PriceUsd,
+                    PriceUsdFoil = pc.PriceUsdFoil,
+                    PriceUsdEtched = pc.PriceUsdEtched,
+                    PriceEur = pc.PriceEur,
+                    PriceEurFoil = pc.PriceEurFoil,
+                    PriceTix = pc.PriceTix,
+                    PricesJson = pc.PricesJson,
                     Quantity = 1,
                     Condition = "Near Mint",
                     Language = "English",
@@ -517,12 +553,36 @@ namespace BreakersOfE.Windows
         {
             if (ResultsGrid.SelectedItem is not PoolCard pc) return;
             using var cdb = new CollectionDbContext();
-            var existing = cdb.WantListEntries
-                .FirstOrDefault(w => w.PoolId == pc.PoolId);
+            var existing = !string.IsNullOrEmpty(pc.ScryfallId)
+                ? cdb.WantListEntries.FirstOrDefault(w => w.ScryfallId == pc.ScryfallId)
+                : cdb.WantListEntries.FirstOrDefault(w => w.PoolId == pc.PoolId);
             if (existing == null)
                 cdb.WantListEntries.Add(new WantListEntry
                 {
                     PoolId = pc.PoolId,
+                    ScryfallId = pc.ScryfallId,
+                    Name = pc.Name,
+                    SetCode = pc.SetCode,
+                    SetName = pc.SetName,
+                    CollectorNumber = pc.CollectorNumber,
+                    TypeLine = pc.TypeLine,
+                    OracleText = pc.OracleText,
+                    FlavorText = pc.FlavorText,
+                    ManaCost = pc.ManaCost,
+                    ManaValue = pc.ManaValue,
+                    ColorIdentity = pc.ColorIdentity,
+                    Colors = pc.Colors,
+                    Rarity = pc.Rarity,
+                    Artist = pc.Artist,
+                    Power = pc.Power,
+                    Toughness = pc.Toughness,
+                    IsFoilAvailable = pc.IsFoil,
+                    IsNonFoilAvailable = pc.IsNonFoil,
+                    PriceUsd = pc.PriceUsd,
+                    PriceUsdFoil = pc.PriceUsdFoil,
+                    ImageNormalUrl = pc.ImageNormalUrl,
+                    LocalImagePath = pc.LocalImagePath,
+                    LegalitiesJson = pc.LegalitiesJson,
                     Quantity = 1,
                     DateAdded = DateTime.Now
                 });
