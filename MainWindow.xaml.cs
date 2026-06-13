@@ -8631,7 +8631,7 @@ namespace BreakersOfE
                 if (_summaryToSource.TryGetValue(sumCol, out var srcCol))
                     pairs.Add((sumCol, srcCol.DisplayIndex, srcCol.Visibility));
             }
-            if (pairs.Count == 0) return;
+            if (pairs.Count == 0 || summary.Columns.Count == 0) return;
 
             // Apply visibility
             foreach (var (sumCol, _, vis) in pairs)
@@ -8640,7 +8640,7 @@ namespace BreakersOfE
             // Apply DisplayIndex in ascending target order
             foreach (var (sumCol, targetDI, _) in pairs.OrderBy(p => p.targetDI))
             {
-                int clamped = Math.Min(targetDI, summary.Columns.Count - 1);
+                int clamped = Math.Clamp(targetDI, 0, summary.Columns.Count - 1);
                 if (sumCol.DisplayIndex != clamped)
                     sumCol.DisplayIndex = clamped;
             }

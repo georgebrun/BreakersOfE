@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 
 namespace BreakersOfE.Services
 {
@@ -28,8 +30,8 @@ namespace BreakersOfE.Services
     /// </summary>
     public class MtgKeyword
     {
-        public string Name { get; init; } = string.Empty;
-        public KeywordCategory Category { get; init; }
+        public string Name { get; set; } = string.Empty;
+        public KeywordCategory Category { get; set; }
         public string Definition { get; set; } = string.Empty;
         /// <summary>
         /// Display name of the category for grouping in the UI.
@@ -790,14 +792,62 @@ namespace BreakersOfE.Services
         private static List<MtgKeyword> _merged = new();
         private static bool _initialized = false;
 
-        /// <summary>All keywords — built-in definitions merged with pool-discovered keywords.</summary>
+        /// <summary>All keywords — loaded from cache file if available, otherwise hardcoded list only.</summary>
         public static IReadOnlyList<MtgKeyword> All
         {
             get
             {
-                if (!_initialized) RefreshFromPool();
+                if (!_initialized) LoadFromCache();
                 return _merged.AsReadOnly();
             }
+        }
+
+        /// <summary>
+        /// Loads the keyword dictionary from the JSON cache file.
+        /// Falls back to the hardcoded list if no cache exists.
+        /// This is FAST — no database queries.
+        /// </summary>
+        private static void LoadFromCache()
+        {
+            try
+            {
+                string path = AppFolderService.KeywordCachePath;
+                if (File.Exists(path))
+                {
+                    var json = File.ReadAllText(path);
+                    var cached = JsonSerializer.Deserialize<List<MtgKeyword>>(json);
+                    if (cached != null && cached.Count > 0)
+                    {
+                        _merged = cached
+                            .OrderBy(k => k.CategoryName)
+                            .ThenBy(k => k.Name)
+                            .ToList();
+                        _initialized = true;
+                        return;
+                    }
+                }
+            }
+            catch { /* Cache corrupt or missing — fall through */ }
+
+            // No cache — just use hardcoded list (instant)
+            _merged = _all.OrderBy(k => k.CategoryName)
+                .ThenBy(k => k.Name).ToList();
+            _initialized = true;
+        }
+
+        /// <summary>
+        /// Persists the current keyword dictionary to a JSON file so subsequent
+        /// loads are instant.  Call after RefreshFromPool + MergeScryfallCatalogs.
+        /// </summary>
+        public static void SaveToCache()
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(_merged,
+                    new JsonSerializerOptions { WriteIndented = false });
+                File.WriteAllText(AppFolderService.KeywordCachePath, json);
+            }
+            catch { /* Non-fatal */ }
         }
 
         /// <summary>
@@ -839,12 +889,10 @@ namespace BreakersOfE.Services
 
                 // For discovered keywords with no definition, extract reminder
                 // text from oracle text of a card that has the keyword.
-                // MTG reminder text appears in parentheses: "Flying (This creature
-                // can't be blocked except by creatures with flying or reach.)"
-                //
-                // Pass 1: cards with the keyword in their Keywords field
-                // Pass 2: cards that mention the keyword in oracle text (catches
-                //          keyword actions like Scry, Mill, etc.)
+                // Only done on EXPLICIT calls (keyword field match, fast).
+                // The heavier oracle-text-wide extraction is in
+                // ExtractReminderTextsFromPool() and only runs during
+                // database update on a background thread.
                 var needDefs = known.Values
                     .Where(k => k.Definition == "No definition available.")
                     .Select(k => k.Name).ToList();
@@ -853,83 +901,14 @@ namespace BreakersOfE.Services
                 {
                     foreach (var kwName in needDefs)
                     {
-                        string? reminder = null;
-
-                        // Pass 1 — keyword field match
                         var card = db.PoolCards.AsNoTracking()
                             .FirstOrDefault(c =>
                                 c.Keywords != null && c.Keywords.Contains(kwName) &&
                                 c.OracleText != null && c.OracleText.Contains("("));
-
-                        // Pass 2 — oracle text mention (broader, catches actions)
-                        if (card == null)
-                        {
-                            card = db.PoolCards.AsNoTracking()
-                                .FirstOrDefault(c =>
-                                    c.OracleText != null &&
-                                    c.OracleText.Contains(kwName) &&
-                                    c.OracleText.Contains("("));
-                        }
-
                         if (card == null) continue;
 
                         var text = card.OracleText ?? "";
-                        // Strategy A: find a line containing the keyword name
-                        // with parenthesized reminder text
-                        foreach (var line in text.Split('\n'))
-                        {
-                            if (!line.Contains(kwName, System.StringComparison.OrdinalIgnoreCase))
-                                continue;
-                            int open = line.IndexOf('(');
-                            int close = line.LastIndexOf(')');
-                            if (open >= 0 && close > open)
-                            {
-                                reminder = line.Substring(open + 1, close - open - 1).Trim();
-                                break;
-                            }
-                        }
-
-                        // Strategy B: keyword on one line, reminder on the next
-                        // e.g. "Scry 2\n(Look at the top 2 cards...)"
-                        if (reminder == null)
-                        {
-                            var lines = text.Split('\n');
-                            for (int i = 0; i < lines.Length - 1; i++)
-                            {
-                                if (!lines[i].Contains(kwName,
-                                    System.StringComparison.OrdinalIgnoreCase))
-                                    continue;
-                                var next = lines[i + 1].Trim();
-                                if (next.StartsWith('(') && next.EndsWith(')'))
-                                {
-                                    reminder = next.Substring(1, next.Length - 2).Trim();
-                                    break;
-                                }
-                            }
-                        }
-
-                        // Strategy C: any parenthesized text anywhere in oracle
-                        // that mentions the keyword name inside the parens
-                        if (reminder == null)
-                        {
-                            int search = 0;
-                            while (search < text.Length)
-                            {
-                                int open = text.IndexOf('(', search);
-                                if (open < 0) break;
-                                int close = text.IndexOf(')', open);
-                                if (close < 0) break;
-                                var inner = text.Substring(open + 1, close - open - 1);
-                                if (inner.Contains(kwName,
-                                    System.StringComparison.OrdinalIgnoreCase))
-                                {
-                                    reminder = inner.Trim();
-                                    break;
-                                }
-                                search = close + 1;
-                            }
-                        }
-
+                        string? reminder = ExtractReminder(text, kwName);
                         if (!string.IsNullOrEmpty(reminder))
                             known[kwName].Definition = reminder;
                     }
@@ -1008,6 +987,111 @@ namespace BreakersOfE.Services
         {
             _initialized = false;
             _merged = new();
+        }
+
+        /// <summary>
+        /// Heavy oracle-text extraction — searches the entire pool for reminder
+        /// text for keywords that still have no definition.  This does many
+        /// individual DB queries and should ONLY be called on a background thread
+        /// (e.g. during database update via Task.Run).
+        /// </summary>
+        public static int ExtractReminderTextsFromPool()
+        {
+            if (!_initialized) RefreshFromPool();
+
+            var known = new Dictionary<string, MtgKeyword>(
+                System.StringComparer.OrdinalIgnoreCase);
+            foreach (var kw in _merged)
+                known[kw.Name] = kw;
+
+            var needDefs = known.Values
+                .Where(k => k.Definition == "No definition available.")
+                .Select(k => k.Name).ToList();
+
+            if (needDefs.Count == 0) return 0;
+
+            int found = 0;
+            try
+            {
+                using var db = new Data.AppDbContext();
+                foreach (var kwName in needDefs)
+                {
+                    // Broad search: any card mentioning the keyword in oracle text
+                    var card = db.PoolCards.AsNoTracking()
+                        .FirstOrDefault(c =>
+                            c.OracleText != null &&
+                            c.OracleText.Contains(kwName) &&
+                            c.OracleText.Contains("("));
+
+                    if (card == null) continue;
+
+                    var text = card.OracleText ?? "";
+                    string? reminder = ExtractReminder(text, kwName);
+                    if (!string.IsNullOrEmpty(reminder))
+                    {
+                        known[kwName].Definition = reminder;
+                        found++;
+                    }
+                }
+            }
+            catch { }
+
+            if (found > 0)
+            {
+                _merged = known.Values
+                    .OrderBy(k => k.CategoryName)
+                    .ThenBy(k => k.Name)
+                    .ToList();
+            }
+            return found;
+        }
+
+        /// <summary>
+        /// Extracts reminder text for a keyword from a card's oracle text.
+        /// Tries three strategies: same-line, next-line, and any parenthesized
+        /// mention containing the keyword.
+        /// </summary>
+        private static string? ExtractReminder(string oracleText, string kwName)
+        {
+            // Strategy A: parenthesized text on the same line as the keyword
+            foreach (var line in oracleText.Split('\n'))
+            {
+                if (!line.Contains(kwName, System.StringComparison.OrdinalIgnoreCase))
+                    continue;
+                int open = line.IndexOf('(');
+                int close = line.LastIndexOf(')');
+                if (open >= 0 && close > open)
+                    return line.Substring(open + 1, close - open - 1).Trim();
+            }
+
+            // Strategy B: keyword on one line, reminder on the next
+            var lines = oracleText.Split('\n');
+            for (int i = 0; i < lines.Length - 1; i++)
+            {
+                if (!lines[i].Contains(kwName,
+                    System.StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var next = lines[i + 1].Trim();
+                if (next.StartsWith('(') && next.EndsWith(')'))
+                    return next.Substring(1, next.Length - 2).Trim();
+            }
+
+            // Strategy C: any parenthesized text mentioning the keyword
+            int search = 0;
+            while (search < oracleText.Length)
+            {
+                int open = oracleText.IndexOf('(', search);
+                if (open < 0) break;
+                int close = oracleText.IndexOf(')', open);
+                if (close < 0) break;
+                var inner = oracleText.Substring(open + 1, close - open - 1);
+                if (inner.Contains(kwName,
+                    System.StringComparison.OrdinalIgnoreCase))
+                    return inner.Trim();
+                search = close + 1;
+            }
+
+            return null;
         }
 
         public static IReadOnlyList<MtgKeyword> BuiltIn =

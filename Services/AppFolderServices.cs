@@ -46,6 +46,9 @@ namespace BreakersOfE.Services
         public static string DatabasePath =>
             Path.Combine(RootFolder, "breakersofe.db");
 
+        public static string KeywordCachePath =>
+            Path.Combine(RootFolder, "keywords.json");
+
         // ── Tabletop image folders ─────────────────────────────────────────────
         public static string PlaymatImagesFolder =>
             EnsureFolder(Path.Combine(RootFolder, "Tabletop", "Playmats"));

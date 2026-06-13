@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Keyword Search — Breakers of E"
-        Width="1100" Height="720"
-        MinWidth="900" MinHeight="580"
+        Width="1280" Height="780"
+        MinWidth="1000" MinHeight="620"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="True">
 
@@ -46,9 +46,10 @@
                     <Separator Margin="0,0,0,6"/>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                         <RadioButton Name="RbPool" Content="Card Pool"
-                                     IsChecked="True" Margin="0,0,12,0"
+                                     IsEnabled="False" Margin="0,0,12,0"
                                      Checked="Source_Changed"/>
                         <RadioButton Name="RbCollection" Content="Collection"
+                                     IsChecked="True"
                                      Checked="Source_Changed"/>
                     </StackPanel>
 

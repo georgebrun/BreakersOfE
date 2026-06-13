@@ -1138,6 +1138,8 @@ namespace BreakersOfE.Services
             result.NewKeywordsDiscovered =
                 MtgKeywordService.MergeScryfallCatalogs(
                     abilities, actions, abilityWords);
+            MtgKeywordService.ExtractReminderTextsFromPool();
+            MtgKeywordService.SaveToCache();
         }
 
         /// <summary>

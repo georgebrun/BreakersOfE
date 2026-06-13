@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -17,7 +18,8 @@ namespace BreakersOfE.Windows
     {
         // ── State ─────────────────────────────────────────────────────────────
         private List<PoolCard> _pool = new();
-        private List<CollectionDisplayRow> _collection = new();
+        private HashSet<string> _collectionScryfallIds = new(System.StringComparer.OrdinalIgnoreCase);
+        private HashSet<int> _collectionPoolIds = new();
         private readonly HashSet<string> _selectedKeywords = new(StringComparer.OrdinalIgnoreCase);
         private bool _suppressFilter = false;
 
@@ -25,72 +27,108 @@ namespace BreakersOfE.Windows
         public KeywordSearchWindow()
         {
             InitializeComponent();
-            LoadData();
-            BuildKeywordTree();
+            Loaded += KeywordSearchWindow_Loaded;
+        }
+
+        // ── Precomputed tree data (built on background thread) ─────────────
+        private List<(string CategoryName, List<(string Name, string Definition, bool InPool)>)>
+            _treeData = new();
+        private volatile bool _poolLoaded = false;
+
+        private async void KeywordSearchWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            ResultCountText.Text = "Loading collection...";
+
+            // ── Phase 1: collection + keyword tree (fast) ─────────────────
+            await Task.Run(() =>
+            {
+                // Pre-init keyword service on background thread
+                _ = MtgKeywordService.All;
+
+                using var cdb = new CollectionDbContext();
+                var entries = cdb.CollectionEntries.AsNoTracking()
+                    .Select(e => new { e.ScryfallId, e.PoolId })
+                    .ToList();
+                _collectionScryfallIds = new HashSet<string>(
+                    entries.Where(e => !string.IsNullOrEmpty(e.ScryfallId))
+                           .Select(e => e.ScryfallId),
+                    System.StringComparer.OrdinalIgnoreCase);
+                _collectionPoolIds = new HashSet<int>(
+                    entries.Where(e => e.PoolId > 0)
+                           .Select(e => e.PoolId));
+
+                BuildTreeData();
+            });
+
+            // Show tree + enable UI immediately with collection
+            BuildKeywordTreeUI();
+            RbCollection.IsChecked = true;
             ApplyFilter();
+            IsEnabled = true;
+            ResultCountText.Text += "  —  Loading card pool in background...";
+
+            // ── Phase 2: pool in background (large, non-blocking) ─────────
+            await Task.Run(() =>
+            {
+                using var db = new AppDbContext();
+                _pool = db.PoolCards.AsNoTracking()
+                    .OrderBy(c => c.Name).ThenBy(c => c.SetCode)
+                    .ToList();
+                _poolLoaded = true;
+            });
+
+            // Pool ready — update status and enable pool source
+            RbPool.IsEnabled = true;
+            var currentCount = RbCollection.IsChecked == true
+                ? _collectionScryfallIds.Count : _pool.Count;
+            ResultCountText.Text = $"{currentCount:N0} card{(currentCount == 1 ? "" : "s")}  —  Pool loaded ({_pool.Count:N0} cards)";
+            if (RbPool.IsChecked == true) ApplyFilter();
         }
 
         // ── Data loading ──────────────────────────────────────────────────────
-        private void LoadData()
+
+        /// <summary>
+        /// Builds the keyword tree DATA on a background thread — no UI elements.
+        /// </summary>
+        private void BuildTreeData()
         {
+            // Gather keywords actually present in pool from DB (fast query)
             using var db = new AppDbContext();
-            _pool = db.PoolCards.AsNoTracking()
-                .OrderBy(c => c.Name).ThenBy(c => c.SetCode)
+            var rawKeywords = db.PoolCards.AsNoTracking()
+                .Where(c => c.Keywords != null && c.Keywords != "")
+                .Select(c => c.Keywords)
                 .ToList();
 
-            using var cdb = new CollectionDbContext();
-            var entries = cdb.CollectionEntries.AsNoTracking().ToList();
-            if (entries.Count > 0)
+            var poolKeywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kwList in rawKeywords)
+                foreach (var kw in kwList.Split('|',
+                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    poolKeywords.Add(kw);
+
+            _treeData = new();
+            foreach (var (categoryName, keywords) in MtgKeywordService.ByCategory)
             {
-                _collection = entries
-                    .Select(e => new CollectionDisplayRow
-                    {
-                        PoolId = e.PoolId,
-                        ScryfallId = e.ScryfallId,
-                        Name = e.Name,
-                        TypeLine = e.TypeLine,
-                        ManaCost = e.ManaCost,
-                        ManaValue = e.ManaValue,
-                        SetCode = e.SetCode,
-                        Rarity = e.Rarity,
-                        Power = e.Power,
-                        Toughness = e.Toughness,
-                        ColorIdentity = e.ColorIdentity,
-                        Colors = e.Colors,
-                        LegalitiesJson = e.LegalitiesJson,
-                        Keywords = e.Keywords,
-                        Quantity = e.Quantity,
-                        FoilQuantity = e.FoilQuantity,
-                        LocalImagePath = e.LocalImagePath,
-                        ImageNormalUrl = e.ImageNormalUrl,
-                        PriceUsd = e.PriceUsd,
-                        PriceUsdFoil = e.PriceUsdFoil,
-                    })
-                    .OrderBy(r => r.Name)
-                    .ToList();
+                var items = new List<(string Name, string Definition, bool InPool)>();
+                foreach (var kw in keywords)
+                {
+                    bool inPool = poolKeywords.Contains(kw.Name);
+                    items.Add((kw.Name, kw.Definition, inPool));
+                }
+                if (items.Count > 0)
+                    _treeData.Add((categoryName, items));
             }
         }
 
-        // ── Keyword tree builder ──────────────────────────────────────────────
-        private void BuildKeywordTree()
+        /// <summary>
+        /// Creates UI elements from pre-built tree data. Runs on UI thread but
+        /// does no DB queries or heavy computation.
+        /// </summary>
+        private void BuildKeywordTreeUI()
         {
-            // Gather all keywords actually present in pool
-            var poolKeywords = MtgKeywordService.GetAllPoolKeywords(_pool)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
             KeywordTree.Items.Clear();
 
-            foreach (var (categoryName, keywords) in MtgKeywordService.ByCategory)
+            foreach (var (categoryName, items) in _treeData)
             {
-                // Only show categories that have at least one keyword in the pool
-                var visible = keywords
-                    .Where(k => poolKeywords.Contains(k.Name) ||
-                                MtgKeywordService.All.Any(m =>
-                                    m.Name.Equals(k.Name, StringComparison.OrdinalIgnoreCase)))
-                    .ToList();
-
-                if (visible.Count == 0) continue;
-
                 var catItem = new TreeViewItem
                 {
                     Header = $"▶ {categoryName}",
@@ -99,17 +137,16 @@ namespace BreakersOfE.Windows
                     Padding = new Thickness(2)
                 };
 
-                foreach (var kw in visible)
+                foreach (var (name, definition, inPool) in items)
                 {
-                    bool inPool = poolKeywords.Contains(kw.Name);
                     var cb = new CheckBox
                     {
-                        Content = kw.Name,
+                        Content = name,
                         IsEnabled = inPool,
                         Opacity = inPool ? 1.0 : 0.4,
                         Margin = new Thickness(0, 1, 0, 1),
-                        ToolTip = kw.Definition,
-                        Tag = kw.Name
+                        ToolTip = definition,
+                        Tag = name
                     };
                     cb.Checked += Keyword_CheckChanged;
                     cb.Unchecked += Keyword_CheckChanged;
@@ -176,13 +213,10 @@ namespace BreakersOfE.Windows
 
             if (useCollection)
             {
-                // Filter collection then project back to PoolCard view
-                // We match on the underlying pool card properties
-                var collFiltered = _collection.AsEnumerable();
                 filtered = FilterPoolCards(
-                    _pool.Where(pc => _collection.Any(cr =>
-                        (!string.IsNullOrEmpty(pc.ScryfallId) && cr.ScryfallId == pc.ScryfallId) ||
-                        (pc.PoolId > 0 && cr.PoolId == pc.PoolId))),
+                    _pool.Where(pc =>
+                        (!string.IsNullOrEmpty(pc.ScryfallId) && _collectionScryfallIds.Contains(pc.ScryfallId)) ||
+                        (pc.PoolId > 0 && _collectionPoolIds.Contains(pc.PoolId))),
                     andLogic, selColors, atMost, includes, exact,
                     anyLegality, needStandard, needPioneer, needModern,
                     needLegacy, needVintage, needCommander, needPauper);
@@ -340,7 +374,10 @@ namespace BreakersOfE.Windows
             _suppressFilter = true;
 
             // Reset source
-            RbPool.IsChecked = true;
+            if (_poolLoaded)
+                RbPool.IsChecked = true;
+            else
+                RbCollection.IsChecked = true;
 
             // Reset keywords
             _selectedKeywords.Clear();
