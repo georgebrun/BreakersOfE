@@ -910,7 +910,7 @@
                                 <DataGridTextColumn Header="Sell At"       Binding="{Binding SellAtDisplay}"            Width="70"/>
                                 <DataGridTextColumn Header="Sell At Value" Binding="{Binding SellAtValueDisplay}"       Width="90"/>
                                 <DataGridTextColumn Header="Price High"    Binding="{Binding PriceHighDisplay}"         Width="80"/>
-                                <DataGridTextColumn Header="Foil Value"    Binding="{Binding FoilValueDisplay}"         Width="80" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Foil USD"    Binding="{Binding FoilValueDisplay}"         Width="80" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Total Value"   Binding="{Binding TotalValueDisplay}"        Width="80" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Needed"        Binding="{Binding Needed}"            Width="60"/>
                                 <DataGridTextColumn Header="Excess"        Binding="{Binding Excess}"            Width="60"/>
@@ -1175,7 +1175,7 @@
                                     </DataGridTemplateColumn.CellEditingTemplate>
                                 </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Added"         Binding="{Binding DateAdded, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" Width="130" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="Non-Foil Price"   Binding="{Binding PriceUsdDisplay}"  Width="90"  IsReadOnly="True"/>
+                                <DataGridTextColumn Header="USD"   Binding="{Binding PriceUsdDisplay}"  Width="90"  IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Price Low"      Binding="{Binding PriceLowDisplay}"  Width="80"  IsReadOnly="True"/>
                                 <DataGridTemplateColumn Header="Legal" Width="100" IsReadOnly="True">
                                     <DataGridTemplateColumn.CellTemplate>

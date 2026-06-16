@@ -1563,6 +1563,7 @@ namespace BreakersOfE
             UpdateDeckTabTitle(_activeDeck!);
             UpdateDeckSummary(_activeDeck);
             AutoSaveDeck(_activeDeck!);
+            ScrollBottomToPoolId(card.PoolId);
         }
 
         private void AddCardToActiveDeck(CollectionDisplayRow row,
@@ -1637,19 +1638,37 @@ namespace BreakersOfE
             UpdateDeckTabTitle(_activeDeck!);
             UpdateDeckSummary(_activeDeck);
             AutoSaveDeck(_activeDeck!);
+            ScrollBottomToPoolId(row.PoolId);
 
             // Refresh both grids and restore bottom selection/image
             if (_currentMode == "CollectionToDeck")
             {
-                LoadTopTable_CollectionForDeck();
+                // Update the changed row in-place instead of reloading
+                // the entire collection (preserves column widths, scroll, etc.)
                 if (TopDataGrid.ItemsSource is List<CollectionDisplayRow> topRows)
                 {
                     var updated = topRows.FirstOrDefault(r => r.PoolId == row.PoolId);
                     if (updated != null)
                     {
+                        // Re-read the used count from DB
+                        using var cdb = new Data.CollectionDbContext();
+                        var entry = cdb.CollectionEntries.AsNoTracking()
+                            .FirstOrDefault(e => e.PoolId == row.PoolId);
+                        if (entry != null)
+                        {
+                            updated.UsedCount = entry.UsedCount;
+                        }
+                        TopDataGrid.Items.Refresh();
                         TopDataGrid.SelectedItem = updated;
                         TopDataGrid.ScrollIntoView(updated);
                         _ = HandleSelectionAsync(updated);
+
+                        // Update summary
+                        UpdateTopSummary("Collection",
+                            nonFoil: topRows.Sum(r => r.Quantity),
+                            foil: topRows.Sum(r => r.FoilQuantity),
+                            total: topRows.Sum(r => r.Quantity + r.FoilQuantity),
+                            value: topRows.Sum(r => r.TotalValue));
                     }
                 }
                 RestoreFocus();
@@ -1805,6 +1824,8 @@ namespace BreakersOfE
             }
 
             // Deck data always lives in BottomDataGrid
+            bool firstSetup = !BottomDataGrid.Columns.Any(c =>
+                c.SortMemberPath == "Name" && c.Header?.ToString() == "Name");
             EnsureDeckColumns(BottomDataGrid);
             RefreshDeckGrid(BottomDataGrid, _activeDeck);
 
@@ -1812,17 +1833,30 @@ namespace BreakersOfE
             if (BottomFilterActive && _bottomColumnFilters.HasActiveFilters)
                 ApplyBottomColumnFilters();
 
-            var deck = _activeDeck;
-            Dispatcher.BeginInvoke(new Action(() =>
+            // Only restore layout on first setup — subsequent refreshes
+            // preserve user's current column widths
+            if (firstSetup)
             {
-                _wiredSummaries.Remove((BottomDataGrid, BottomSummaryGrid));
-                SyncAndPopulateDeckSummary(BottomSummaryGrid, BottomDataGrid, deck);
-                WireSummaryColumnSync(BottomDataGrid, BottomSummaryGrid);
-                RestoreColumnLayout(BottomDataGrid, "Deck");
-                SyncSummaryAfterRestore(BottomDataGrid);
-                AutoSizeColumnsToHeader(BottomDataGrid, "Deck");
-                WireColumnLayoutSave(BottomDataGrid, "Deck");
-            }), System.Windows.Threading.DispatcherPriority.ContextIdle);
+                var deck = _activeDeck;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    _wiredSummaries.Remove((BottomDataGrid, BottomSummaryGrid));
+                    SyncAndPopulateDeckSummary(BottomSummaryGrid, BottomDataGrid, deck);
+                    WireSummaryColumnSync(BottomDataGrid, BottomSummaryGrid);
+                    RestoreColumnLayout(BottomDataGrid, "Deck");
+                    SyncSummaryAfterRestore(BottomDataGrid);
+                    AutoSizeColumnsToHeader(BottomDataGrid, "Deck");
+                    WireColumnLayoutSave(BottomDataGrid, "Deck");
+                }), System.Windows.Threading.DispatcherPriority.ContextIdle);
+            }
+            else
+            {
+                var deck = _activeDeck;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    SyncAndPopulateDeckSummary(BottomSummaryGrid, BottomDataGrid, deck);
+                }), System.Windows.Threading.DispatcherPriority.ContextIdle);
+            }
 
             UpdateBottomTableLabel();
         }
@@ -3207,6 +3241,7 @@ namespace BreakersOfE
             {
                 _currentMode = tag;
                 _searchText = string.Empty;
+                _lastSearchTerm = string.Empty;
                 _bottomSearch = string.Empty;
                 if (SearchBox != null) SearchBox.Text = string.Empty;
 
@@ -3430,13 +3465,25 @@ namespace BreakersOfE
                     "DeckToCollection" => "Deck",
                     _ => "Pool"
                 };
+                string bottomKey = _currentMode switch
+                {
+                    "PoolToDeck" or "CollectionToDeck" => "Deck",
+                    _ => "Collection"
+                };
                 RestoreColumnLayout(TopDataGrid, topKey);
                 SyncSummaryAfterRestore(TopDataGrid);
                 if (BottomDataGrid.Visibility == Visibility.Visible)
                 {
-                    RestoreColumnLayout(BottomDataGrid, "Collection");
+                    RestoreColumnLayout(BottomDataGrid, bottomKey);
                     SyncSummaryAfterRestore(BottomDataGrid);
                 }
+
+                // Scroll both grids to top after mode change
+                if (TopDataGrid.Items.Count > 0)
+                    TopDataGrid.ScrollIntoView(TopDataGrid.Items[0]);
+                if (BottomDataGrid.Visibility == Visibility.Visible &&
+                    BottomDataGrid.Items.Count > 0)
+                    BottomDataGrid.ScrollIntoView(BottomDataGrid.Items[0]);
             }),
             System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
@@ -3874,16 +3921,25 @@ namespace BreakersOfE
             using var cdb = new Data.CollectionDbContext();
             using var pdb = new Data.AppDbContext();
             var rows = BuildCollectionRows(cdb, pdb);
-            if (!string.IsNullOrWhiteSpace(_lastSearchTerm))
-                rows = rows.Where(c => c.Name.Contains(
-                    _lastSearchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
             if (TopFilterActive && _topColumnFilters.HasActiveFilters)
             {
                 // Column filters applied via ICollectionView.Filter after ItemsSource is set
             }
             for (int i = 0; i < rows.Count; i++)
                 rows[i].RowIndex = i;
+
+            // Save column widths before reload
+            var savedWidths = TopDataGrid.Columns
+                .ToDictionary(c => c.DisplayIndex, c => c.Width);
+
             TopDataGrid.ItemsSource = rows;
+
+            // Restore column widths after reload
+            foreach (var col in TopDataGrid.Columns)
+            {
+                if (savedWidths.TryGetValue(col.DisplayIndex, out var w))
+                    col.Width = w;
+            }
             if (TopFilterActive && _topColumnFilters.HasActiveFilters)
                 ApplyTopColumnFilters();
             else
@@ -4043,7 +4099,7 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Sell At", "SellAtDisplay", 70, sortBinding: "SellAtSort"));
             grid.Columns.Add(MakeText("Sell At Value", "SellAtValueDisplay", 90, true, sortBinding: "SellAtValueSort"));
             grid.Columns.Add(MakeText("Price High", "PriceHighDisplay", 80, true, sortBinding: "PriceHighSort"));
-            grid.Columns.Add(MakeText("Foil Value", "FoilValueDisplay", 80, true, sortBinding: "FoilValue"));
+            grid.Columns.Add(MakeText("Foil USD", "FoilValueDisplay", 80, true, sortBinding: "FoilValue"));
             grid.Columns.Add(MakeText("Total Value", "TotalValueDisplay", 80, true, sortBinding: "TotalValue"));
             grid.Columns.Add(MakeText("Needed", "Needed", 60));
             grid.Columns.Add(MakeText("Excess", "Excess", 60));
@@ -4057,7 +4113,7 @@ namespace BreakersOfE
             grid.Columns.Add(MakeText("Buy", "BuyStatus", 90));
             grid.Columns.Add(MakeText("Sell", "SellStatus", 90));
             grid.Columns.Add(MakeText("Added", "DateAdded", 130, true));
-            grid.Columns.Add(MakeText("Non-Foil Price", "PriceUsdDisplay", 90, true, sortBinding: "PriceUsdSort"));
+            grid.Columns.Add(MakeText("USD", "PriceUsdDisplay", 90, true, sortBinding: "PriceUsdSort"));
             grid.Columns.Add(MakeText("Price Low", "PriceLowDisplay", 80, true, sortBinding: "PriceLowSort"));
             grid.Columns.Add(MakeText("Color", "ColorDisplay", 50, true));
             grid.Columns.Add(MakeText("Type", "TypeLine", 160, true));
@@ -4885,6 +4941,25 @@ namespace BreakersOfE
                     continue;
                 if (col.ActualWidth > 0)
                     col.Width = new DataGridLength(col.ActualWidth);
+            }
+        }
+
+        /// <summary>
+        /// Sets MinWidth on every column so the header text is never clipped,
+        /// regardless of saved layout or user resizing.
+        /// </summary>
+        private static void EnsureHeaderMinWidths(DataGrid grid)
+        {
+            foreach (var col in grid.Columns)
+            {
+                var hdr = col.Header?.ToString() ?? string.Empty;
+                if (string.IsNullOrEmpty(hdr) || hdr == "ES" || hdr == "↕")
+                    continue;
+                double minW = hdr.Length * 7.5 + 24;
+                if (col.MinWidth < minW)
+                    col.MinWidth = minW;
+                if (col.Width.Value < minW)
+                    col.Width = new DataGridLength(minW);
             }
         }
 
@@ -5739,7 +5814,17 @@ namespace BreakersOfE
         // ════════════════════════════════════════════════════════════════════
         private void ChkTopFilter_Changed(object sender, RoutedEventArgs e)
         {
-            LoadCurrentMode();
+            // Only toggle the top grid's filter — don't reload everything
+            if (TopFilterActive && _topColumnFilters.HasActiveFilters)
+                ApplyTopColumnFilters();
+            else
+            {
+                var view = System.Windows.Data.CollectionViewSource
+                    .GetDefaultView(TopDataGrid.ItemsSource);
+                if (view != null) view.Filter = null;
+                ApplyDefaultSort(TopDataGrid);
+            }
+
             string summary = BuildFilterSummary(isTop: true);
             TopFilterSummary.Text = (ChkTopFilter.IsChecked == false && summary != "No filter active")
                 ? "(filter suspended — " + summary + ")"
@@ -6159,6 +6244,14 @@ namespace BreakersOfE
             System.Windows.Input.MouseButtonEventArgs e)
         {
             if (e.ChangedButton != System.Windows.Input.MouseButton.Left) return;
+
+            // Ignore double-clicks on column headers (auto-size behavior)
+            if (e.OriginalSource is DependencyObject depObj)
+            {
+                var header = FindVisualParent<System.Windows.Controls.Primitives.DataGridColumnHeader>(depObj);
+                if (header != null) return;
+            }
+
             if (TopDataGrid.SelectedItem == null) return;
 
             bool shift = Keyboard.IsKeyDown(Key.LeftShift) ||
@@ -9072,7 +9165,7 @@ namespace BreakersOfE
                 "Used" => "UsedCount",
                 "Available" => "AvailableCount",
                 "Value" => "ValueDisplay",
-                "Foil Value" => "FoilValueDisplay",
+                "Foil USD" => "FoilValueDisplay",
                 "Total Value" => "TotalValueDisplay",
                 "Condition" => "Condition",
                 "Language" => "Language",
@@ -9146,6 +9239,10 @@ namespace BreakersOfE
                 SyncAndPopulateDeckSummary(TopSummaryGrid, TopDataGrid,
                     _activeDeck, deckVisible);
             }
+
+            // Scroll to top after filter change
+            if (TopDataGrid.Items.Count > 0)
+                TopDataGrid.ScrollIntoView(TopDataGrid.Items[0]);
         }
 
         private void ApplyBottomColumnFilters()
@@ -9197,6 +9294,10 @@ namespace BreakersOfE
                 SyncAndPopulateDeckSummary(BottomSummaryGrid, BottomDataGrid,
                     _activeDeck, visibleDeckCards);
             }
+
+            // Scroll to top after filter change
+            if (BottomDataGrid.Items.Count > 0)
+                BottomDataGrid.ScrollIntoView(BottomDataGrid.Items[0]);
         }
 
         private void UpdateColumnFilterSummary(bool isTop)
@@ -9850,6 +9951,20 @@ namespace BreakersOfE
                 MessageBox.Show($"Could not open deck:\n{ex.Message}",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>
+        /// Walks the visual tree upward to find a parent of the given type.
+        /// </summary>
+        private static T? FindVisualParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            var parent = System.Windows.Media.VisualTreeHelper.GetParent(child);
+            while (parent != null)
+            {
+                if (parent is T found) return found;
+                parent = System.Windows.Media.VisualTreeHelper.GetParent(parent);
+            }
+            return null;
         }
     }
 
