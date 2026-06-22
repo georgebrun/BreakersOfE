@@ -30,9 +30,6 @@ namespace BreakersOfE.Windows
             TxtExportPath.Text = Path.Combine(
                 AppFolderService.ExportsFolder, "collection.csv");
 
-            // Deck XML only valid for deck export — disable by default
-            RbExpMtgStudioDeck.IsEnabled = false;
-
             // Set starting state based on mode
             switch (mode)
             {
@@ -80,20 +77,13 @@ namespace BreakersOfE.Windows
             DeckFileRow.Visibility = isDeck ? Visibility.Visible : Visibility.Collapsed;
 
             // Enable all formats for all targets
-            // .deck XML only makes sense for deck export
-            RbExpMtgStudio.IsEnabled = true;
             RbExpMoxfield.IsEnabled = true;
             RbExpTcgPlayer.IsEnabled = true;
             RbExpDeckbox.IsEnabled = true;
             RbExpDragonShield.IsEnabled = true;
             RbExpNative.IsEnabled = true;
-            RbExpMtgStudioDeck.IsEnabled = isDeck;
-
-            // Auto-select sensible default format
-            if (isDeck && RbExpMtgStudio.IsChecked == true)
-                RbExpMtgStudioDeck.IsChecked = true;
-            else if (!isDeck && RbExpMtgStudioDeck.IsChecked == true)
-                RbExpMtgStudio.IsChecked = true;
+            // PlainText, ManaBox, Archidekt all support deck export too
+            if (RbExpPlainText != null) RbExpPlainText.IsEnabled = true;
         }
 
         // ── Browse for deck file to export ───────────────────────────────────
@@ -112,14 +102,8 @@ namespace BreakersOfE.Windows
         // ── Import target changed ─────────────────────────────────────────────
         private void ImportTarget_Changed(object sender, RoutedEventArgs e)
         {
-            if (RbFmtMtgStudioDeck == null) return;
-            bool isDeck = RbImportDeck.IsChecked == true;
-            // All formats work for deck import now
-            RbFmtMtgStudioDeck.IsEnabled = isDeck;
-            if (isDeck && RbFmtAutoDetect.IsChecked == true)
-                RbFmtMtgStudioDeck.IsChecked = true;
-            else if (!isDeck && RbFmtMtgStudioDeck.IsChecked == true)
-                RbFmtAutoDetect.IsChecked = true;
+            // Auto-detect handles all formats (collection and deck) automatically.
+            // Nothing format-specific to toggle here anymore.
         }
 
         // ── File browse — Import ──────────────────────────────────────────────
@@ -130,8 +114,8 @@ namespace BreakersOfE.Windows
             {
                 Title = "Select file to import",
                 Filter = isDeck
-                    ? "All Supported Deck Formats|*.deck;*.csv|MTG Studio Deck (*.deck)|*.deck|CSV files (*.csv)|*.csv|All files (*.*)|*.*"
-                    : "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                    ? "All Supported Deck Formats|*.csv;*.txt|CSV files (*.csv)|*.csv|Text decklist (*.txt)|*.txt|All files (*.*)|*.*"
+                    : "All Supported Files|*.csv;*.json;*.txt|CSV files (*.csv)|*.csv|JSON backup (*.json)|*.json|Text decklist (*.txt)|*.txt|All files (*.*)|*.*",
                 InitialDirectory = AppFolderService.ImportsFolder
             };
             if (dlg.ShowDialog() == true)
@@ -143,20 +127,20 @@ namespace BreakersOfE.Windows
         {
             bool isDeck = RbExportDeck?.IsChecked == true;
             bool isJson = RbExpNative?.IsChecked == true;
-            bool isMtgDeck = RbExpMtgStudioDeck?.IsChecked == true;
+            bool isPlainText = RbExpPlainText?.IsChecked == true;
 
-            // Only use .deck extension when MTG Studio deck format is selected
-            string filter = isMtgDeck
-                ? "MTG Studio Deck (*.deck)|*.deck|All files (*.*)|*.*"
-                : isJson
-                    ? "JSON files (*.json)|*.json|All files (*.*)|*.*"
+            string filter = isJson
+                ? "JSON files (*.json)|*.json|All files (*.*)|*.*"
+                : isPlainText
+                    ? "Text files (*.txt)|*.txt|All files (*.*)|*.*"
                     : "CSV files (*.csv)|*.csv|All files (*.*)|*.*";
 
             string baseName = isDeck
                 ? (_activeDeck?.Name ?? "deck")
                 : "collection";
 
-            string ext = isMtgDeck ? ".deck" : isJson ? ".json" : ".csv";
+            string ext = isJson ? ".json"
+                : isPlainText ? ".txt" : ".csv";
             string defaultName = AppFolderService.SafeFileName(baseName) + ext;
 
             var dlg = new SaveFileDialog
@@ -191,8 +175,6 @@ namespace BreakersOfE.Windows
             ImportExportFormat fmt;
             if (RbFmtAutoDetect.IsChecked == true)
                 fmt = CollectionImportExportService.DetectFormat(path);
-            else if (RbFmtMtgStudioCsv.IsChecked == true) fmt = ImportExportFormat.MtgStudioCsv;
-            else if (RbFmtMtgStudioDeck.IsChecked == true) fmt = ImportExportFormat.MtgStudioDeck;
             else if (RbFmtMoxfield.IsChecked == true) fmt = ImportExportFormat.Moxfield;
             else if (RbFmtTcgPlayer.IsChecked == true) fmt = ImportExportFormat.TcgPlayer;
             else if (RbFmtDeckbox.IsChecked == true) fmt = ImportExportFormat.Deckbox;
@@ -254,11 +236,11 @@ namespace BreakersOfE.Windows
             {
                 bool isDeck = RbExportDeck.IsChecked == true;
                 bool isJson = RbExpNative.IsChecked == true;
-                bool isMtgDeck = RbExpMtgStudioDeck.IsChecked == true;
-                string ext = (isDeck || isMtgDeck) ? ".deck" : isJson ? ".json" : ".csv";
-                string name = (isDeck || isMtgDeck)
+                bool isPlainText = RbExpPlainText?.IsChecked == true;
+                string ext = isJson ? ".json" : isPlainText ? ".txt" : ".csv";
+                string name = isDeck
                     ? (_activeDeck?.Name ?? "deck")
-                    : isJson ? "collection" : "collection";
+                    : "collection";
                 path = Path.Combine(path,
                     Services.AppFolderService.SafeFileName(name) + ext);
                 TxtExportPath.Text = path;
@@ -266,12 +248,15 @@ namespace BreakersOfE.Windows
 
             // Determine format
             ImportExportFormat fmt;
-            if (RbExpMtgStudio.IsChecked == true) fmt = ImportExportFormat.MtgStudioCsv;
-            else if (RbExpMtgStudioDeck.IsChecked == true) fmt = ImportExportFormat.MtgStudioDeck;
-            else if (RbExpMoxfield.IsChecked == true) fmt = ImportExportFormat.Moxfield;
+            if (RbExpMoxfield.IsChecked == true) fmt = ImportExportFormat.Moxfield;
             else if (RbExpTcgPlayer.IsChecked == true) fmt = ImportExportFormat.TcgPlayer;
             else if (RbExpDeckbox.IsChecked == true) fmt = ImportExportFormat.Deckbox;
             else if (RbExpDragonShield.IsChecked == true) fmt = ImportExportFormat.DragonShield;
+            else if (RbExpManaBox.IsChecked == true) fmt = ImportExportFormat.ManaBox;
+            else if (RbExpArchidekt.IsChecked == true) fmt = ImportExportFormat.Archidekt;
+            else if (RbExpPlainText?.IsChecked == true) fmt = ImportExportFormat.PlainText;
+            else if (RbExpFullCsv.IsChecked == true) fmt = ImportExportFormat.FullCsv;
+            else if (RbExpAvailableCsv.IsChecked == true) fmt = ImportExportFormat.AvailableCsv;
             else fmt = ImportExportFormat.BreakersOfE;
 
             Log($"💾 Exporting to: {Path.GetFileName(path)}");

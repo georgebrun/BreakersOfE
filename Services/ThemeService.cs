@@ -8,7 +8,8 @@ namespace BreakersOfE.Services
     public enum AppTheme
     {
         Light,
-        Dark
+        Dark,
+        System
     }
 
     public static class ThemeService
@@ -19,44 +20,64 @@ namespace BreakersOfE.Services
         private const string DarkThemePath =
             "pack://application:,,,/BreakersOfE;component/Themes/DarkTheme.xaml";
 
+        // The user's chosen mode (may be System). CurrentTheme is the
+        // effective Light/Dark actually applied.
+        public static AppTheme SelectedMode { get; private set; } = AppTheme.System;
         public static AppTheme CurrentTheme { get; private set; } = AppTheme.Light;
+
+        /// <summary>
+        /// Reads the active Windows app theme from the registry.
+        /// AppsUseLightTheme = 0 means dark, 1 (or missing) means light.
+        /// </summary>
+        public static AppTheme GetWindowsTheme()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+                var val = key?.GetValue("AppsUseLightTheme");
+                if (val is int i)
+                    return i == 0 ? AppTheme.Dark : AppTheme.Light;
+            }
+            catch { /* registry unavailable — fall back to light */ }
+            return AppTheme.Light;
+        }
+
+        /// <summary>Resolves a mode to the concrete Light/Dark to apply.</summary>
+        private static AppTheme Resolve(AppTheme mode) =>
+            mode == AppTheme.System ? GetWindowsTheme() : mode;
 
         // ── Apply theme at startup ────────────────────────────────────────
         public static void ApplySavedTheme()
         {
-            AppTheme theme = AppTheme.Light; // default
+            // v1: dark mode is not yet polished, so the app ships light-only.
+            // The theme switcher is hidden in the UI and we force Light here.
+            // (Dark/System support remains below for a future v2 release.)
+            Apply(AppTheme.Light);
 
-            try
-            {
-                using var db = new AppDbContext();
-                var setting = db.AppSettings
-                    .FirstOrDefault(s => s.Key == SettingKey);
-
-                if (setting != null &&
-                    Enum.TryParse<AppTheme>(setting.Value, out var saved))
-                {
-                    theme = saved;
-                }
-            }
-            catch { /* use default if DB not ready */ }
-
-            Apply(theme);
+            // Listener is harmless in light-only mode (it only acts when
+            // SelectedMode == System, which v1 never sets). Wiring it keeps the
+            // v2 code path live and avoids an unused-method warning.
+            HookSystemThemeChanges();
         }
 
-        // ── Toggle between light and dark ─────────────────────────────────
+        // ── Toggle between light and dark (manual override) ───────────────
         public static void Toggle()
         {
+            // Toggling always lands on an explicit Light/Dark, leaving System.
             Apply(CurrentTheme == AppTheme.Light
                 ? AppTheme.Dark
                 : AppTheme.Light);
         }
 
-        // ── Apply a specific theme ────────────────────────────────────────
-        public static void Apply(AppTheme theme)
+        // ── Apply a specific mode (Light, Dark, or System) ────────────────
+        public static void Apply(AppTheme mode)
         {
-            CurrentTheme = theme;
+            SelectedMode = mode;
+            AppTheme effective = Resolve(mode);
+            CurrentTheme = effective;
 
-            string path = theme == AppTheme.Dark
+            string path = effective == AppTheme.Dark
                 ? DarkThemePath
                 : LightThemePath;
 
@@ -78,7 +99,25 @@ namespace BreakersOfE.Services
 
             Application.Current.Resources.MergedDictionaries.Add(dict);
 
-            SaveTheme(theme);
+            SaveTheme(mode);
+        }
+
+        // ── Re-resolve when Windows theme changes (only matters in System) ─
+        private static bool _hooked;
+        private static void HookSystemThemeChanges()
+        {
+            if (_hooked) return;
+            _hooked = true;
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged += (s, e) =>
+            {
+                if (e.Category == Microsoft.Win32.UserPreferenceCategory.General
+                    && SelectedMode == AppTheme.System)
+                {
+                    // Marshal back to UI thread to swap resource dictionaries.
+                    Application.Current.Dispatcher.Invoke(() =>
+                        Apply(AppTheme.System));
+                }
+            };
         }
 
         // ── Persist to DB ─────────────────────────────────────────────────

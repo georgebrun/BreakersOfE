@@ -248,7 +248,7 @@
                 <Separator/>
                 <MenuItem Header="E_xit"             Click="MenuExit_Click"/>
             </MenuItem>
-            <MenuItem Header="_View">
+            <MenuItem Header="_View" Visibility="Collapsed">
                 <MenuItem Header="_Theme">
                     <MenuItem Header="_Light Mode" Click="MenuThemeLight_Click"/>
                     <MenuItem Header="_Dark Mode"  Click="MenuThemeDark_Click"/>
@@ -272,8 +272,6 @@
                           Click="MenuUpdateDeckPrices_Click"
                           ToolTip="Updates prices in all currently open decks from the pool"/>
                 <Separator/>
-                <MenuItem Header="🂠 _Tabletop Simulator" Name="MenuTabletop"
-                          Click="MenuTabletop_Click"/>
                 <MenuItem Header="📒 _Trade Binder"       Name="MenuTradeBinder"
                           Click="MenuTradeBinder_Click"/>
                 <MenuItem Header="🔍 _Keyword Search"     Name="MenuKeywordSearch"
@@ -352,7 +350,7 @@
 
                 <!-- GROUP 5: VIEW -->
                 <Button Name="BtnUpdateDb" Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE117;" ToolTip="Update Card Database" Click="BtnUpdateDb_Click" Margin="2,2"/>
-                <Button Name="BtnTheme"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE793;" ToolTip="Toggle Light/Dark Mode" Click="BtnTheme_Click"  Margin="2,2"/>
+                <Button Name="BtnTheme"    Style="{DynamicResource ToolbarButtonStyle}" Content="&#xE793;" ToolTip="Toggle Light/Dark Mode" Click="BtnTheme_Click"  Margin="2,2" Visibility="Collapsed"/>
 
                 <!-- Mode dropdown -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,2,4,2">
@@ -550,6 +548,7 @@
                               SelectionChanged="TopDataGrid_SelectionChanged"
                               PreviewKeyDown="TopDataGrid_PreviewKeyDown"
                               MouseDoubleClick="TopDataGrid_MouseDoubleClick"
+                              ScrollViewer.ScrollChanged="TopDataGrid_ScrollChanged"
                               CellEditEnding="TopDataGrid_CellEditEnding"
                               Sorting="DataGrid_Sorting"
                               Background="{DynamicResource GridRowBrush}"
@@ -580,8 +579,8 @@
                             </DataGrid.ContextMenu>
                             <DataGrid.RowDetailsTemplate>
                                 <DataTemplate>
-                                    <Border Background="#F5F8FF"
-                BorderBrush="#CCDDEE"
+                                    <Border Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,1,0,1"
                 Padding="32,6,8,6">
                                         <StackPanel>
@@ -596,14 +595,14 @@
                           IsReadOnly="True"
                           HeadersVisibility="Column"
                           BorderThickness="1"
-                          BorderBrush="#CCDDEE"
+                          BorderBrush="{DynamicResource BorderBrush}"
                           GridLinesVisibility="Horizontal"
                           RowHeaderWidth="0"
                           RowHeight="24"
                           MaxHeight="160"
                           CanUserResizeColumns="True"
                           CanUserReorderColumns="False"
-                          Background="White">
+                          Background="{DynamicResource WindowBackgroundBrush}">
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="Deck Name" Binding="{Binding DeckName}" Width="200"/>
                                                     <DataGridTextColumn Header="Type"      Binding="{Binding DeckType}" Width="90"/>
@@ -692,13 +691,14 @@
                               RowHeight="26"
                               BorderThickness="1"
                               BorderBrush="{DynamicResource BorderBrush}"
-                              Background="#D6E8D6"
+                              Background="{DynamicResource SurfaceAltBrush}"
                               Foreground="{DynamicResource PrimaryTextBrush}"
                               FontWeight="SemiBold" FontSize="12"
                               ScrollViewer.HorizontalScrollBarVisibility="Hidden"
                               ScrollViewer.VerticalScrollBarVisibility="Disabled"
                               CanUserResizeColumns="False"
-                              CanUserReorderColumns="False"/>
+                              CanUserReorderColumns="False"
+                              Loaded="TopSummaryGrid_Loaded"/>
 
                     <!-- Top filter bar -->
                     <Border Grid.Row="4" Style="{DynamicResource FilterBarStyle}">
@@ -844,8 +844,8 @@
                             </DataGrid.ContextMenu>
                             <DataGrid.RowDetailsTemplate>
                                 <DataTemplate>
-                                    <Border Background="#F5F8FF"
-                                    BorderBrush="#CCDDEE"
+                                    <Border Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,1,0,1"
                                     Padding="32,6,8,6">
                                         <StackPanel>
@@ -860,14 +860,14 @@
                           IsReadOnly="True"
                           HeadersVisibility="Column"
                           BorderThickness="1"
-                          BorderBrush="#CCDDEE"
+                          BorderBrush="{DynamicResource BorderBrush}"
                           GridLinesVisibility="Horizontal"
                           RowHeaderWidth="0"
                           RowHeight="24"
                           MaxHeight="160"
                           CanUserResizeColumns="True"
                           CanUserReorderColumns="False"
-                          Background="White">
+                          Background="{DynamicResource WindowBackgroundBrush}">
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="Deck Name" Binding="{Binding DeckName}" Width="200"/>
                                                     <DataGridTextColumn Header="Type"      Binding="{Binding DeckType}" Width="90"/>
@@ -926,7 +926,7 @@
                                             <ComboBox Text="{Binding Condition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       IsEditable="False"
                                                       VerticalAlignment="Center"
-                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      Background="{DynamicResource ComboBoxBackgroundBrush}" Foreground="{DynamicResource ComboBoxForegroundBrush}"
                                                       BorderBrush="#CCCCCC" BorderThickness="1"
                                                       FontSize="13" Height="28">
                                                 <ComboBox.Resources>
@@ -968,7 +968,7 @@
                                             <ComboBox Text="{Binding Language, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       IsEditable="False"
                                                       VerticalAlignment="Center"
-                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      Background="{DynamicResource ComboBoxBackgroundBrush}" Foreground="{DynamicResource ComboBoxForegroundBrush}"
                                                       BorderBrush="#CCCCCC" BorderThickness="1"
                                                       FontSize="13" Height="28">
                                                 <ComboBox.Resources>
@@ -1017,7 +1017,7 @@
                                             <ComboBox Text="{Binding Desired, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       IsEditable="False"
                                                       VerticalAlignment="Center"
-                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      Background="{DynamicResource ComboBoxBackgroundBrush}" Foreground="{DynamicResource ComboBoxForegroundBrush}"
                                                       BorderBrush="#CCCCCC" BorderThickness="1"
                                                       FontSize="13" Height="28">
                                                 <ComboBox.Resources>
@@ -1060,7 +1060,7 @@
                                             <ComboBox Text="{Binding PrintType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       IsEditable="False"
                                                       VerticalAlignment="Center"
-                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      Background="{DynamicResource ComboBoxBackgroundBrush}" Foreground="{DynamicResource ComboBoxForegroundBrush}"
                                                       BorderBrush="#CCCCCC" BorderThickness="1"
                                                       FontSize="13" Height="28">
                                                 <ComboBox.Resources>
@@ -1103,7 +1103,7 @@
                                             <ComboBox Text="{Binding BuyStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       IsEditable="False"
                                                       VerticalAlignment="Center"
-                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      Background="{DynamicResource ComboBoxBackgroundBrush}" Foreground="{DynamicResource ComboBoxForegroundBrush}"
                                                       BorderBrush="#CCCCCC" BorderThickness="1"
                                                       FontSize="13" Height="28">
                                                 <ComboBox.Resources>
@@ -1144,7 +1144,7 @@
                                             <ComboBox Text="{Binding SellStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       IsEditable="False"
                                                       VerticalAlignment="Center"
-                                                      Background="#FFFFFF" Foreground="#1A1A1A"
+                                                      Background="{DynamicResource ComboBoxBackgroundBrush}" Foreground="{DynamicResource ComboBoxForegroundBrush}"
                                                       BorderBrush="#CCCCCC" BorderThickness="1"
                                                       FontSize="13" Height="28">
                                                 <ComboBox.Resources>
@@ -1234,7 +1234,7 @@
                               RowHeight="26"
                               BorderThickness="1"
                               BorderBrush="{DynamicResource BorderBrush}"
-                              Background="#D6E8D6"
+                              Background="{DynamicResource SurfaceAltBrush}"
                               Foreground="{DynamicResource PrimaryTextBrush}"
                               FontWeight="SemiBold" FontSize="12"
                               ScrollViewer.HorizontalScrollBarVisibility="Hidden"

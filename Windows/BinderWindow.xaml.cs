@@ -194,7 +194,8 @@ namespace BreakersOfE.Windows
             sleeve.Child = canvas;
 
             // Card image
-            UIElement cardImg = MakeCardImage(pocket.LocalImagePath, pocket.Name);
+            UIElement cardImg = MakeCardImage(
+                pocket.LocalImagePath, pocket.Name, pocket.ImageNormalUrl);
             Canvas.SetLeft(cardImg, 0);
             Canvas.SetTop(cardImg, 0);
             canvas.Children.Add(cardImg);
@@ -301,15 +302,55 @@ namespace BreakersOfE.Windows
         }
 
         // ── Card image ───────────────────────────────────────────────────────
-        private static UIElement MakeCardImage(string localPath, string name)
+        private static UIElement MakeCardImage(
+            string localPath, string name, string imageUrl = "")
         {
-            if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
+            // 1. Use the explicit local path if it exists
+            string? resolved = (!string.IsNullOrEmpty(localPath)
+                && File.Exists(localPath)) ? localPath : null;
+
+            // 2. Otherwise check the main app's CardImages cache folder
+            //    (same naming convention used when adding to the collection)
+            if (resolved == null && !string.IsNullOrEmpty(name))
+            {
+                string safeName = string.Concat(
+                    name.Split(System.IO.Path.GetInvalidFileNameChars()));
+                string cached = System.IO.Path.Combine(
+                    Services.AppFolderService.CardImagesFolder, $"{safeName}.jpg");
+                if (File.Exists(cached))
+                    resolved = cached;
+            }
+
+            // 3. If still nothing but we have a Scryfall URL, download and cache it
+            if (resolved == null && !string.IsNullOrEmpty(imageUrl))
+            {
+                try
+                {
+                    string safeName = string.Concat(
+                        name.Split(System.IO.Path.GetInvalidFileNameChars()));
+                    string cached = System.IO.Path.Combine(
+                        Services.AppFolderService.CardImagesFolder, $"{safeName}.jpg");
+                    if (!File.Exists(cached))
+                    {
+                        using var http = new System.Net.Http.HttpClient();
+                        http.Timeout = TimeSpan.FromSeconds(10);
+                        var bytes = http.GetByteArrayAsync(imageUrl)
+                            .GetAwaiter().GetResult();
+                        File.WriteAllBytes(cached, bytes);
+                    }
+                    if (File.Exists(cached))
+                        resolved = cached;
+                }
+                catch { /* download failed — fall through to placeholder */ }
+            }
+
+            if (resolved != null)
             {
                 try
                 {
                     var bmp = new BitmapImage();
                     bmp.BeginInit();
-                    bmp.UriSource = new Uri(localPath, UriKind.Absolute);
+                    bmp.UriSource = new Uri(resolved, UriKind.Absolute);
                     bmp.CacheOption = BitmapCacheOption.OnLoad;
                     bmp.DecodePixelWidth = 94;
                     bmp.EndInit();

@@ -35,7 +35,7 @@ namespace BreakersOfE.Windows
             SelectComboByContent(CmbDefaultCondition, Get(KeyDefaultCondition, "Near Mint"));
             SelectComboByContent(CmbDefaultLanguage, Get(KeyDefaultLanguage, "English"));
             SelectComboByTag(CmbCurrency, Get(KeyCurrency, "USD"));
-            SelectComboByTag(CmbTheme, Get(KeyTheme, "Light"));
+            SelectComboByTag(CmbTheme, Get(KeyTheme, "System"));
 
             // Life total
             string lifeStr = Get(KeyDefaultLife, "20");
@@ -127,9 +127,15 @@ namespace BreakersOfE.Windows
             // Theme
             if (CmbTheme.SelectedItem is ComboBoxItem themeItem)
             {
-                string theme = themeItem.Tag?.ToString() ?? "Light";
+                string theme = themeItem.Tag?.ToString() ?? "System";
                 Save(KeyTheme, theme);
-                ThemeService.Apply(theme == "Dark" ? AppTheme.Dark : AppTheme.Light);
+                AppTheme mode = theme switch
+                {
+                    "Dark" => AppTheme.Dark,
+                    "Light" => AppTheme.Light,
+                    _ => AppTheme.System
+                };
+                ThemeService.Apply(mode);
             }
 
             // Life total

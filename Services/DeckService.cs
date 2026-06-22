@@ -503,7 +503,7 @@ namespace BreakersOfE.Services
         // ════════════════════════════════════════════════════════════════════
         // HELPERS
         // ════════════════════════════════════════════════════════════════════
-        private static DeckCard CloneCard(DeckCard source)
+        public static DeckCard CloneCard(DeckCard source)
         {
             return new DeckCard
             {

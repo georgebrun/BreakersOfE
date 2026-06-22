@@ -5323,6 +5323,22 @@ namespace BreakersOfE
         private ScaleTransform? _topScale;
         private ScaleTransform? _bottomScale;
         private ScrollViewer? _bottomSummaryScroller;
+        private ScrollViewer? _topSummaryScroller;
+        private ScrollViewer? _topDataGridScroller;
+
+        private void TopSummaryGrid_Loaded(object sender, RoutedEventArgs e)
+        {
+            _topSummaryScroller = FindVisualChild<ScrollViewer>(TopSummaryGrid);
+            _topDataGridScroller ??= FindVisualChild<ScrollViewer>(TopDataGrid);
+        }
+
+        private void TopDataGrid_ScrollChanged(object sender,
+            ScrollChangedEventArgs e)
+        {
+            if (e.HorizontalChange == 0) return;
+            _topSummaryScroller ??= FindVisualChild<ScrollViewer>(TopSummaryGrid);
+            _topSummaryScroller?.ScrollToHorizontalOffset(e.HorizontalOffset);
+        }
 
         private void BottomSummaryGrid_Loaded(object sender, RoutedEventArgs e)
         {
@@ -8398,22 +8414,37 @@ namespace BreakersOfE
         private void MenuThemeLight_Click(object sender, RoutedEventArgs e)
         {
             ThemeService.Apply(AppTheme.Light);
-            BtnTheme.Content = ThemeService.ThemeToggleIcon;
-            BtnTheme.ToolTip = ThemeService.ThemeToggleTooltip;
+            RefreshAfterThemeChange();
         }
 
         private void MenuThemeDark_Click(object sender, RoutedEventArgs e)
         {
             ThemeService.Apply(AppTheme.Dark);
-            BtnTheme.Content = ThemeService.ThemeToggleIcon;
-            BtnTheme.ToolTip = ThemeService.ThemeToggleTooltip;
+            RefreshAfterThemeChange();
         }
 
         private void BtnTheme_Click(object sender, RoutedEventArgs e)
         {
             ThemeService.Toggle();
+            RefreshAfterThemeChange();
+        }
+
+        /// <summary>
+        /// Updates the theme toggle button and re-renders both grids so the
+        /// per-row background/foreground brushes (from CardColorService) are
+        /// recomputed for the new theme. Without the reload, rows keep the old
+        /// theme's colors until the next data load.
+        /// </summary>
+        private void RefreshAfterThemeChange()
+        {
             BtnTheme.Content = ThemeService.ThemeToggleIcon;
             BtnTheme.ToolTip = ThemeService.ThemeToggleTooltip;
+            try
+            {
+                LoadCurrentMode();
+                RefreshBottom();
+            }
+            catch { /* never let a repaint failure break theme switching */ }
         }
 
         private void BtnUpdateDb_Click(object sender, RoutedEventArgs e) =>
@@ -9788,27 +9819,38 @@ namespace BreakersOfE
             System.ComponentModel.CancelEventArgs e)
         {
             var unsaved = _openDecks.Where(d => d.IsModified).ToList();
-            if (unsaved.Count == 0) return;
-
-            string names = string.Join("\n  • ", unsaved.Select(d => d.Name));
-            var result = MessageBox.Show(
-                $"The following deck{(unsaved.Count == 1 ? "" : "s")} have unsaved changes:\n\n" +
-                $"  • {names}\n\n" +
-                "Save all before closing?",
-                "Unsaved Decks",
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Cancel)
+            if (unsaved.Count > 0)
             {
-                e.Cancel = true;
-                return;
+                string names = string.Join("\n  • ", unsaved.Select(d => d.Name));
+                var result = MessageBox.Show(
+                    $"The following deck{(unsaved.Count == 1 ? "" : "s")} have unsaved changes:\n\n" +
+                    $"  • {names}\n\n" +
+                    "Save all before closing?",
+                    "Unsaved Decks",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Cancel)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+                if (result == MessageBoxResult.Yes)
+                {
+                    foreach (var deck in unsaved)
+                        AutoSaveDeck(deck);
+                }
             }
-            if (result == MessageBoxResult.Yes)
+
+            // Flush the write-ahead log into the main collection.db so the
+            // database file is complete on disk and the -wal/-shm working files
+            // are cleared. Runs on every clean close.
+            try
             {
-                foreach (var deck in unsaved)
-                    AutoSaveDeck(deck);
+                using var cdb = new Data.CollectionDbContext();
+                cdb.Checkpoint();
             }
+            catch { /* best-effort; never block app close */ }
         }
 
         private void MenuHelp_Click(object sender, RoutedEventArgs e)

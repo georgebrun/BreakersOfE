@@ -48,7 +48,7 @@
                         <RadioButton Name="RbImportCollection" Content="Collection  (cards you own)"
                                      IsChecked="True" Style="{StaticResource FormatBtn}"
                                      Checked="ImportTarget_Changed"/>
-                        <RadioButton Name="RbImportDeck"       Content="Deck  (MTG Studio .deck, or CSV from Moxfield / TCGPlayer / Deckbox / Dragon Shield)"
+                        <RadioButton Name="RbImportDeck"       Content="Deck  (plain text, or CSV from Moxfield / TCGPlayer / Deckbox / Dragon Shield / ManaBox / Archidekt)"
                                      Style="{StaticResource FormatBtn}"
                                      Checked="ImportTarget_Changed"/>
                         <RadioButton Name="RbImportWantList"   Content="Want List  (cards you are looking for)"
@@ -62,11 +62,6 @@
                         <RadioButton Name="RbFmtAutoDetect"    Content="Auto-detect  (recommended)"
                                      IsChecked="True" Style="{StaticResource FormatBtn}"
                                      GroupName="ImportFmt"/>
-                        <RadioButton Name="RbFmtMtgStudioCsv"  Content="MTG Studio  (.csv export)"
-                                     Style="{StaticResource FormatBtn}" GroupName="ImportFmt"/>
-                        <RadioButton Name="RbFmtMtgStudioDeck" Content="MTG Studio  (.deck file)"
-                                     Style="{StaticResource FormatBtn}" GroupName="ImportFmt"
-                                     IsEnabled="False"/>
                         <RadioButton Name="RbFmtMoxfield"      Content="Moxfield  (.csv export)"
                                      Style="{StaticResource FormatBtn}" GroupName="ImportFmt"/>
                         <RadioButton Name="RbFmtTcgPlayer"     Content="TCGPlayer  (.csv export)"
@@ -142,7 +137,7 @@
                             <TextBox Grid.Column="0" Name="TxtDeckPath"
                                      Height="28" Padding="6,0"
                                      VerticalContentAlignment="Center"
-                                     Text="(browse for .deck file — or leave blank to use active deck)"/>
+                                     Text="(browse for deck file — or leave blank to use active deck)"/>
                             <Button Grid.Column="1" Content="Browse…"
                                     Margin="6,0,0,0" Padding="12,4" Height="28"
                                     Click="BtnBrowseDeckFile_Click"/>
@@ -152,21 +147,25 @@
                         <TextBlock Style="{StaticResource SectionLabel}" Text="STEP 2 — WHICH APP ARE YOU EXPORTING FOR?"/>
                         <TextBlock Style="{StaticResource HintText}"
                                    Text="Choose the format that matches the app you want to import into."/>
-                        <RadioButton Name="RbExpMtgStudio"     Content="MTG Studio  (.csv)"
-                                     IsChecked="True" Style="{StaticResource FormatBtn}"
-                                     GroupName="ExportFmt"/>
-                        <RadioButton Name="RbExpMtgStudioDeck" Content="MTG Studio  (.deck file)  — deck only"
-                                     Style="{StaticResource FormatBtn}" GroupName="ExportFmt"
-                                     IsEnabled="False"/>
                         <RadioButton Name="RbExpMoxfield"      Content="Moxfield  (.csv)"
-                                     Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                                     IsChecked="True" Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
                         <RadioButton Name="RbExpTcgPlayer"     Content="TCGPlayer  (.csv)"
                                      Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
                         <RadioButton Name="RbExpDeckbox"       Content="Deckbox  (.csv)"
                                      Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
                         <RadioButton Name="RbExpDragonShield"  Content="Dragon Shield  (.csv)"
                                      Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                        <RadioButton Name="RbExpManaBox"       Content="ManaBox  (.csv)"
+                                     Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                        <RadioButton Name="RbExpArchidekt"     Content="Archidekt  (.csv)"
+                                     Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                        <RadioButton Name="RbExpPlainText"     Content="Plain Text Decklist  (.txt — universal)"
+                                     Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
                         <RadioButton Name="RbExpNative"        Content="Breakers of E  (.json — full backup)"
+                                     Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                        <RadioButton Name="RbExpFullCsv"       Content="Full Collection  (.csv — every column, every row)"
+                                     Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
+                        <RadioButton Name="RbExpAvailableCsv"  Content="Available List  (.csv — Available, Name, Set Code)"
                                      Style="{StaticResource FormatBtn}" GroupName="ExportFmt"/>
 
                         <!-- Step 3: Save to -->

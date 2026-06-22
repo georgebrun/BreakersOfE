@@ -2,6 +2,7 @@
 using BreakersOfE.Services;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.Json;
 using System.Windows;
@@ -54,6 +55,7 @@ namespace BreakersOfE.Windows
         private List<BattlefieldCard> _oppField = new();
         private Window? _enlargedCardWindow = null;
         private List<LinkedExile> _linkedExiles = new();
+        private readonly ObservableCollection<string> _gameLog = new();
         private DeckCard? _oppCommander = null;
         private int _yourCmdTax = 0;
         private int _oppCmdTax = 0;
@@ -153,6 +155,7 @@ namespace BreakersOfE.Windows
 
         private void TabletopWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            LogListBox.ItemsSource = _gameLog;
             LoadSettings();
             LoadPlaymats();
             ShowNewGameDialog();
@@ -210,6 +213,11 @@ namespace BreakersOfE.Windows
             // Download missing card images in background
             _ = CacheCardImagesAsync(dlg.Player1Deck);
             _ = CacheCardImagesAsync(dlg.Player2Deck);
+
+            _gameLog.Clear();
+            AddLog("=== New Game Started ===");
+            AddLog($"Player 1: {dlg.Player1Deck?.Name ?? "Unknown"}");
+            AddLog($"Player 2: {dlg.Player2Deck?.Name ?? "Unknown"}");
 
             // Offer opening mulligan immediately (proper MTG flow)
             Dispatcher.BeginInvoke(new Action(OfferOpeningMulligan),
@@ -273,53 +281,65 @@ namespace BreakersOfE.Windows
         private async System.Threading.Tasks.Task CacheCardImagesAsync(Deck? deck)
         {
             if (deck == null) return;
-            var folder = GetImageCacheFolder();
+            var mainFolder = AppFolderService.CardImagesFolder;
+            var cacheFolder = GetImageCacheFolder();
             using var http = new System.Net.Http.HttpClient();
             http.Timeout = TimeSpan.FromSeconds(10);
 
             foreach (var card in deck.Cards)
             {
-                // Skip if already cached
+                // Already have a valid local image
                 if (!string.IsNullOrEmpty(card.LocalImagePath)
                     && System.IO.File.Exists(card.LocalImagePath))
                     continue;
 
-                // Build a safe filename
+                // Search main CardImages folder first (same naming as main app)
                 string safeName = string.Concat(
                     card.Name.Split(System.IO.Path.GetInvalidFileNameChars()));
-                string path = System.IO.Path.Combine(folder, $"{safeName}.jpg");
-
-                if (!System.IO.File.Exists(path))
+                string mainPath = System.IO.Path.Combine(mainFolder, $"{safeName}.jpg");
+                if (System.IO.File.Exists(mainPath))
                 {
-                    if (string.IsNullOrEmpty(card.ImageNormalUrl)) continue;
-                    try
-                    {
-                        var bytes = await http.GetByteArrayAsync(card.ImageNormalUrl);
-                        await System.IO.File.WriteAllBytesAsync(path, bytes);
-                    }
-                    catch { continue; }
+                    card.LocalImagePath = mainPath;
                 }
-
-                card.LocalImagePath = path;
+                else if (!string.IsNullOrEmpty(card.ImageNormalUrl))
+                {
+                    // Download from Scryfall
+                    string cachePath = System.IO.Path.Combine(cacheFolder, $"{safeName}.jpg");
+                    if (!System.IO.File.Exists(cachePath))
+                    {
+                        try
+                        {
+                            var bytes = await http.GetByteArrayAsync(card.ImageNormalUrl);
+                            await System.IO.File.WriteAllBytesAsync(cachePath, bytes);
+                        }
+                        catch { continue; }
+                    }
+                    card.LocalImagePath = cachePath;
+                }
+                else continue;
 
                 // Download back face if DFC
                 if (!string.IsNullOrEmpty(card.ImageBackUrl))
                 {
-                    string backPath = System.IO.Path.Combine(folder, $"{safeName}_back.jpg");
+                    string backMain = System.IO.Path.Combine(mainFolder, $"{safeName}_back.jpg");
+                    string backCache = System.IO.Path.Combine(cacheFolder, $"{safeName}_back.jpg");
+                    string backPath = System.IO.File.Exists(backMain) ? backMain : backCache;
+
                     if (!System.IO.File.Exists(backPath))
                     {
                         try
                         {
                             var backBytes = await http.GetByteArrayAsync(card.ImageBackUrl);
-                            await System.IO.File.WriteAllBytesAsync(backPath, backBytes);
+                            await System.IO.File.WriteAllBytesAsync(backCache, backBytes);
+                            backPath = backCache;
                         }
-                        catch { /* back face non-critical */ }
+                        catch { backPath = ""; }
                     }
-                    if (System.IO.File.Exists(backPath))
+                    if (!string.IsNullOrEmpty(backPath) && System.IO.File.Exists(backPath))
                         card.LocalImageBackPath = backPath;
                 }
 
-                // Re-render hand/commander on UI thread if this card is there
+                // Re-render on UI thread if this card is visible
                 await Dispatcher.InvokeAsync(() =>
                 {
                     if (_yourHand.Any(c => c.Name == card.Name)
@@ -372,8 +392,20 @@ namespace BreakersOfE.Windows
             {
                 if (commander != null &&
                     card.Name == commander.Name) continue;
-                for (int i = 0; i < card.TotalQuantity; i++)
-                    library.Add(card);
+                // Add non-foil copies
+                for (int i = 0; i < card.Quantity; i++)
+                {
+                    var clone = DeckService.CloneCard(card);
+                    clone.IsFoil = false;
+                    library.Add(clone);
+                }
+                // Add foil copies
+                for (int i = 0; i < card.FoilQuantity; i++)
+                {
+                    var clone = DeckService.CloneCard(card);
+                    clone.IsFoil = true;
+                    library.Add(clone);
+                }
             }
 
             // Shuffle
@@ -411,9 +443,20 @@ namespace BreakersOfE.Windows
         // ================================================================
         private void RenderLibrary(bool isYour)
         {
-            // Library uses the count label in XAML — just update count
-            // The card back image is shown in the Border placeholder
-            // We draw a card back visual in the library border
+            // Update the library card back image to show sleeve if set
+            var img = isYour ? YourLibraryImage : OppLibraryImage;
+            var sleeve = isYour ? _yourSleeveImage : _oppSleeveImage;
+            if (sleeve != null)
+                img.Source = sleeve;
+            else
+            {
+                try
+                {
+                    img.Source = new BitmapImage(
+                        new Uri("pack://application:,,,/Resources/Images/MTG_Back.png"));
+                }
+                catch { }
+            }
             UpdateZoneCounts();
         }
 
@@ -836,10 +879,10 @@ namespace BreakersOfE.Windows
                             Stretch = Stretch.Fill
                         };
                     }
-                    catch { border.Child = MakeCardBack(); }
+                    catch { border.Child = MakeCardBack(isYour); }
                 }
                 else
-                    border.Child = MakeCardBack();
+                    border.Child = MakeCardBack(isYour);
             }
             else
             {
@@ -859,7 +902,7 @@ namespace BreakersOfE.Windows
                 }
                 catch
                 {
-                    border.Child = MakeCardBack();
+                    border.Child = MakeCardBack(isYour);
                 }
             }
 
@@ -1076,19 +1119,20 @@ namespace BreakersOfE.Windows
             return g;
         }
 
-        private static Grid MakeCardBack()
+        private static Grid MakeCardBack(bool isYour = true)
         {
             var grid = new Grid
             {
                 Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x2A, 0x5E))
             };
 
-            // If a sleeve image is set, use it instead of the drawn card back
-            if (_sleeveImage != null)
+            // If a sleeve image is set for this player, use it
+            var sleeve = isYour ? _yourSleeveImage : _oppSleeveImage;
+            if (sleeve != null)
             {
                 grid.Children.Add(new System.Windows.Controls.Image
                 {
-                    Source = _sleeveImage,
+                    Source = sleeve,
                     Stretch = Stretch.Fill
                 });
                 return grid;
@@ -1409,7 +1453,8 @@ namespace BreakersOfE.Windows
         // ================================================================
         private const string YourPlaymatKey = "Tabletop_YourPlaymat";
         private const string OppPlaymatKey = "Tabletop_OppPlaymat";
-        private const string SleeveKey = "Tabletop_Sleeve";
+        private const string YourSleeveKey = "Tabletop_YourSleeve";
+        private const string OppSleeveKey = "Tabletop_OppSleeve";
 
         // ── Persistent settings keys ──────────────────────────────────────────
         private const string SettingDefaultLife = "Tabletop_DefaultLife";
@@ -1428,7 +1473,8 @@ namespace BreakersOfE.Windows
         private string _settingTableColor = "Green";
 
         // Cached sleeve image — null means use the default MTG_Back drawn card back
-        private static System.Windows.Media.ImageSource? _sleeveImage = null;
+        private static System.Windows.Media.ImageSource? _yourSleeveImage = null;
+        private static System.Windows.Media.ImageSource? _oppSleeveImage = null;
 
         private static string? GetSetting(string key)
         {
@@ -1460,19 +1506,22 @@ namespace BreakersOfE.Windows
         {
             var yourPath = GetSetting(YourPlaymatKey);
             var oppPath = GetSetting(OppPlaymatKey);
-            var sleevePath = GetSetting(SleeveKey);
+            var yourSleevePath = GetSetting(YourSleeveKey);
+            var oppSleevePath = GetSetting(OppSleeveKey);
             if (!string.IsNullOrEmpty(yourPath) && System.IO.File.Exists(yourPath))
                 SetPlaymat(YourPlaymatImage, yourPath);
             if (!string.IsNullOrEmpty(oppPath) && System.IO.File.Exists(oppPath))
                 SetPlaymat(OppPlaymatImage, oppPath);
-            LoadSleeveImage(sleevePath);
+            LoadSleeveImage(yourSleevePath, isYour: true);
+            LoadSleeveImage(oppSleevePath, isYour: false);
         }
 
-        private static void LoadSleeveImage(string? path)
+        private static void LoadSleeveImage(string? path, bool isYour)
         {
             if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path))
             {
-                _sleeveImage = null;
+                if (isYour) _yourSleeveImage = null;
+                else _oppSleeveImage = null;
                 return;
             }
             try
@@ -1483,9 +1532,14 @@ namespace BreakersOfE.Windows
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
                 bmp.EndInit();
                 bmp.Freeze();
-                _sleeveImage = bmp;
+                if (isYour) _yourSleeveImage = bmp;
+                else _oppSleeveImage = bmp;
             }
-            catch { _sleeveImage = null; }
+            catch
+            {
+                if (isYour) _yourSleeveImage = null;
+                else _oppSleeveImage = null;
+            }
         }
 
         private static void SetPlaymat(System.Windows.Controls.Image img, string path)
@@ -1515,13 +1569,18 @@ namespace BreakersOfE.Windows
         {
             var menu = new ContextMenu();
 
-            var upload = new MenuItem { Header = "📁 Upload Playmat Image..." };
+            var upload = new MenuItem { Header = "📁 Select Playmat Image..." };
             upload.Click += (s, e) =>
             {
-                var path = BrowseAndSaveTabletopImage(
-                    "Select Playmat Image",
+                var dlg = new Microsoft.Win32.OpenFileDialog
+                {
+                    Title = "Select Playmat Image",
+                    Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif|All Files|*.*",
+                    InitialDirectory = Services.AppFolderService.PlaymatImagesFolder
+                };
+                if (dlg.ShowDialog() != true) return;
+                var path = CopyToFolder(dlg.FileName,
                     Services.AppFolderService.PlaymatImagesFolder);
-                if (path == null) return;
                 SetPlaymat(img, path);
                 SaveSetting(settingKey, path);
             };
@@ -1537,53 +1596,6 @@ namespace BreakersOfE.Windows
             openFolder.Click += (s, e) =>
                 System.Diagnostics.Process.Start("explorer.exe",
                     Services.AppFolderService.PlaymatImagesFolder);
-
-            menu.Items.Add(upload);
-            menu.Items.Add(clear);
-            menu.Items.Add(new Separator());
-            menu.Items.Add(openFolder);
-            menu.IsOpen = true;
-        }
-
-        private void ShowSleeveMenu()
-        {
-            var menu = new ContextMenu();
-
-            var upload = new MenuItem { Header = "📁 Upload Sleeve Image..." };
-            upload.Click += (s, e) =>
-            {
-                var path = BrowseAndSaveTabletopImage(
-                    "Select Card Sleeve Image",
-                    Services.AppFolderService.SleeveImagesFolder);
-                if (path == null) return;
-                LoadSleeveImage(path);
-                SaveSetting(SleeveKey, path);
-                // Redraw all card backs immediately
-                RedrawBattlefield(isYour: true);
-                RedrawBattlefield(isYour: false);
-                RenderHand(isYour: true);
-                RenderHand(isYour: false);
-                RenderLibrary(isYour: true);
-                RenderLibrary(isYour: false);
-            };
-
-            var clear = new MenuItem { Header = "✕ Use Default Card Back" };
-            clear.Click += (s, e) =>
-            {
-                _sleeveImage = null;
-                SaveSetting(SleeveKey, string.Empty);
-                RedrawBattlefield(isYour: true);
-                RedrawBattlefield(isYour: false);
-                RenderHand(isYour: true);
-                RenderHand(isYour: false);
-                RenderLibrary(isYour: true);
-                RenderLibrary(isYour: false);
-            };
-
-            var openFolder = new MenuItem { Header = "📂 Open Sleeves Folder" };
-            openFolder.Click += (s, e) =>
-                System.Diagnostics.Process.Start("explorer.exe",
-                    Services.AppFolderService.SleeveImagesFolder);
 
             menu.Items.Add(upload);
             menu.Items.Add(clear);
@@ -1629,6 +1641,40 @@ namespace BreakersOfE.Windows
                 MessageBox.Show($"Could not load image:\n{ex.Message}",
                     "Image Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return null;
+            }
+        }
+
+        // ── Copy an image to a target folder, converting to PNG ────────────
+        private static string CopyToFolder(string sourcePath, string targetFolder)
+        {
+            string destName = System.IO.Path.GetFileNameWithoutExtension(sourcePath) + ".png";
+            string dest = System.IO.Path.Combine(targetFolder, destName);
+
+            // If already in the target folder, just return the path
+            if (string.Equals(System.IO.Path.GetDirectoryName(sourcePath),
+                targetFolder, StringComparison.OrdinalIgnoreCase))
+                return sourcePath;
+
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(sourcePath, UriKind.Absolute);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+                bmp.Freeze();
+
+                using var stream = System.IO.File.Create(dest);
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+                encoder.Save(stream);
+                return dest;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not load image:\n{ex.Message}",
+                    "Image Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return sourcePath;
             }
         }
 
@@ -1865,24 +1911,28 @@ namespace BreakersOfE.Windows
         private void YourLifeUp_Click(object sender, RoutedEventArgs e)
         {
             _yourLife++;
+            AddLog($"Your life: {_yourLife} (+1)");
             UpdateLifeDisplays();
         }
 
         private void YourLifeDown_Click(object sender, RoutedEventArgs e)
         {
             _yourLife--;
+            AddLog($"Your life: {_yourLife} (-1)");
             UpdateLifeDisplays();
         }
 
         private void OppLifeUp_Click(object sender, RoutedEventArgs e)
         {
             _oppLife++;
+            AddLog($"Opponent life: {_oppLife} (+1)");
             UpdateLifeDisplays();
         }
 
         private void OppLifeDown_Click(object sender, RoutedEventArgs e)
         {
             _oppLife--;
+            AddLog($"Opponent life: {_oppLife} (-1)");
             UpdateLifeDisplays();
         }
 
@@ -2110,6 +2160,7 @@ namespace BreakersOfE.Windows
         private void AddToStack(DeckCard card)
         {
             _stackCards.Insert(0, card); // new items go on top (index 0)
+            AddLog($"{card.Name} → stack");
             RenderStack();
             // Show stack if hidden
             if (!_stackVisible)
@@ -2198,6 +2249,7 @@ namespace BreakersOfE.Windows
             {
                 _stackCards.RemoveAt(idx);
                 _yourGrave.Add(card);
+                AddLog($"{card.Name} countered → graveyard");
                 UpdateZoneCounts();
                 RenderStack();
             });
@@ -2329,6 +2381,7 @@ namespace BreakersOfE.Windows
             {
                 // Instants, sorceries → always graveyard
                 _yourGrave.Add(card);
+                AddLog($"{card.Name} resolved → graveyard");
             }
 
             UpdateZoneCounts();
@@ -2387,6 +2440,7 @@ namespace BreakersOfE.Windows
             _currentPhase = 0;
             _turnCounter++;
             UpdatePhaseDisplay();
+            AddLog($"— Turn {_turnCounter} —");
 
             // Auto-draw (respects setting)
             if (_settingAutoDraw)
@@ -2408,7 +2462,9 @@ namespace BreakersOfE.Windows
                 return;
             }
             _yourHand.Add(_yourLibrary[0]);
+            var drawnCard = _yourLibrary[0];
             _yourLibrary.RemoveAt(0);
+            AddLog($"Drew {drawnCard.Name}");
             UpdateZoneCounts();
             UpdateHandCounts();
             RenderHand(isYour: true);
@@ -2527,6 +2583,7 @@ namespace BreakersOfE.Windows
                 IsLandZone = toLand
             };
             field.Add(bc);
+            AddLog($"{(isYour ? "You" : "Opponent")} played {card.Name}{(toLand ? " (land)" : "")}");
 
             if (toLand)
                 RelayoutLandZone(isYour);
@@ -2731,6 +2788,7 @@ namespace BreakersOfE.Windows
         private void TapUntap(BattlefieldCard bc, Canvas canvas)
         {
             bc.IsTapped = !bc.IsTapped;
+            AddLog($"{(bc.IsTapped ? "Tapped" : "Untapped")} {bc.Card.Name}");
             if (bc.IsLandZone)
             {
                 // Relayout the whole land zone so rows stay grouped
@@ -3135,6 +3193,7 @@ namespace BreakersOfE.Windows
                     RenderCommander(isYour);
                     break;
             }
+            AddLog($"{bc.Card.Name} → {destination}");
             UpdateZoneCounts();
         }
 
@@ -3869,8 +3928,67 @@ namespace BreakersOfE.Windows
             menu.Items.Add(new Separator());
 
             var shuffle = new MenuItem { Header = "🔀 Shuffle Library" };
-            shuffle.Click += (s, e2) => { Shuffle(_yourLibrary); UpdateZoneCounts(); };
+            shuffle.Click += (s, e2) => { Shuffle(_yourLibrary); UpdateZoneCounts(); AddLog("Shuffled library"); };
             menu.Items.Add(shuffle);
+
+            menu.Items.Add(new Separator());
+
+            var sleeve = new MenuItem { Header = "🎴 Select Card Sleeve..." };
+            sleeve.Click += (s, e2) =>
+            {
+                var path = BrowseAndSaveTabletopImage(
+                    "Select Your Card Sleeve Image",
+                    AppFolderService.SleeveImagesFolder);
+                if (path == null) return;
+                LoadSleeveImage(path, isYour: true);
+                SaveSetting(YourSleeveKey, path);
+                RedrawAllCardBacks();
+                AddLog("Your card sleeve changed");
+            };
+            menu.Items.Add(sleeve);
+
+            var clearSleeve = new MenuItem { Header = "✕ Use Default Card Back" };
+            clearSleeve.Click += (s, e2) =>
+            {
+                _yourSleeveImage = null;
+                SaveSetting(YourSleeveKey, string.Empty);
+                RedrawAllCardBacks();
+                AddLog("Your card sleeve cleared");
+            };
+            menu.Items.Add(clearSleeve);
+
+            (sender as FrameworkElement)!.ContextMenu = menu;
+            menu.IsOpen = true;
+            e.Handled = true;
+        }
+
+        private void OppLibrary_RightClick(object sender, MouseButtonEventArgs e)
+        {
+            var menu = new ContextMenu();
+
+            var sleeve = new MenuItem { Header = "🎴 Select Card Sleeve..." };
+            sleeve.Click += (s, e2) =>
+            {
+                var path = BrowseAndSaveTabletopImage(
+                    "Select Opponent Card Sleeve Image",
+                    AppFolderService.SleeveImagesFolder);
+                if (path == null) return;
+                LoadSleeveImage(path, isYour: false);
+                SaveSetting(OppSleeveKey, path);
+                RedrawAllCardBacks();
+                AddLog("Opponent card sleeve changed");
+            };
+            menu.Items.Add(sleeve);
+
+            var clearSleeve = new MenuItem { Header = "✕ Use Default Card Back" };
+            clearSleeve.Click += (s, e2) =>
+            {
+                _oppSleeveImage = null;
+                SaveSetting(OppSleeveKey, string.Empty);
+                RedrawAllCardBacks();
+                AddLog("Opponent card sleeve cleared");
+            };
+            menu.Items.Add(clearSleeve);
 
             (sender as FrameworkElement)!.ContextMenu = menu;
             menu.IsOpen = true;
@@ -3956,9 +4074,9 @@ namespace BreakersOfE.Windows
                         border.Child = new System.Windows.Controls.Image
                         { Source = bmp, Stretch = Stretch.Fill };
                     }
-                    catch { border.Child = MakeCardBack(); }
+                    catch { border.Child = MakeCardBack(true); }
                 }
-                else border.Child = MakeCardBack();
+                else border.Child = MakeCardBack(true);
 
                 border.MouseLeftButtonDown += (s, e) =>
                 {
@@ -4412,9 +4530,6 @@ namespace BreakersOfE.Windows
             }
             UpdateZoneCounts();
         }
-        private void BtnSleeve_Click(object sender, RoutedEventArgs e)
-            => ShowSleeveMenu();
-
         private void BtnUntapAll_Click(object sender, RoutedEventArgs e)
             => UntapAllYour();
         private void BtnTabletopSettings_Click(object sender, RoutedEventArgs e)
@@ -4426,7 +4541,7 @@ namespace BreakersOfE.Windows
                 showGameOver: _settingShowGameOver,
                 blurOppHand: _settingBlurOppHand,
                 tableColor: _settingTableColor,
-                currentSleeve: GetSetting(SleeveKey) ?? string.Empty,
+                currentSleeve: GetSetting(YourSleeveKey) ?? string.Empty,
                 currentYourPlaymat: GetSetting(YourPlaymatKey) ?? string.Empty,
                 currentOppPlaymat: GetSetting(OppPlaymatKey) ?? string.Empty)
             { Owner = this };
@@ -4458,14 +4573,18 @@ namespace BreakersOfE.Windows
             // Apply sleeve changes
             if (dlg.SleepCleared)
             {
-                _sleeveImage = null;
-                SaveSetting(SleeveKey, string.Empty);
+                _yourSleeveImage = null;
+                _oppSleeveImage = null;
+                SaveSetting(YourSleeveKey, string.Empty);
+                SaveSetting(OppSleeveKey, string.Empty);
                 RedrawAllCardBacks();
             }
             else if (dlg.NewSleevePath != null)
             {
-                LoadSleeveImage(dlg.NewSleevePath);
-                SaveSetting(SleeveKey, dlg.NewSleevePath);
+                LoadSleeveImage(dlg.NewSleevePath, isYour: true);
+                LoadSleeveImage(dlg.NewSleevePath, isYour: false);
+                SaveSetting(YourSleeveKey, dlg.NewSleevePath);
+                SaveSetting(OppSleeveKey, dlg.NewSleevePath);
                 RedrawAllCardBacks();
             }
 
@@ -4560,6 +4679,101 @@ namespace BreakersOfE.Windows
         // Public static so TabletopSettingsWindow can call it without an instance
         public static string? BrowseTabletopImageStatic(string title, string targetFolder)
             => BrowseAndSaveTabletopImage(title, targetFolder);
+        // ================================================================
+        // GAME LOG
+        // ================================================================
+        private void AddLog(string message)
+        {
+            string timestamp = DateTime.Now.ToString("HH:mm:ss");
+            string entry = $"[{timestamp}] {message}";
+            _gameLog.Add(entry);
+
+            // Auto-scroll to bottom
+            if (LogListBox.Items.Count > 0)
+                LogListBox.ScrollIntoView(LogListBox.Items[^1]);
+        }
+
+        private void BtnClearLog_Click(object sender, RoutedEventArgs e)
+            => _gameLog.Clear();
+
+        // ================================================================
+        // FILE MENU HANDLERS
+        // ================================================================
+        private void MenuNewGame_Click(object sender, RoutedEventArgs e)
+            => BtnNewGame_Click(sender, e);
+
+        private void MenuYourSleeve_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseAndSaveTabletopImage(
+                "Select Your Card Sleeve Image",
+                AppFolderService.SleeveImagesFolder);
+            if (path == null) return;
+            LoadSleeveImage(path, isYour: true);
+            SaveSetting(YourSleeveKey, path);
+            RedrawAllCardBacks();
+            AddLog("Your card sleeve changed");
+        }
+
+        private void MenuOppSleeve_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseAndSaveTabletopImage(
+                "Select Opponent Card Sleeve Image",
+                AppFolderService.SleeveImagesFolder);
+            if (path == null) return;
+            LoadSleeveImage(path, isYour: false);
+            SaveSetting(OppSleeveKey, path);
+            RedrawAllCardBacks();
+            AddLog("Opponent card sleeve changed");
+        }
+
+        private void MenuClearSleeves_Click(object sender, RoutedEventArgs e)
+        {
+            _yourSleeveImage = null;
+            _oppSleeveImage = null;
+            SaveSetting(YourSleeveKey, string.Empty);
+            SaveSetting(OppSleeveKey, string.Empty);
+            RedrawAllCardBacks();
+            AddLog("All card sleeves cleared");
+        }
+
+        private void MenuYourPlaymat_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseAndSaveTabletopImage(
+                "Select Your Playmat Image",
+                AppFolderService.PlaymatImagesFolder);
+            if (path == null) return;
+            SetPlaymat(YourPlaymatImage, path);
+            SaveSetting(YourPlaymatKey, path);
+            AddLog("Your playmat changed");
+        }
+
+        private void MenuOppPlaymat_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseAndSaveTabletopImage(
+                "Select Opponent Playmat Image",
+                AppFolderService.PlaymatImagesFolder);
+            if (path == null) return;
+            SetPlaymat(OppPlaymatImage, path);
+            SaveSetting(OppPlaymatKey, path);
+            AddLog("Opponent playmat changed");
+        }
+
+        private void MenuClearPlaymats_Click(object sender, RoutedEventArgs e)
+        {
+            YourPlaymatImage.Source = null;
+            OppPlaymatImage.Source = null;
+            SaveSetting(YourPlaymatKey, string.Empty);
+            SaveSetting(OppPlaymatKey, string.Empty);
+            AddLog("Playmats cleared");
+        }
+
+        private void MenuToggleLog_Click(object sender, RoutedEventArgs e)
+        {
+            LogPanel.Visibility = LogPanel.Visibility == Visibility.Visible
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
+
         private void BtnTabletopClose_Click(object sender, RoutedEventArgs e)
         {
             // Auto-save on close

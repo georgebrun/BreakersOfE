@@ -15,13 +15,16 @@ namespace BreakersOfE.Services
     // ── Format identifier ─────────────────────────────────────────────────────
     public enum ImportExportFormat
     {
-        MtgStudioCsv,
-        MtgStudioDeck,
         Moxfield,
         TcgPlayer,
         Deckbox,
         DragonShield,
-        BreakersOfE   // native JSON round-trip
+        BreakersOfE,   // native JSON round-trip
+        FullCsv,       // every column, every row
+        AvailableCsv,  // Available, Name, Set Code
+        ManaBox,       // ManaBox mobile scanner CSV
+        Archidekt,     // Archidekt collection CSV
+        PlainText      // universal "1 Card Name" decklist
     }
 
     // ── Result of an import operation ─────────────────────────────────────────
@@ -60,6 +63,27 @@ namespace BreakersOfE.Services
 
     public static class CollectionImportExportService
     {
+        // Collects warnings raised during the most recent parse (e.g. malformed
+        // rows whose column count doesn't match the header). Surfaced in the
+        // import result by ApplyCollectionRows.
+        private static readonly List<string> _parseWarnings = new();
+
+        /// <summary>
+        /// Validates that a data row has the same field count as the header.
+        /// Returns false (and records a warning) when the row is malformed —
+        /// preventing silent column-shift corruption. expectedCount is the
+        /// header's field count; lineNumber is 1-based for the user.
+        /// </summary>
+        private static bool ValidateRowLength(string[] fields, int expectedCount,
+            int lineNumber)
+        {
+            if (fields.Length == expectedCount) return true;
+            _parseWarnings.Add(
+                $"Row {lineNumber}: expected {expectedCount} columns but found " +
+                $"{fields.Length} — row skipped to avoid misaligned data.");
+            return false;
+        }
+
         // ════════════════════════════════════════════════════════════════════
         // FORMAT DETECTION
         // ════════════════════════════════════════════════════════════════════
@@ -69,16 +93,21 @@ namespace BreakersOfE.Services
         {
             string ext = Path.GetExtension(filePath).ToLower();
 
-            if (ext == ".deck") return ImportExportFormat.MtgStudioDeck;
             if (ext == ".json") return ImportExportFormat.BreakersOfE;
 
             if (ext == ".csv" || ext == ".txt")
             {
                 string header = ReadFirstLine(filePath).ToLower();
 
-                // MTG Studio CSV: has "scryfallid" and "cardid"
-                if (header.Contains("scryfallid") && header.Contains("cardid"))
-                    return ImportExportFormat.MtgStudioCsv;
+                // Archidekt: has "Edition Code" + "Scryfall Id" (+ "Multiverse Id")
+                // Check BEFORE ManaBox since both carry Scryfall Id + Purchase Price.
+                if (header.Contains("edition code") && header.Contains("scryfall id"))
+                    return ImportExportFormat.Archidekt;
+
+                // ManaBox: distinctive "manabox id" column, or "set code" + "scryfall id"
+                if (header.Contains("manabox id") ||
+                    (header.Contains("set code") && header.Contains("scryfall id")))
+                    return ImportExportFormat.ManaBox;
 
                 // Moxfield: "count,tradelist count,name,edition,condition,language,foil,tags,collector number"
                 if (header.Contains("tradelist count"))
@@ -95,6 +124,11 @@ namespace BreakersOfE.Services
                 // Dragon Shield: "quantity,card name,set name,card number,finish,condition"
                 if (header.Contains("finish") && header.Contains("card name"))
                     return ImportExportFormat.DragonShield;
+
+                // Plain text decklist: first line like "1 Sol Ring" or "1x Sol Ring"
+                if (System.Text.RegularExpressions.Regex.IsMatch(
+                    header.Trim(), @"^\d+x?\s+\S"))
+                    return ImportExportFormat.PlainText;
 
                 // Fallback — try Moxfield
                 return ImportExportFormat.Moxfield;
@@ -120,33 +154,65 @@ namespace BreakersOfE.Services
         public static CollectionImportResult ImportCollection(string filePath,
             ImportExportFormat format, bool mergeWithExisting = true)
         {
+            _parseWarnings.Clear();
+
+            // Auto-backup before any import (data safety net)
+            try { BackupCollectionBeforeImport(); }
+            catch { /* backup failure shouldn't block import, but is logged below */ }
+
             var rows = format switch
             {
-                ImportExportFormat.MtgStudioCsv => ParseMtgStudioCsv(filePath),
                 ImportExportFormat.Moxfield => ParseMoxfieldCsv(filePath),
                 ImportExportFormat.TcgPlayer => ParseTcgPlayerCsv(filePath),
                 ImportExportFormat.Deckbox => ParseDeckboxCsv(filePath),
                 ImportExportFormat.DragonShield => ParseDragonShieldCsv(filePath),
-                _ => ParseMtgStudioCsv(filePath)
+                ImportExportFormat.ManaBox => ParseManaBoxCsv(filePath),
+                ImportExportFormat.Archidekt => ParseArchidektCsv(filePath),
+                ImportExportFormat.PlainText => ParsePlainText(filePath),
+                ImportExportFormat.BreakersOfE => ParseNativeJson(filePath),
+                ImportExportFormat.FullCsv => ParseFullCsv(filePath),
+                _ => null
             };
 
+            if (rows == null)
+            {
+                var err = new CollectionImportResult();
+                err.Errors.Add($"Import not supported for format: {format}");
+                return err;
+            }
+
             return ApplyCollectionRows(rows, mergeWithExisting);
+        }
+
+        /// <summary>
+        /// Writes a timestamped native-JSON backup of the current collection to
+        /// the Backups folder before an import modifies anything.
+        /// </summary>
+        public static string BackupCollectionBeforeImport()
+        {
+            using var cdb = new CollectionDbContext();
+            var entries = cdb.CollectionEntries.AsNoTracking().ToList();
+            string stamp = DateTime.Now.ToString("yyyy-MM-dd_HHmmss");
+            string path = Path.Combine(
+                AppFolderService.BackupsFolder,
+                $"collection_backup_{stamp}.json");
+            ExportNativeJson(path, entries);
+            return path;
         }
 
         public static (CollectionImportResult result, Deck? deck) ImportDeck(
             string filePath, ImportExportFormat format)
         {
-            if (format == ImportExportFormat.MtgStudioDeck)
-                return ImportMtgStudioDeck(filePath);
-
             // CSV formats — parse as card list and build a deck
             List<ImportRow> rows = format switch
             {
-                ImportExportFormat.MtgStudioCsv => ParseMtgStudioCsv(filePath),
                 ImportExportFormat.Moxfield => ParseMoxfieldCsv(filePath),
                 ImportExportFormat.TcgPlayer => ParseTcgPlayerCsv(filePath),
                 ImportExportFormat.Deckbox => ParseDeckboxCsv(filePath),
                 ImportExportFormat.DragonShield => ParseDragonShieldCsv(filePath),
+                ImportExportFormat.ManaBox => ParseManaBoxCsv(filePath),
+                ImportExportFormat.Archidekt => ParseArchidektCsv(filePath),
+                ImportExportFormat.PlainText => ParsePlainText(filePath),
                 _ => new List<ImportRow>()
             };
 
@@ -238,74 +304,7 @@ namespace BreakersOfE.Services
             return (result, deck);
         }
 
-        // ── MTG Studio CSV parser ─────────────────────────────────────────────
-        private static List<ImportRow> ParseMtgStudioCsv(string filePath)
-        {
-            var rows = new List<ImportRow>();
-            using var sr = new StreamReader(filePath, detectEncodingFromByteOrderMarks: true);
-            string? header = sr.ReadLine();
-            if (header == null) return rows;
 
-            var cols = ParseCsvHeader(header);
-            string? line;
-            while ((line = sr.ReadLine()) != null)
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                var fields = ParseCsvLine(line);
-                if (fields.Length == 0) continue;
-
-                string Get(string col) => cols.TryGetValue(col, out int i) && i < fields.Length
-                    ? fields[i].Trim() : string.Empty;
-
-                int qty = int.TryParse(Get("Quantity"), out int q) ? q : 1;
-                bool isFoil = Get("Foil").Equals("true", StringComparison.OrdinalIgnoreCase);
-
-                // MTG Studio uses "UN" for Unknown condition
-                string cond = MapMtgStudioCondition(Get("Condition"));
-
-                // Parse collector number — strip rarity suffix (e.g. "001/281 C" → "001")
-                string cn = Get("CollectorNo");
-                if (cn.Contains('/')) cn = cn.Split('/')[0].Trim();
-                if (cn.Contains(' ')) cn = cn.Split(' ')[0].Trim();
-
-                decimal? buyAt = decimal.TryParse(Get("BuyAt"), NumberStyles.Any,
-                    CultureInfo.InvariantCulture, out decimal b) ? b : null;
-                decimal? sellAt = decimal.TryParse(Get("SellAt"), NumberStyles.Any,
-                    CultureInfo.InvariantCulture, out decimal s) ? s : null;
-
-                DateTime added = DateTime.TryParse(Get("Added"),
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None, out DateTime dt) ? dt : DateTime.Now;
-
-                rows.Add(new ImportRow
-                {
-                    ScryfallId = Get("ScryfallId"),
-                    Name = Get("Name"),
-                    SetCode = Get("SetAbbreviation"),
-                    CollectorNumber = cn,
-                    Quantity = qty,
-                    IsFoil = isFoil,
-                    Condition = cond,
-                    Notes = Get("Notes"),
-                    StorageLocation = Get("Storage"),
-                    BuyAt = buyAt,
-                    SellAt = sellAt,
-                    Group = Get("Group"),
-                    DateAdded = added
-                });
-            }
-            return rows;
-        }
-
-        private static string MapMtgStudioCondition(string code) => code.ToUpper() switch
-        {
-            "NM" or "M" => "Near Mint",
-            "LP" or "EX" => "Lightly Played",
-            "MP" or "GD" => "Moderately Played",
-            "HP" or "PL" => "Heavily Played",
-            "D" or "PO" => "Damaged",
-            _ => "Unknown"
-        };
 
         // ── Moxfield CSV parser ───────────────────────────────────────────────
         // Header: Count,Tradelist Count,Name,Edition,Condition,Language,Foil,Tags,Collector Number,Alter,Proxy,Purchase Price
@@ -316,12 +315,16 @@ namespace BreakersOfE.Services
             string? header = sr.ReadLine();
             if (header == null) return rows;
             var cols = ParseCsvHeader(header);
+            int colCount = cols.Count;
 
             string? line;
+            int lineNo = 1;
             while ((line = sr.ReadLine()) != null)
             {
+                lineNo++;
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 var fields = ParseCsvLine(line);
+                if (!ValidateRowLength(fields, colCount, lineNo)) continue;
                 string Get(string col) => cols.TryGetValue(col, out int i) && i < fields.Length
                     ? fields[i].Trim() : string.Empty;
 
@@ -366,12 +369,16 @@ namespace BreakersOfE.Services
             string? header = sr.ReadLine();
             if (header == null) return rows;
             var cols = ParseCsvHeader(header);
+            int colCount = cols.Count;
 
             string? line;
+            int lineNo = 1;
             while ((line = sr.ReadLine()) != null)
             {
+                lineNo++;
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 var fields = ParseCsvLine(line);
+                if (!ValidateRowLength(fields, colCount, lineNo)) continue;
                 string Get(string col) => cols.TryGetValue(col, out int i) && i < fields.Length
                     ? fields[i].Trim() : string.Empty;
 
@@ -405,12 +412,16 @@ namespace BreakersOfE.Services
             string? header = sr.ReadLine();
             if (header == null) return rows;
             var cols = ParseCsvHeader(header);
+            int colCount = cols.Count;
 
             string? line;
+            int lineNo = 1;
             while ((line = sr.ReadLine()) != null)
             {
+                lineNo++;
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 var fields = ParseCsvLine(line);
+                if (!ValidateRowLength(fields, colCount, lineNo)) continue;
                 string Get(string col) => cols.TryGetValue(col, out int i) && i < fields.Length
                     ? fields[i].Trim() : string.Empty;
 
@@ -440,12 +451,16 @@ namespace BreakersOfE.Services
             string? header = sr.ReadLine();
             if (header == null) return rows;
             var cols = ParseCsvHeader(header);
+            int colCount = cols.Count;
 
             string? line;
+            int lineNo = 1;
             while ((line = sr.ReadLine()) != null)
             {
+                lineNo++;
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 var fields = ParseCsvLine(line);
+                if (!ValidateRowLength(fields, colCount, lineNo)) continue;
                 string Get(string col) => cols.TryGetValue(col, out int i) && i < fields.Length
                     ? fields[i].Trim() : string.Empty;
 
@@ -472,155 +487,24 @@ namespace BreakersOfE.Services
             return rows;
         }
 
-        // ── MTG Studio Deck XML import ────────────────────────────────────────
-        private static (CollectionImportResult result, Deck? deck) ImportMtgStudioDeck(string filePath)
-        {
-            var result = new CollectionImportResult();
-            try
-            {
-                var xml = XDocument.Load(filePath);
-                var deckInfo = xml.Descendants("deckinfo").FirstOrDefault();
-                var title = deckInfo?.Element("title")?.Value ?? Path.GetFileNameWithoutExtension(filePath);
-                var creator = deckInfo?.Element("creator")?.Value ?? string.Empty;
-
-                var deck = DeckService.CreateNew(title, deckType: DeckType.Standard);
-                deck.Description = creator;
-
-                using var pdb = new AppDbContext();
-                // Build name→card lookup for fast matching
-                var cardLookup = pdb.PoolCards.AsNoTracking()
-                    .Select(c => new {
-                        c.PoolId,
-                        c.Name,
-                        c.SetCode,
-                        ScryfallId = "",
-                        c.LocalImagePath,
-                        c.ImageNormalUrl,
-                        c.TypeLine,
-                        c.ManaCost,
-                        c.ManaValue,
-                        c.ColorIdentity,
-                        c.Power,
-                        c.Toughness,
-                        c.CollectorNumber
-                    })
-                    .ToList();
-
-                foreach (var cardEl in xml.Descendants("card"))
-                {
-                    int deckQty = int.TryParse(cardEl.Attribute("deck")?.Value, out int dq) ? dq : 1;
-                    int sbQty = int.TryParse(cardEl.Attribute("sb")?.Value, out int sq) ? sq : 0;
-                    string edition = cardEl.Attribute("edition")?.Value ?? string.Empty;
-                    string rawName = cardEl.Value.Trim();
-
-                    // Strip MTG Studio suffixes: "[Reprint]", "(1)", etc.
-                    string name = System.Text.RegularExpressions.Regex
-                        .Replace(rawName, @"\s*\[.*?\]\s*$", "").Trim();
-                    name = System.Text.RegularExpressions.Regex
-                        .Replace(name, @"\s*\(\d+\)\s*$", "").Trim();
-
-                    // Handle split/DFC cards — use first half for matching
-                    // "Struggle/Survive" → "Struggle"
-                    // "Defacing Duskmage // Vandal's Edit" → "Defacing Duskmage"
-                    string matchName = name.Contains(" // ")
-                        ? name.Split(new[] { " // " }, StringSplitOptions.None)[0].Trim()
-                        : name.Contains('/')
-                            ? name.Split('/')[0].Trim()
-                            : name;
-
-                    // Find pool card — try full name first, then front face
-                    var match = cardLookup.FirstOrDefault(c =>
-                        c.Name.Equals(name, StringComparison.OrdinalIgnoreCase) &&
-                        c.SetCode.Equals(edition, StringComparison.OrdinalIgnoreCase))
-                        ?? cardLookup.FirstOrDefault(c =>
-                            c.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
-                        // Try front face match for DFCs stored with " // " in pool
-                        ?? cardLookup.FirstOrDefault(c =>
-                            (c.Name.Contains(" // ")
-                                ? c.Name.Split(new[] { " // " }, StringSplitOptions.None)[0].Trim()
-                                : c.Name)
-                            .Equals(matchName, StringComparison.OrdinalIgnoreCase) &&
-                            c.SetCode.Equals(edition, StringComparison.OrdinalIgnoreCase))
-                        ?? cardLookup.FirstOrDefault(c =>
-                            (c.Name.Contains(" // ")
-                                ? c.Name.Split(new[] { " // " }, StringSplitOptions.None)[0].Trim()
-                                : c.Name)
-                            .Equals(matchName, StringComparison.OrdinalIgnoreCase));
-
-                    if (match == null)
-                    {
-                        result.CardsNotFound++;
-                        // Debug: show what we tried to match
-                        result.Warnings.Add($"Not found: '{name}' [{edition}] (matchName='{matchName}')");
-                        continue;
-                    }
-
-                    if (deckQty > 0)
-                    {
-                        deck.Cards.Add(new DeckCard
-                        {
-                            Name = match.Name,
-                            SetCode = match.SetCode,
-                            CollectorNumber = match.CollectorNumber,
-                            TypeLine = match.TypeLine,
-                            ManaCost = match.ManaCost,
-                            ManaValue = match.ManaValue,
-                            ColorIdentity = match.ColorIdentity,
-                            Power = match.Power,
-                            Toughness = match.Toughness,
-                            LocalImagePath = match.LocalImagePath,
-                            ImageNormalUrl = match.ImageNormalUrl,
-                            Quantity = deckQty,
-                            Category = DeckCardCategory.Mainboard
-                        });
-                        result.CardsImported += deckQty;
-                    }
-
-                    if (sbQty > 0)
-                    {
-                        deck.Cards.Add(new DeckCard
-                        {
-                            Name = match.Name,
-                            SetCode = match.SetCode,
-                            CollectorNumber = match.CollectorNumber,
-                            TypeLine = match.TypeLine,
-                            ManaCost = match.ManaCost,
-                            ManaValue = match.ManaValue,
-                            ColorIdentity = match.ColorIdentity,
-                            Power = match.Power,
-                            Toughness = match.Toughness,
-                            LocalImagePath = match.LocalImagePath,
-                            ImageNormalUrl = match.ImageNormalUrl,
-                            Quantity = sbQty,
-                            Category = DeckCardCategory.Sideboard
-                        });
-                        result.CardsImported += sbQty;
-                    }
-                }
-
-                // MTG Studio .deck XML does not store foil or commander data
-                result.Warnings.Add(
-                    "MTG Studio .deck format does not include foil or commander " +
-                    "information. Please mark foil cards and commanders manually " +
-                    "in the deck editor, or use Breakers of E (.json) for full fidelity.");
-
-                return (result, deck);
-            }
-            catch (Exception ex)
-            {
-                result.Errors.Add($"Failed to parse deck file: {ex.Message}");
-                return (result, null);
-            }
-        }
 
         // ── Apply parsed rows to the collection DB ────────────────────────────
         private static CollectionImportResult ApplyCollectionRows(List<ImportRow> rows,
             bool mergeWithExisting)
         {
             var result = new CollectionImportResult();
+
+            // Surface any malformed-row warnings from the parse step
+            result.Warnings.AddRange(_parseWarnings);
+
             if (rows.Count == 0)
             {
-                result.Errors.Add("No rows found in import file.");
+                if (_parseWarnings.Count > 0)
+                    result.Errors.Add(
+                        "No valid rows imported — all rows were malformed " +
+                        "(column count did not match the header).");
+                else
+                    result.Errors.Add("No rows found in import file.");
                 return result;
             }
 
@@ -808,8 +692,6 @@ namespace BreakersOfE.Services
 
             switch (format)
             {
-                case ImportExportFormat.MtgStudioCsv:
-                    ExportMtgStudioCsv(filePath, entries); break;
                 case ImportExportFormat.Moxfield:
                     ExportMoxfieldCsv(filePath, entries); break;
                 case ImportExportFormat.TcgPlayer:
@@ -820,6 +702,16 @@ namespace BreakersOfE.Services
                     ExportDragonShieldCsv(filePath, entries); break;
                 case ImportExportFormat.BreakersOfE:
                     ExportNativeJson(filePath, entries); break;
+                case ImportExportFormat.FullCsv:
+                    ExportFullCollectionCsv(filePath); break;
+                case ImportExportFormat.AvailableCsv:
+                    ExportAvailableCsv(filePath, entries); break;
+                case ImportExportFormat.ManaBox:
+                    ExportManaBoxCsv(filePath, entries); break;
+                case ImportExportFormat.Archidekt:
+                    ExportArchidektCsv(filePath, entries); break;
+                case ImportExportFormat.PlainText:
+                    ExportPlainText(filePath, entries); break;
             }
         }
 
@@ -850,8 +742,6 @@ namespace BreakersOfE.Services
 
             switch (format)
             {
-                case ImportExportFormat.MtgStudioCsv:
-                    ExportMtgStudioCsv(filePath, collEntries); break;
                 case ImportExportFormat.Moxfield:
                     ExportMoxfieldCsv(filePath, collEntries); break;
                 case ImportExportFormat.TcgPlayer:
@@ -860,8 +750,17 @@ namespace BreakersOfE.Services
                     ExportDeckboxCsv(filePath, collEntries); break;
                 case ImportExportFormat.DragonShield:
                     ExportDragonShieldCsv(filePath, collEntries); break;
+                case ImportExportFormat.ManaBox:
+                    ExportManaBoxCsv(filePath, collEntries); break;
+                case ImportExportFormat.Archidekt:
+                    ExportArchidektCsv(filePath, collEntries); break;
+                case ImportExportFormat.PlainText:
+                    ExportPlainText(filePath, collEntries); break;
+                case ImportExportFormat.BreakersOfE:
+                    ExportNativeJson(filePath, collEntries); break;
                 default:
-                    ExportMtgStudioCsv(filePath, collEntries); break;
+                    throw new NotSupportedException(
+                        $"Export not supported for {format}");
             }
         }
 
@@ -891,8 +790,6 @@ namespace BreakersOfE.Services
 
             switch (format)
             {
-                case ImportExportFormat.MtgStudioCsv:
-                    ExportMtgStudioCsv(filePath, collEntries); break;
                 case ImportExportFormat.Moxfield:
                     ExportMoxfieldCsv(filePath, collEntries); break;
                 case ImportExportFormat.TcgPlayer:
@@ -901,8 +798,17 @@ namespace BreakersOfE.Services
                     ExportDeckboxCsv(filePath, collEntries); break;
                 case ImportExportFormat.DragonShield:
                     ExportDragonShieldCsv(filePath, collEntries); break;
+                case ImportExportFormat.ManaBox:
+                    ExportManaBoxCsv(filePath, collEntries); break;
+                case ImportExportFormat.Archidekt:
+                    ExportArchidektCsv(filePath, collEntries); break;
+                case ImportExportFormat.PlainText:
+                    ExportPlainText(filePath, collEntries); break;
+                case ImportExportFormat.BreakersOfE:
+                    ExportNativeJson(filePath, collEntries); break;
                 default:
-                    ExportMtgStudioCsv(filePath, collEntries); break;
+                    throw new NotSupportedException(
+                        $"Export not supported for {format}");
             }
         }
 
@@ -911,12 +817,6 @@ namespace BreakersOfE.Services
         {
             switch (format)
             {
-                case ImportExportFormat.MtgStudioDeck:
-                    ExportMtgStudioDeck(filePath, deck);
-                    break;
-                case ImportExportFormat.MtgStudioCsv:
-                    ExportDeckAsMtgStudioCsv(filePath, deck);
-                    break;
                 case ImportExportFormat.Moxfield:
                     ExportDeckAsMoxfieldCsv(filePath, deck);
                     break;
@@ -929,8 +829,17 @@ namespace BreakersOfE.Services
                 case ImportExportFormat.DragonShield:
                     ExportDeckAsDragonShieldCsv(filePath, deck);
                     break;
+                case ImportExportFormat.ManaBox:
+                    ExportDeckAsManaBoxCsv(filePath, deck);
+                    break;
+                case ImportExportFormat.Archidekt:
+                    ExportDeckAsArchidektCsv(filePath, deck);
+                    break;
                 case ImportExportFormat.BreakersOfE:
                     ExportDeckAsJson(filePath, deck);
+                    break;
+                case ImportExportFormat.PlainText:
+                    ExportDeckAsPlainText(filePath, deck);
                     break;
                 default:
                     throw new NotSupportedException(
@@ -938,29 +847,6 @@ namespace BreakersOfE.Services
             }
         }
 
-        private static void ExportDeckAsMtgStudioCsv(string filePath, Deck deck)
-        {
-            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
-            sw.WriteLine("CardId,ScryfallId,TcgPlayerId,MtgOnline3Id,Name,SetAbbreviation," +
-                "SetName,CollectorNo,CollectorNoSortable,Quantity,Foil,Condition," +
-                "Notes,Storage,Used,Target,Needed,Excess,Group,PrintType," +
-                "BuyAt,SellAt,Desired,Buy,Sell,Added");
-            int id = 1;
-            foreach (var c in deck.Cards.OrderBy(c => c.Name))
-            {
-                string cond = MapToMtgStudioCondition("Near Mint");
-                if (c.Quantity > 0)
-                    sw.WriteLine(CsvRow(id++, "", "", "", c.Name,
-                        c.SetCode, c.SetName, c.CollectorNumber, c.CollectorNumber,
-                        c.Quantity, "False", cond, "", "", 0, 0, 0, 0, "", "Paper",
-                        0, 0, "Unassigned", "", "", DateTime.Now.ToString("O")));
-                if (c.FoilQuantity > 0)
-                    sw.WriteLine(CsvRow(id++, "", "", "", c.Name,
-                        c.SetCode, c.SetName, c.CollectorNumber, c.CollectorNumber,
-                        c.FoilQuantity, "True", cond, "", "", 0, 0, 0, 0, "", "Paper",
-                        0, 0, "Unassigned", "", "", DateTime.Now.ToString("O")));
-            }
-        }
 
         private static void ExportDeckAsMoxfieldCsv(string filePath, Deck deck)
         {
@@ -968,11 +854,17 @@ namespace BreakersOfE.Services
             sw.WriteLine("Count,Tradelist Count,Name,Edition,Condition,Language,Foil,Tags,Collector Number,Alter,Proxy,Purchase Price");
             foreach (var c in deck.Cards.OrderBy(c => c.Name))
             {
-                if (c.Quantity > 0)
-                    sw.WriteLine(CsvRow(c.Quantity, 0, c.Name, c.SetCode,
+                // A deck card is foil if IsFoil is set OR it has foil quantity.
+                int nonFoil = c.IsFoil ? 0 : Math.Max(c.Quantity, 0);
+                int foilQty = c.IsFoil
+                    ? Math.Max(c.Quantity, 0) + c.FoilQuantity
+                    : c.FoilQuantity;
+
+                if (nonFoil > 0)
+                    sw.WriteLine(CsvRow(nonFoil, 0, c.Name, c.SetCode,
                         "Near Mint", "English", "", "", c.CollectorNumber, "False", "False", ""));
-                if (c.FoilQuantity > 0)
-                    sw.WriteLine(CsvRow(c.FoilQuantity, 0, c.Name, c.SetCode,
+                if (foilQty > 0)
+                    sw.WriteLine(CsvRow(foilQty, 0, c.Name, c.SetCode,
                         "Near Mint", "English", "foil", "", c.CollectorNumber, "False", "False", ""));
             }
         }
@@ -983,12 +875,54 @@ namespace BreakersOfE.Services
             sw.WriteLine("Quantity,Name,Set,Card Number,Condition,Printing");
             foreach (var c in deck.Cards.OrderBy(c => c.Name))
             {
-                if (c.Quantity > 0)
-                    sw.WriteLine(CsvRow(c.Quantity, c.Name, c.SetName,
+                int nonFoil = c.IsFoil ? 0 : Math.Max(c.Quantity, 0);
+                int foilQty = c.IsFoil
+                    ? Math.Max(c.Quantity, 0) + c.FoilQuantity
+                    : c.FoilQuantity;
+                if (nonFoil > 0)
+                    sw.WriteLine(CsvRow(nonFoil, c.Name, c.SetName,
                         c.CollectorNumber, "Near Mint", "Normal"));
-                if (c.FoilQuantity > 0)
-                    sw.WriteLine(CsvRow(c.FoilQuantity, c.Name, c.SetName,
+                if (foilQty > 0)
+                    sw.WriteLine(CsvRow(foilQty, c.Name, c.SetName,
                         c.CollectorNumber, "Near Mint", "Foil"));
+            }
+        }
+
+        private static void ExportDeckAsManaBoxCsv(string filePath, Deck deck)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.WriteLine("Name,Set code,Collector number,Foil,Quantity,Scryfall ID,Condition,Language,Purchase price");
+            foreach (var c in deck.Cards.OrderBy(c => c.Name))
+            {
+                int nonFoil = c.IsFoil ? 0 : Math.Max(c.Quantity, 0);
+                int foilQty = c.IsFoil
+                    ? Math.Max(c.Quantity, 0) + c.FoilQuantity
+                    : c.FoilQuantity;
+                if (nonFoil > 0)
+                    sw.WriteLine(CsvRow(c.Name, c.SetCode, c.CollectorNumber,
+                        "normal", nonFoil, c.ScryfallId, "near_mint", "en", ""));
+                if (foilQty > 0)
+                    sw.WriteLine(CsvRow(c.Name, c.SetCode, c.CollectorNumber,
+                        "foil", foilQty, c.ScryfallId, "near_mint", "en", ""));
+            }
+        }
+
+        private static void ExportDeckAsArchidektCsv(string filePath, Deck deck)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.WriteLine("Quantity,Name,Finish,Condition,Language,Purchase Price,Tags,Edition Code,Scryfall Id,Collector Number");
+            foreach (var c in deck.Cards.OrderBy(c => c.Name))
+            {
+                int nonFoil = c.IsFoil ? 0 : Math.Max(c.Quantity, 0);
+                int foilQty = c.IsFoil
+                    ? Math.Max(c.Quantity, 0) + c.FoilQuantity
+                    : c.FoilQuantity;
+                if (nonFoil > 0)
+                    sw.WriteLine(CsvRow(nonFoil, c.Name, "Normal", "NM",
+                        "EN", "", "", c.SetCode, c.ScryfallId, c.CollectorNumber));
+                if (foilQty > 0)
+                    sw.WriteLine(CsvRow(foilQty, c.Name, "Foil", "NM",
+                        "EN", "", "", c.SetCode, c.ScryfallId, c.CollectorNumber));
             }
         }
 
@@ -998,11 +932,15 @@ namespace BreakersOfE.Services
             sw.WriteLine("Count,Tradelist Count,Name,Edition,Card Number,Condition,Language,Foil,Signed,Artist Proof,Altered Art,Misprint,Promo,Textless,My Price");
             foreach (var c in deck.Cards.OrderBy(c => c.Name))
             {
-                if (c.Quantity > 0)
-                    sw.WriteLine(CsvRow(c.Quantity, 0, c.Name, c.SetName,
+                int nonFoil = c.IsFoil ? 0 : Math.Max(c.Quantity, 0);
+                int foilQty = c.IsFoil
+                    ? Math.Max(c.Quantity, 0) + c.FoilQuantity
+                    : c.FoilQuantity;
+                if (nonFoil > 0)
+                    sw.WriteLine(CsvRow(nonFoil, 0, c.Name, c.SetName,
                         c.CollectorNumber, "Near Mint", "English", "", "", "", "", "", "", "", ""));
-                if (c.FoilQuantity > 0)
-                    sw.WriteLine(CsvRow(c.FoilQuantity, 0, c.Name, c.SetName,
+                if (foilQty > 0)
+                    sw.WriteLine(CsvRow(foilQty, 0, c.Name, c.SetName,
                         c.CollectorNumber, "Near Mint", "English", "foil", "", "", "", "", "", "", ""));
             }
         }
@@ -1013,13 +951,57 @@ namespace BreakersOfE.Services
             sw.WriteLine("Folder Name,Quantity,Trade Quantity,Card Name,Set Code,Set Name,Collector Number,Printing,Condition,Language");
             foreach (var c in deck.Cards.OrderBy(c => c.Name))
             {
-                if (c.Quantity > 0)
-                    sw.WriteLine(CsvRow("Deck", c.Quantity, 0, c.Name,
+                int nonFoil = c.IsFoil ? 0 : Math.Max(c.Quantity, 0);
+                int foilQty = c.IsFoil
+                    ? Math.Max(c.Quantity, 0) + c.FoilQuantity
+                    : c.FoilQuantity;
+                if (nonFoil > 0)
+                    sw.WriteLine(CsvRow("Deck", nonFoil, 0, c.Name,
                         c.SetCode, c.SetName, c.CollectorNumber, "Normal", "NM", "English"));
-                if (c.FoilQuantity > 0)
-                    sw.WriteLine(CsvRow("Deck", c.FoilQuantity, 0, c.Name,
+                if (foilQty > 0)
+                    sw.WriteLine(CsvRow("Deck", foilQty, 0, c.Name,
                         c.SetCode, c.SetName, c.CollectorNumber, "Foil", "NM", "English"));
             }
+        }
+
+        private static void ExportDeckAsPlainText(string filePath, Deck deck)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+
+            // Commander(s) first, in a Commander section
+            var commanders = deck.Cards
+                .Where(c => c.IsCommander).OrderBy(c => c.Name).ToList();
+            var sideboard = deck.Cards
+                .Where(c => !c.IsCommander &&
+                    c.Category == DeckCardCategory.Sideboard)
+                .OrderBy(c => c.Name).ToList();
+            var mainboard = deck.Cards
+                .Where(c => !c.IsCommander &&
+                    c.Category != DeckCardCategory.Sideboard)
+                .OrderBy(c => c.Name).ToList();
+
+            if (commanders.Count > 0)
+            {
+                sw.WriteLine("Commander");
+                foreach (var c in commanders)
+                    sw.WriteLine($"{TotalQty(c)} {c.Name}");
+                sw.WriteLine();
+            }
+
+            sw.WriteLine("Deck");
+            foreach (var c in mainboard)
+                sw.WriteLine($"{TotalQty(c)} {c.Name}");
+
+            if (sideboard.Count > 0)
+            {
+                sw.WriteLine();
+                sw.WriteLine("Sideboard");
+                foreach (var c in sideboard)
+                    sw.WriteLine($"{TotalQty(c)} {c.Name}");
+            }
+
+            static int TotalQty(DeckCard c) =>
+                Math.Max(c.Quantity, 0) + c.FoilQuantity;
         }
 
         private static void ExportDeckAsJson(string filePath, Deck deck)
@@ -1029,50 +1011,7 @@ namespace BreakersOfE.Services
             File.WriteAllText(filePath, json, Encoding.UTF8);
         }
 
-        // ── MTG Studio CSV export ─────────────────────────────────────────────
-        private static void ExportMtgStudioCsv(string filePath,
-            List<CollectionEntry> entries)
-        {
-            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
-            sw.WriteLine("CardId,ScryfallId,TcgPlayerId,MtgOnline3Id,Name,SetAbbreviation," +
-                "SetName,CollectorNo,CollectorNoSortable,Quantity,Foil,Condition," +
-                "Notes,Storage,Used,Target,Needed,Excess,Group,PrintType," +
-                "BuyAt,SellAt,Desired,Buy,Sell,Added");
 
-            int id = 1;
-            foreach (var e in entries.OrderBy(e => e.Name))
-            {
-                string cond = MapToMtgStudioCondition(e.Condition);
-
-                if (e.Quantity > 0)
-                    sw.WriteLine(CsvRow(id++, e.ScryfallId, "", "", e.Name,
-                        e.SetCode, e.SetName, e.CollectorNumber,
-                        e.CollectorNumber, e.Quantity, "False", cond,
-                        e.Notes, e.StorageLocation, e.UsedCount, e.Target,
-                        e.Needed, e.Excess, e.CardGroup, "Paper",
-                        e.BuyAt ?? 0, e.SellAt ?? 0, "Unassigned", "", "",
-                        e.DateAdded.ToString("O")));
-
-                if (e.FoilQuantity > 0)
-                    sw.WriteLine(CsvRow(id++, e.ScryfallId, "", "", e.Name,
-                        e.SetCode, e.SetName, e.CollectorNumber,
-                        e.CollectorNumber, e.FoilQuantity, "True", cond,
-                        e.Notes, e.StorageLocation, 0, e.Target,
-                        e.Needed, e.Excess, e.CardGroup, "Paper",
-                        e.BuyAt ?? 0, e.SellAt ?? 0, "Unassigned", "", "",
-                        e.DateAdded.ToString("O")));
-            }
-        }
-
-        private static string MapToMtgStudioCondition(string c) => c switch
-        {
-            "Near Mint" => "NM",
-            "Lightly Played" => "LP",
-            "Moderately Played" => "MP",
-            "Heavily Played" => "HP",
-            "Damaged" => "D",
-            _ => "UN"
-        };
 
         // ── Moxfield CSV export ───────────────────────────────────────────────
         private static void ExportMoxfieldCsv(string filePath,
@@ -1205,68 +1144,312 @@ namespace BreakersOfE.Services
                 { WriteIndented = true }));
         }
 
-        // ── MTG Studio deck XML export ────────────────────────────────────────
-        private static void ExportMtgStudioDeck(string filePath, Deck deck)
-        {
-            var cardElements = new List<XElement>();
 
-            foreach (var c in deck.Cards.Where(c => c.Category != DeckCardCategory.Sideboard))
-            {
-                // Non-foil copies
-                for (int i = 0; i < c.Quantity; i++)
-                    cardElements.Add(new XElement("card",
-                        new XAttribute("deck", "1"),
-                        new XAttribute("sb", "0"),
-                        new XAttribute("edition", c.SetCode),
-                        c.Name));
-                // Foil copies — MTG Studio XML has no foil attribute
-                // so foil cards are written as regular entries
-                for (int i = 0; i < c.FoilQuantity; i++)
-                    cardElements.Add(new XElement("card",
-                        new XAttribute("deck", "1"),
-                        new XAttribute("sb", "0"),
-                        new XAttribute("edition", c.SetCode),
-                        c.Name));
-            }
-
-            foreach (var c in deck.Cards.Where(c => c.Category == DeckCardCategory.Sideboard))
-            {
-                for (int i = 0; i < c.Quantity; i++)
-                    cardElements.Add(new XElement("card",
-                        new XAttribute("deck", "0"),
-                        new XAttribute("sb", "1"),
-                        new XAttribute("edition", c.SetCode),
-                        c.Name));
-                for (int i = 0; i < c.FoilQuantity; i++)
-                    cardElements.Add(new XElement("card",
-                        new XAttribute("deck", "0"),
-                        new XAttribute("sb", "1"),
-                        new XAttribute("edition", c.SetCode),
-                        c.Name));
-            }
-
-            var xml = new XDocument(
-                new XDeclaration("1.0", "UTF-8", "yes"),
-                new XElement("mtgstudiodeck",
-                    new XAttribute("version", "1.0"),
-                    new XElement("deck",
-                        new XElement("deckinfo",
-                            new XElement("title", deck.Name),
-                            new XElement("archetype", "Unspecified"),
-                            new XElement("creator", ""),
-                            new XElement("created", DateTime.Now.ToString("yyyy-MM-dd")),
-                            new XElement("modified", DateTime.Now.ToString("yyyy-MM-dd")),
-                            new XElement("version", "1.0"),
-                            new XElement("description"),
-                            new XElement("email")),
-                        new XElement("cards", cardElements.ToArray()))));
-
-            xml.Save(filePath);
-        }
 
         // ════════════════════════════════════════════════════════════════════
         // CSV HELPERS
         // ════════════════════════════════════════════════════════════════════
+
+        // ── Native JSON parser (restores "full backup") ───────────────────────
+        private static List<ImportRow> ParseNativeJson(string filePath)
+        {
+            var rows = new List<ImportRow>();
+            try
+            {
+                string json = File.ReadAllText(filePath);
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("Cards", out var cards)
+                    || cards.ValueKind != JsonValueKind.Array)
+                    return rows;
+
+                foreach (var c in cards.EnumerateArray())
+                {
+                    string GetStr(string prop) =>
+                        c.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String
+                            ? v.GetString() ?? string.Empty : string.Empty;
+                    int GetInt(string prop) =>
+                        c.TryGetProperty(prop, out var v) && v.TryGetInt32(out int n) ? n : 0;
+                    decimal? GetDec(string prop) =>
+                        c.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Number
+                            && v.TryGetDecimal(out decimal d) ? d : null;
+
+                    int qty = GetInt("Quantity");
+                    int foilQty = GetInt("FoilQuantity");
+
+                    // Non-foil copies
+                    if (qty > 0)
+                        rows.Add(new ImportRow
+                        {
+                            ScryfallId = GetStr("ScryfallId"),
+                            Name = GetStr("Name"),
+                            SetCode = GetStr("SetCode"),
+                            CollectorNumber = GetStr("CollectorNumber"),
+                            Quantity = qty,
+                            IsFoil = false,
+                            Condition = string.IsNullOrEmpty(GetStr("Condition"))
+                                ? "Near Mint" : GetStr("Condition"),
+                            Language = string.IsNullOrEmpty(GetStr("Language"))
+                                ? "English" : GetStr("Language"),
+                            BuyAt = GetDec("BuyAt"),
+                            SellAt = GetDec("SellAt"),
+                            Notes = GetStr("Notes"),
+                            StorageLocation = GetStr("StorageLocation")
+                        });
+
+                    // Foil copies
+                    if (foilQty > 0)
+                        rows.Add(new ImportRow
+                        {
+                            ScryfallId = GetStr("ScryfallId"),
+                            Name = GetStr("Name"),
+                            SetCode = GetStr("SetCode"),
+                            CollectorNumber = GetStr("CollectorNumber"),
+                            Quantity = foilQty,
+                            IsFoil = true,
+                            Condition = string.IsNullOrEmpty(GetStr("Condition"))
+                                ? "Near Mint" : GetStr("Condition"),
+                            Language = string.IsNullOrEmpty(GetStr("Language"))
+                                ? "English" : GetStr("Language"),
+                            BuyAt = GetDec("BuyAt"),
+                            SellAt = GetDec("SellAt"),
+                            Notes = GetStr("Notes"),
+                            StorageLocation = GetStr("StorageLocation")
+                        });
+                }
+            }
+            catch { /* malformed JSON returns empty list → caller reports no rows */ }
+            return rows;
+        }
+
+        // ── Full CSV parser (round-trips the full export) ─────────────────────
+        private static List<ImportRow> ParseFullCsv(string filePath)
+        {
+            var rows = new List<ImportRow>();
+            using var sr = new StreamReader(filePath, detectEncodingFromByteOrderMarks: true);
+            string? header = sr.ReadLine();
+            if (header == null) return rows;
+            var cols = ParseCsvHeader(header);
+
+            var getScryfall = MakeGetter(cols, "ScryfallId");
+            var getName = MakeGetter(cols, "Name");
+            var getSet = MakeGetter(cols, "SetCode");
+            var getCn = MakeGetter(cols, "CollectorNumber");
+            var getQty = MakeGetter(cols, "Quantity");
+            var getFoilQty = MakeGetter(cols, "FoilQuantity");
+            var getCond = MakeGetter(cols, "Condition");
+            var getLang = MakeGetter(cols, "Language");
+            var getNotes = MakeGetter(cols, "Notes");
+            var getStorage = MakeGetter(cols, "StorageLocation");
+
+            string? line;
+            int lineNo = 1;
+            int colCount = cols.Count;
+            while ((line = sr.ReadLine()) != null)
+            {
+                lineNo++;
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var f = ParseCsvLine(line);
+                if (!ValidateRowLength(f, colCount, lineNo)) continue;
+                int qty = int.TryParse(getQty(f), out int q) ? q : 0;
+                int foilQty = int.TryParse(getFoilQty(f), out int fq) ? fq : 0;
+
+                if (qty > 0)
+                    rows.Add(new ImportRow
+                    {
+                        ScryfallId = getScryfall(f),
+                        Name = getName(f),
+                        SetCode = getSet(f),
+                        CollectorNumber = getCn(f),
+                        Quantity = qty,
+                        IsFoil = false,
+                        Condition = string.IsNullOrEmpty(getCond(f)) ? "Near Mint" : getCond(f),
+                        Language = string.IsNullOrEmpty(getLang(f)) ? "English" : getLang(f),
+                        Notes = getNotes(f),
+                        StorageLocation = getStorage(f)
+                    });
+                if (foilQty > 0)
+                    rows.Add(new ImportRow
+                    {
+                        ScryfallId = getScryfall(f),
+                        Name = getName(f),
+                        SetCode = getSet(f),
+                        CollectorNumber = getCn(f),
+                        Quantity = foilQty,
+                        IsFoil = true,
+                        Condition = string.IsNullOrEmpty(getCond(f)) ? "Near Mint" : getCond(f),
+                        Language = string.IsNullOrEmpty(getLang(f)) ? "English" : getLang(f),
+                        Notes = getNotes(f),
+                        StorageLocation = getStorage(f)
+                    });
+            }
+            return rows;
+        }
+
+        // ── ManaBox CSV parser (mobile scanner) ───────────────────────────────
+        // Headers: Name,Set code,Set name,Collector number,Foil,Rarity,
+        //   Quantity,ManaBox ID,Scryfall ID,Purchase price,Misprint,Altered,
+        //   Condition,Language,Purchase price currency
+        private static List<ImportRow> ParseManaBoxCsv(string filePath)
+        {
+            var rows = new List<ImportRow>();
+            using var sr = new StreamReader(filePath, detectEncodingFromByteOrderMarks: true);
+            string? header = sr.ReadLine();
+            if (header == null) return rows;
+            var cols = ParseCsvHeader(header);
+
+            var getName = MakeGetter(cols, "Name");
+            var getSet = MakeGetter(cols, "Set code", "Set Code", "SetCode");
+            var getCn = MakeGetter(cols, "Collector number", "Collector Number");
+            var getFoil = MakeGetter(cols, "Foil");
+            var getQty = MakeGetter(cols, "Quantity");
+            var getScryfall = MakeGetter(cols, "Scryfall ID", "Scryfall Id", "ScryfallId");
+            var getCond = MakeGetter(cols, "Condition");
+            var getLang = MakeGetter(cols, "Language");
+            var getPrice = MakeGetter(cols, "Purchase price", "Purchase Price");
+
+            string? line;
+            int lineNo = 1;
+            int colCount = cols.Count;
+            while ((line = sr.ReadLine()) != null)
+            {
+                lineNo++;
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var f = ParseCsvLine(line);
+                if (!ValidateRowLength(f, colCount, lineNo)) continue;
+                int qty = int.TryParse(getQty(f), out int q) ? Math.Max(q, 1) : 1;
+                // ManaBox Foil column: "foil", "etched", or "normal"
+                string foilVal = getFoil(f).ToLower();
+                bool foil = foilVal == "foil" || foilVal == "etched";
+
+                rows.Add(new ImportRow
+                {
+                    ScryfallId = getScryfall(f),
+                    Name = getName(f),
+                    SetCode = getSet(f),
+                    CollectorNumber = getCn(f),
+                    Quantity = qty,
+                    IsFoil = foil,
+                    Condition = MapManaBoxCondition(getCond(f)),
+                    Language = NormalizeLanguage(getLang(f)),
+                    BuyAt = decimal.TryParse(getPrice(f), NumberStyles.Any,
+                        CultureInfo.InvariantCulture, out decimal p) ? p : null
+                });
+            }
+            return rows;
+        }
+
+        private static string MapManaBoxCondition(string c) => c.ToLower() switch
+        {
+            "mint" or "near_mint" or "nm" => "Near Mint",
+            "excellent" or "lightly_played" or "lp" => "Lightly Played",
+            "good" or "moderately_played" or "mp" => "Moderately Played",
+            "played" or "heavily_played" or "hp" => "Heavily Played",
+            "poor" or "damaged" => "Damaged",
+            _ => "Near Mint"
+        };
+
+        // ── Archidekt CSV parser ──────────────────────────────────────────────
+        // Headers: Quantity,Name,Finish,Condition,Date Added,Language,
+        //   Purchase Price,Tags,Edition Name,Edition Code,Multiverse Id,
+        //   Scryfall Id,Collector Number
+        private static List<ImportRow> ParseArchidektCsv(string filePath)
+        {
+            var rows = new List<ImportRow>();
+            using var sr = new StreamReader(filePath, detectEncodingFromByteOrderMarks: true);
+            string? header = sr.ReadLine();
+            if (header == null) return rows;
+            var cols = ParseCsvHeader(header);
+
+            var getQty = MakeGetter(cols, "Quantity");
+            var getName = MakeGetter(cols, "Name");
+            var getFinish = MakeGetter(cols, "Finish");
+            var getCond = MakeGetter(cols, "Condition");
+            var getLang = MakeGetter(cols, "Language");
+            var getPrice = MakeGetter(cols, "Purchase Price", "Purchase price");
+            var getTags = MakeGetter(cols, "Tags");
+            var getSet = MakeGetter(cols, "Edition Code", "Edition code", "SetCode");
+            var getScryfall = MakeGetter(cols, "Scryfall Id", "Scryfall ID", "ScryfallId");
+            var getCn = MakeGetter(cols, "Collector Number", "Collector number");
+
+            string? line;
+            int lineNo = 1;
+            int colCount = cols.Count;
+            while ((line = sr.ReadLine()) != null)
+            {
+                lineNo++;
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var f = ParseCsvLine(line);
+                if (!ValidateRowLength(f, colCount, lineNo)) continue;
+                int qty = int.TryParse(getQty(f), out int q) ? Math.Max(q, 1) : 1;
+                string finish = getFinish(f).ToLower();
+                bool foil = finish.Contains("foil") || finish.Contains("etched");
+
+                rows.Add(new ImportRow
+                {
+                    ScryfallId = getScryfall(f),
+                    Name = getName(f),
+                    SetCode = getSet(f),
+                    CollectorNumber = getCn(f),
+                    Quantity = qty,
+                    IsFoil = foil,
+                    Condition = MapMoxfieldCondition(getCond(f)),
+                    Language = NormalizeLanguage(getLang(f)),
+                    Notes = getTags(f),
+                    BuyAt = decimal.TryParse(getPrice(f), NumberStyles.Any,
+                        CultureInfo.InvariantCulture, out decimal p) ? p : null
+                });
+            }
+            return rows;
+        }
+
+        // ── Plain-text decklist parser ────────────────────────────────────────
+        // Lines like "1 Sol Ring", "1x Sol Ring", "3 Forest (CMR) 350",
+        //   or a bare "Sol Ring". Section headers (Sideboard:, Commander:,
+        //   Deck, blank lines) are skipped or flagged.
+        private static List<ImportRow> ParsePlainText(string filePath)
+        {
+            var rows = new List<ImportRow>();
+            var lines = File.ReadAllLines(filePath);
+            bool inSideboard = false;
+
+            var rx = new System.Text.RegularExpressions.Regex(
+                @"^\s*(?<qty>\d+)?\s*x?\s+?(?<name>[^(]+?)\s*(?:\((?<set>[^)]+)\)\s*(?<cn>\S+)?)?\s*$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            foreach (var raw in lines)
+            {
+                string line = raw.Trim();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                // Section markers
+                string lower = line.ToLower().TrimEnd(':');
+                if (lower is "sideboard" or "sb") { inSideboard = true; continue; }
+                if (lower is "deck" or "mainboard" or "maindeck" or "commander")
+                { inSideboard = false; continue; }
+                if (line.StartsWith("//") || line.StartsWith("#")) continue;
+
+                var m = rx.Match(line);
+                if (!m.Success) continue;
+
+                string name = m.Groups["name"].Value.Trim();
+                if (string.IsNullOrEmpty(name)) continue;
+
+                int qty = int.TryParse(m.Groups["qty"].Value, out int q) ? q : 1;
+                string set = m.Groups["set"].Success ? m.Groups["set"].Value.Trim() : string.Empty;
+                string cn = m.Groups["cn"].Success ? m.Groups["cn"].Value.Trim() : string.Empty;
+
+                rows.Add(new ImportRow
+                {
+                    Name = name,
+                    SetCode = set,
+                    CollectorNumber = cn,
+                    Quantity = qty,
+                    IsFoil = false,
+                    IsSideboard = inSideboard
+                });
+            }
+            return rows;
+        }
 
         private static Dictionary<string, int> ParseCsvHeader(string header)
         {
@@ -1279,6 +1462,33 @@ namespace BreakersOfE.Services
                 cols.TryAdd(fld, i);
             }
             return cols;
+        }
+
+        /// <summary>
+        /// Resolves a logical field to a column index by trying multiple possible
+        /// header names (case-insensitive). Returns -1 if none match. This is the
+        /// hardening layer — when a site renames a column, only the alias list
+        /// here needs updating, not the parser.
+        /// </summary>
+        private static int ResolveColumn(Dictionary<string, int> cols,
+            params string[] aliases)
+        {
+            foreach (var alias in aliases)
+                if (cols.TryGetValue(alias, out int i))
+                    return i;
+            return -1;
+        }
+
+        /// <summary>
+        /// Builds a Get accessor that resolves a logical field name to its value
+        /// using a list of possible header aliases.
+        /// </summary>
+        private static Func<string[], string> MakeGetter(
+            Dictionary<string, int> cols, params string[] aliases)
+        {
+            int idx = ResolveColumn(cols, aliases);
+            return fields => (idx >= 0 && idx < fields.Length)
+                ? fields[idx].Trim() : string.Empty;
         }
 
         private static string[] ParseCsvLine(string line)
@@ -1305,6 +1515,127 @@ namespace BreakersOfE.Services
         }
 
         // CSV-safe quoted field
+        /// <summary>
+        /// Exports a simple CSV with just Available, Name, Set Code columns.
+        /// Available = (Quantity + FoilQuantity) - UsedCount.
+        /// </summary>
+        public static void ExportAvailableCsv(string filePath,
+            List<CollectionEntry> entries)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.WriteLine("Available,Name,Set Code");
+
+            foreach (var e in entries.OrderBy(e => e.Name))
+            {
+                int available = Math.Max(0,
+                    e.Quantity + e.FoilQuantity - e.UsedCount);
+                sw.WriteLine($"{available},{Q(e.Name)},{Q(e.SetCode)}");
+            }
+        }
+
+        // ── ManaBox CSV export ────────────────────────────────────────────────
+        private static void ExportManaBoxCsv(string filePath,
+            List<CollectionEntry> entries)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.WriteLine("Name,Set code,Collector number,Foil,Quantity,Scryfall ID,Condition,Language,Purchase price");
+            foreach (var e in entries.OrderBy(e => e.Name))
+            {
+                if (e.Quantity > 0)
+                    sw.WriteLine(CsvRow(e.Name, e.SetCode, e.CollectorNumber,
+                        "normal", e.Quantity, e.ScryfallId, e.Condition,
+                        e.Language, e.BuyAt));
+                if (e.FoilQuantity > 0)
+                    sw.WriteLine(CsvRow(e.Name, e.SetCode, e.CollectorNumber,
+                        "foil", e.FoilQuantity, e.ScryfallId, e.Condition,
+                        e.Language, e.BuyAt));
+            }
+        }
+
+        // ── Archidekt CSV export ──────────────────────────────────────────────
+        private static void ExportArchidektCsv(string filePath,
+            List<CollectionEntry> entries)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.WriteLine("Quantity,Name,Finish,Condition,Language,Purchase Price,Tags,Edition Code,Scryfall Id,Collector Number");
+            foreach (var e in entries.OrderBy(e => e.Name))
+            {
+                if (e.Quantity > 0)
+                    sw.WriteLine(CsvRow(e.Quantity, e.Name, "Normal",
+                        e.Condition, e.Language, e.BuyAt, e.Notes,
+                        e.SetCode, e.ScryfallId, e.CollectorNumber));
+                if (e.FoilQuantity > 0)
+                    sw.WriteLine(CsvRow(e.FoilQuantity, e.Name, "Foil",
+                        e.Condition, e.Language, e.BuyAt, e.Notes,
+                        e.SetCode, e.ScryfallId, e.CollectorNumber));
+            }
+        }
+
+        // ── Plain-text decklist export ────────────────────────────────────────
+        private static void ExportPlainText(string filePath,
+            List<CollectionEntry> entries)
+        {
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            foreach (var e in entries.OrderBy(e => e.Name))
+            {
+                int total = e.Quantity + e.FoilQuantity;
+                if (total > 0)
+                    sw.WriteLine($"{total} {e.Name}");
+            }
+        }
+
+        /// <summary>
+        /// Exports every column and every row of the collection to CSV.
+        /// Uses reflection to include all CollectionEntry properties.
+        /// </summary>
+        public static void ExportFullCollectionCsv(string filePath)
+        {
+            using var cdb = new CollectionDbContext();
+            var entries = cdb.CollectionEntries.AsNoTracking()
+                .OrderBy(e => e.Name).ToList();
+
+            var props = typeof(CollectionEntry).GetProperties(
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.Instance)
+                .Where(p => p.CanRead && IsSimpleType(p.PropertyType))
+                .ToList();
+
+            using var sw = new StreamWriter(filePath, false, Encoding.UTF8);
+
+            // Header row
+            sw.WriteLine(string.Join(",", props.Select(p => Q(p.Name))));
+
+            // Data rows
+            foreach (var e in entries)
+            {
+                var values = props.Select(p =>
+                {
+                    object? val = p.GetValue(e);
+                    string s = val switch
+                    {
+                        null => string.Empty,
+                        DateTime dt => dt.ToString("O"),
+                        bool b => b ? "True" : "False",
+                        decimal d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        double dbl => dbl.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        _ => val.ToString() ?? string.Empty
+                    };
+                    return Q(s);
+                });
+                sw.WriteLine(string.Join(",", values));
+            }
+        }
+
+        private static bool IsSimpleType(Type t)
+        {
+            var underlying = Nullable.GetUnderlyingType(t) ?? t;
+            return underlying.IsPrimitive
+                || underlying.IsEnum
+                || underlying == typeof(string)
+                || underlying == typeof(decimal)
+                || underlying == typeof(DateTime);
+        }
+
         private static string Q(string s) =>
             s.Contains(',') || s.Contains('"') || s.Contains('\n')
                 ? $"\"{s.Replace("\"", "\"\"")}\""

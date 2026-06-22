@@ -34,6 +34,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -55,8 +56,11 @@
                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </ScrollViewer>
 
+        <!-- Scryfall attribution -->
+        <TextBlock Grid.Row="2" Text="Images provided by Scryfall" FontSize="9" Foreground="Gray" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+
         <!-- Buttons -->
-        <Grid Grid.Row="2" Margin="0,8,0,0">
+        <Grid Grid.Row="3" Margin="0,8,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -83,6 +87,5 @@
                     IsEnabled="False"
                     Click="BtnKeep_Click"/>
         </Grid>
-        <TextBlock Text="Images provided by Scryfall" FontSize="9" Foreground="Gray" HorizontalAlignment="Center" Margin="0,2,0,4"/>
     </Grid>
 </Window>

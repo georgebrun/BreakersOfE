@@ -27,7 +27,21 @@ namespace BreakersOfE.Data
         public DbSet<WantListEntry> WantListEntries { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)
-            => options.UseSqlite($"Data Source={AppFolderService.CollectionDatabasePath}");
+        {
+            options.UseSqlite(
+                $"Data Source={AppFolderService.CollectionDatabasePath}");
+        }
+
+        public override int SaveChanges()
+        {
+            int result = base.SaveChanges();
+            // Passive checkpoint after each save nudges the write-ahead log to
+            // merge into the main collection.db without blocking writers. Keeps
+            // the -wal file small and the main file close to current.
+            try { Database.ExecuteSqlRaw("PRAGMA wal_checkpoint(PASSIVE);"); }
+            catch { /* best-effort */ }
+            return result;
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -42,6 +56,21 @@ namespace BreakersOfE.Data
         {
             if (!System.IO.File.Exists(AppFolderService.CollectionDatabasePath))
                 Database.EnsureCreated();
+        }
+
+        /// <summary>
+        /// Forces SQLite to merge the write-ahead log (collection.db-wal) into
+        /// the main collection.db file. Call after saving and on app shutdown so
+        /// the main database file is always complete on disk and the -wal/-shm
+        /// working files are flushed. TRUNCATE resets the WAL to zero length.
+        /// </summary>
+        public void Checkpoint()
+        {
+            try
+            {
+                Database.ExecuteSqlRaw("PRAGMA wal_checkpoint(TRUNCATE);");
+            }
+            catch { /* checkpoint is best-effort; never block on it */ }
         }
 
         public void MigrateSchema()

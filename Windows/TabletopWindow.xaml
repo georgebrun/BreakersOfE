@@ -158,42 +158,79 @@
         </Style>
     </Window.Resources>
 
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- OUTER WOOD BORDER                                               -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <Border Background="{DynamicResource WoodBrush}" Padding="12">
+    <DockPanel>
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- MENU BAR                                                    -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Menu DockPanel.Dock="Top" Background="#333333" Foreground="White"
+              FontSize="13" Padding="4,3">
+            <MenuItem Header="_File" Foreground="White">
+                <MenuItem Header="🆕 New Game" Name="MenuNewGame"
+                          Click="MenuNewGame_Click"/>
+                <Separator/>
+                <MenuItem Header="🎴 Your Card Sleeve..." Name="MenuYourSleeve"
+                          Click="MenuYourSleeve_Click"/>
+                <MenuItem Header="🎴 Opponent Card Sleeve..." Name="MenuOppSleeve"
+                          Click="MenuOppSleeve_Click"/>
+                <MenuItem Header="✕ Clear All Sleeves" Name="MenuClearSleeves"
+                          Click="MenuClearSleeves_Click"/>
+                <Separator/>
+                <MenuItem Header="🖼 Your Playmat..." Name="MenuYourPlaymat"
+                          Click="MenuYourPlaymat_Click"/>
+                <MenuItem Header="🖼 Opponent Playmat..." Name="MenuOppPlaymat"
+                          Click="MenuOppPlaymat_Click"/>
+                <MenuItem Header="✕ Clear Playmats" Name="MenuClearPlaymats"
+                          Click="MenuClearPlaymats_Click"/>
+                <Separator/>
+                <MenuItem Header="❌ Exit" Click="BtnTabletopClose_Click"/>
+            </MenuItem>
+            <MenuItem Header="_View" Foreground="White">
+                <MenuItem Header="📋 Toggle Game Log" Name="MenuToggleLog"
+                          Click="MenuToggleLog_Click" IsCheckable="True"/>
+            </MenuItem>
+        </Menu>
 
-        <!-- INNER FELT TABLE -->
-        <Border Name="TableFeltBorder"
-                Background="{DynamicResource FeltBrush}"
-                CornerRadius="8">
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- OUTER WOOD BORDER                                           -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border Background="{DynamicResource WoodBrush}" Padding="12">
             <Grid>
-                <Grid.RowDefinitions>
-                    <!-- Opponent info bar — outside playmat -->
-                    <RowDefinition Height="36"/>
-                    <!-- Opponent hand — hidden, count shown in info bar -->
-                    <RowDefinition Name="OppHandRow" Height="0"/>
-                    <!-- Opponent mana/land zone — opp playmat (closest to rail) -->
-                    <RowDefinition Height="1*"/>
-                    <!-- Opponent battlefield creatures/spells — opp playmat -->
-                    <RowDefinition Height="2*"/>
-                    <!-- Center rail — table edge between seats -->
-                    <RowDefinition Height="44"/>
-                    <!-- Your battlefield creatures/spells — your playmat -->
-                    <RowDefinition Height="2*"/>
-                    <!-- Your mana/land zone — your playmat (closest to rail) -->
-                    <RowDefinition Height="1*"/>
-                    <!-- Your hand — animated, collapses to peek strip -->
-                    <RowDefinition Name="YourHandRow" Height="32"/>
-                    <!-- Your info bar — outside playmat -->
-                    <RowDefinition Height="36"/>
-                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- INNER FELT TABLE -->
+                <Border Name="TableFeltBorder" Grid.Column="0"
+                        Background="{DynamicResource FeltBrush}"
+                        CornerRadius="8">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <!-- Opponent info bar — outside playmat -->
+                            <RowDefinition Height="36"/>
+                            <!-- Opponent hand — hidden, count shown in info bar -->
+                            <RowDefinition Name="OppHandRow" Height="0"/>
+                            <!-- Opponent mana/land zone — opp playmat (closest to rail) -->
+                            <RowDefinition Height="1*"/>
+                            <!-- Opponent battlefield creatures/spells — opp playmat -->
+                            <RowDefinition Height="2*"/>
+                            <!-- Center rail — table edge between seats -->
+                            <RowDefinition Height="44"/>
+                            <!-- Your battlefield creatures/spells — your playmat -->
+                            <RowDefinition Height="2*"/>
+                            <!-- Your mana/land zone — your playmat (closest to rail) -->
+                            <RowDefinition Height="1*"/>
+                            <!-- Your hand — animated, collapses to peek strip -->
+                            <RowDefinition Name="YourHandRow" Height="32"/>
+                            <!-- Your info bar — outside playmat -->
+                            <RowDefinition Height="36"/>
+                        </Grid.RowDefinitions>
 
 
-                <!-- ================================================== -->
-                <!-- YOUR PLAYMAT — full player area (mana+field+hand)   -->
-                <!-- ================================================== -->
-                <Image Name="YourPlaymatImage"
+                        <!-- ================================================== -->
+                        <!-- YOUR PLAYMAT — full player area (mana+field+hand)   -->
+                        <!-- ================================================== -->
+                        <Image Name="YourPlaymatImage"
                        Grid.Row="5" Grid.RowSpan="3"
                        Stretch="Fill"
                        Opacity="1.0"
@@ -202,11 +239,11 @@
                        HorizontalAlignment="Stretch"
                        VerticalAlignment="Stretch"/>
 
-                <!-- ================================================== -->
-                <!-- OPP PLAYMAT — full opp area (hand+field+mana)       -->
-                <!-- Rotated 180 to face opponent's direction            -->
-                <!-- ================================================== -->
-                <Image Name="OppPlaymatImage"
+                        <!-- ================================================== -->
+                        <!-- OPP PLAYMAT — full opp area (hand+field+mana)       -->
+                        <!-- Rotated 180 to face opponent's direction            -->
+                        <!-- ================================================== -->
+                        <Image Name="OppPlaymatImage"
                        Grid.Row="1" Grid.RowSpan="3"
                        Stretch="Fill"
                        Opacity="1.0"
@@ -215,722 +252,759 @@
                        HorizontalAlignment="Stretch"
                        VerticalAlignment="Stretch"
                        RenderTransformOrigin="0.5,0.5">
-                    <Image.RenderTransform>
-                        <RotateTransform Angle="180"/>
-                    </Image.RenderTransform>
-                </Image>
+                            <Image.RenderTransform>
+                                <RotateTransform Angle="180"/>
+                            </Image.RenderTransform>
+                        </Image>
 
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 0 — OPPONENT INFO BAR                         -->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="0" Panel.ZIndex="2" Style="{StaticResource InfoBarStyle}"
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- ROW 0 — OPPONENT INFO BAR                         -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Border Grid.Row="0" Panel.ZIndex="2" Style="{StaticResource InfoBarStyle}"
                         CornerRadius="8,8,0,0">
-                    <Grid Margin="12,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                            <Grid Margin="12,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Name="OppNameLabel"
+                                <TextBlock Grid.Column="0" Name="OppNameLabel"
                                    Text="Opponent" Foreground="#CCCCCC"
                                    FontSize="13" FontWeight="SemiBold"
                                    VerticalAlignment="Center" Margin="0,0,16,0"/>
 
-                        <!-- Life -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                <!-- Life -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="0,0,4,0">
-                            <TextBlock Text="❤" Foreground="#EE4444" FontSize="14"
+                                    <TextBlock Text="❤" Foreground="#EE4444" FontSize="14"
                                        VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBlock Name="OppLifeText" Text="40"
+                                    <TextBlock Name="OppLifeText" Text="40"
                                        Style="{StaticResource LifeTextStyle}"
                                        Cursor="Hand" ToolTip="Double-click to set value"
                                        MouseLeftButtonDown="OppLifeText_DoubleClick"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="0,0,12,0">
-                            <Button Content="+" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="+" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Click="OppLifeUp_Click"/>
-                            <Button Content="-" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="-" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Margin="2,0,0,0"
                                     Click="OppLifeDown_Click"/>
-                        </StackPanel>
+                                </StackPanel>
 
-                        <!-- Poison -->
-                        <StackPanel Grid.Column="3" Orientation="Horizontal"
+                                <!-- Poison -->
+                                <StackPanel Grid.Column="3" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="0,0,12,0">
-                            <TextBlock Text="☠" Foreground="#AAAAAA" FontSize="14"
+                                    <TextBlock Text="☠" Foreground="#AAAAAA" FontSize="14"
                                        VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBlock Name="OppPoisonText" Text="0"
+                                    <TextBlock Name="OppPoisonText" Text="0"
                                        Foreground="#EEEEEE" FontSize="14"
                                        FontWeight="Bold" VerticalAlignment="Center"
                                        Margin="0,0,4,0" Cursor="Hand"
                                        ToolTip="Double-click to set value"
                                        MouseLeftButtonDown="OppPoisonText_DoubleClick"/>
-                            <Button Content="+" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="+" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Click="OppPoisonUp_Click"/>
-                            <Button Content="-" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="-" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Margin="2,0,0,0"
                                     Click="OppPoisonDown_Click"/>
-                        </StackPanel>
+                                </StackPanel>
 
-                        <!-- Commander damage -->
-                        <StackPanel Grid.Column="4" Orientation="Horizontal"
+                                <!-- Commander damage -->
+                                <StackPanel Grid.Column="4" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="0,0,12,0">
-                            <TextBlock Text="⚔" Foreground="#AAAAAA" FontSize="12"
+                                    <TextBlock Text="⚔" Foreground="#AAAAAA" FontSize="12"
                                        VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBlock Name="OppCmdDmgText" Text="0"
+                                    <TextBlock Name="OppCmdDmgText" Text="0"
                                        Foreground="#EEEEEE" FontSize="14"
                                        FontWeight="Bold" VerticalAlignment="Center"
                                        Margin="0,0,4,0"/>
-                            <Button Content="+" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="+" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Click="OppCmdDmgUp_Click"/>
-                            <Button Content="-" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="-" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Margin="2,0,0,0"
                                     Click="OppCmdDmgDown_Click"/>
-                        </StackPanel>
+                                </StackPanel>
 
-                        <!-- Opp hand count + peek -->
-                        <StackPanel Grid.Column="5" Orientation="Horizontal"
+                                <!-- Opp hand count + peek -->
+                                <StackPanel Grid.Column="5" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="0,0,8,0">
-                            <TextBlock Text="🂠 Hand: " Foreground="#AAAAAA"
+                                    <TextBlock Text="🂠 Hand: " Foreground="#AAAAAA"
                                        FontSize="12" VerticalAlignment="Center"/>
-                            <TextBlock Name="OppHandCountLabel" Text="0"
+                                    <TextBlock Name="OppHandCountLabel" Text="0"
                                        Foreground="#EEEEEE" FontSize="13"
                                        FontWeight="Bold" VerticalAlignment="Center"
                                        Margin="0,0,6,0"/>
-                            <Button Name="BtnPeekOppHand" Content="👁 Peek"
+                                    <Button Name="BtnPeekOppHand" Content="👁 Peek"
                                     Style="{StaticResource TableBtnStyle}"
                                     FontSize="10" Height="22" Padding="4,0"
                                     Click="BtnPeekOppHand_Click"/>
-                        </StackPanel>
+                                </StackPanel>
 
-                        <!-- Rotate table button -->
-                        <Button Grid.Column="7" Name="BtnRotateTable"
+                                <!-- Rotate table button -->
+                                <Button Grid.Column="7" Name="BtnRotateTable"
                                 Content="⇄ Switch Seats" Style="{StaticResource TableBtnStyle}"
                                 Margin="0,0,0,0" Click="BtnRotateTable_Click"/>
-                    </Grid>
-                </Border>
+                            </Grid>
+                        </Border>
 
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 1 — OPPONENT HAND (flipped, blurred when hidden)-->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="1" Panel.ZIndex="2" Background="Transparent"
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- ROW 1 — OPPONENT HAND (flipped, blurred when hidden)-->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Border Grid.Row="1" Panel.ZIndex="2" Background="Transparent"
                         BorderBrush="Transparent" BorderThickness="0">
-                    <Grid>
-                        <TextBlock Text="OPPONENT HAND" Style="{StaticResource ZoneLabelStyle}"
+                            <Grid>
+                                <TextBlock Text="OPPONENT HAND" Style="{StaticResource ZoneLabelStyle}"
                                    Opacity="1.0"/>
-                        <!-- Cards will be added here in Phase 4 -->
-                        <Canvas Name="OppHandCanvas" SizeChanged="OppHandCanvas_SizeChanged"
+                                <!-- Cards will be added here in Phase 4 -->
+                                <Canvas Name="OppHandCanvas" SizeChanged="OppHandCanvas_SizeChanged"
                                 RenderTransformOrigin="0.5,0.5">
-                            <Canvas.RenderTransform>
-                                <RotateTransform Angle="180"/>
-                            </Canvas.RenderTransform>
-                        </Canvas>
-                        <!-- Blur overlay when hidden -->
-                        <Border Name="OppHandBlur" Background="#CC1A3A1A"
+                                    <Canvas.RenderTransform>
+                                        <RotateTransform Angle="180"/>
+                                    </Canvas.RenderTransform>
+                                </Canvas>
+                                <!-- Blur overlay when hidden -->
+                                <Border Name="OppHandBlur" Background="#CC1A3A1A"
                                 Visibility="Collapsed">
-                            <TextBlock Text="🂠  Opponent Hand Hidden  🂠"
+                                    <TextBlock Text="🂠  Opponent Hand Hidden  🂠"
                                        Foreground="#66FFFFFF" FontSize="14"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
                         </Border>
-                    </Grid>
-                </Border>
 
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 2 — OPPONENT MANA / LAND ZONE                 -->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Grid Grid.Row="2" Panel.ZIndex="2">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="90"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="80"/>
-                        <ColumnDefinition Width="80"/>
-                        <ColumnDefinition Width="80"/>
-                    </Grid.ColumnDefinitions>
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- ROW 2 — OPPONENT MANA / LAND ZONE                 -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Grid Grid.Row="2" Panel.ZIndex="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="80"/>
+                            </Grid.ColumnDefinitions>
 
-                    <!-- CMD Zone -->
-                    <Border Grid.Column="0" Margin="4,4,2,4"
+                            <!-- CMD Zone -->
+                            <Border Grid.Column="0" Margin="4,4,2,4"
                             Background="#CC000000" CornerRadius="4"
                             BorderBrush="#55FFFFFF" BorderThickness="1">
-                        <StackPanel VerticalAlignment="Top" Margin="4,4,4,4">
-                            <TextBlock Text="CMD" Style="{StaticResource ZoneLabelStyle}"
+                                <StackPanel VerticalAlignment="Top" Margin="4,4,4,4">
+                                    <TextBlock Text="CMD" Style="{StaticResource ZoneLabelStyle}"
                                        Margin="0,0,0,2"/>
-                            <TextBlock Name="OppCmdTaxText" Text="Cast: 0x (+0)"
+                                    <TextBlock Name="OppCmdTaxText" Text="Cast: 0x (+0)"
                                        Foreground="#FFD700" FontSize="9"
                                        FontWeight="SemiBold"
                                        HorizontalAlignment="Center"
                                        Margin="0,0,0,2"/>
-                            <Button Name="BtnOppCmdReturn"
+                                    <Button Name="BtnOppCmdReturn"
                                     Content="↩ Return" FontSize="9"
                                     Height="20" Margin="2,0,2,4"
                                     Visibility="Collapsed"
                                     Style="{StaticResource TableBtnStyle}"
                                     Click="BtnOppCmdReturn_Click"/>
-                            <Canvas Name="OppCommandCanvas" Height="120"/>
-                        </StackPanel>
-                    </Border>
+                                    <Canvas Name="OppCommandCanvas" Height="130"/>
+                                </StackPanel>
+                            </Border>
 
-                    <!-- Battlefield -->
-                    <Border Grid.Column="1" Style="{StaticResource ZoneBorderStyle}"
+                            <!-- Battlefield -->
+                            <Border Grid.Column="1" Style="{StaticResource ZoneBorderStyle}"
                             Margin="2,4,2,4"
                             MouseRightButtonDown="OppPlaymat_RightClick">
-                        <Grid>
+                                <Grid>
 
-                            <Canvas Name="OppLandCanvas"/>
-                        </Grid>
-                    </Border>
+                                    <Canvas Name="OppLandCanvas"/>
+                                </Grid>
+                            </Border>
 
-                    <!-- Library -->
-                    <Border Grid.Column="2" Margin="2,4,2,4" Cursor="Hand"
+                            <!-- Library -->
+                            <Border Grid.Column="2" Margin="2,4,2,4" Cursor="Hand"
                             Background="#CC000000" CornerRadius="4"
                             BorderBrush="#44FFFFFF" BorderThickness="1"
-                            MouseLeftButtonDown="OppLibrary_Click">
-                        <StackPanel VerticalAlignment="Center">
-                            <Image Source="pack://application:,,,/Resources/Images/MTG_Back.png"
+                            MouseLeftButtonDown="OppLibrary_Click"
+                            MouseRightButtonDown="OppLibrary_RightClick">
+                                <StackPanel VerticalAlignment="Center">
+                                    <Image Name="OppLibraryImage"
+                                   Source="pack://application:,,,/Resources/Images/MTG_Back.png"
                                    Width="44" Height="62" Stretch="Fill"
                                    Margin="0,0,0,4" HorizontalAlignment="Center"/>
-                            <TextBlock Text="LIBRARY" Style="{StaticResource ZoneLabelStyle}"/>
-                            <TextBlock Name="OppLibraryCount" Text="0"
+                                    <TextBlock Text="LIBRARY" Style="{StaticResource ZoneLabelStyle}"/>
+                                    <TextBlock Name="OppLibraryCount" Text="0"
                                        Foreground="White" FontSize="11"
                                        FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
+                                </StackPanel>
+                            </Border>
 
-                    <!-- Graveyard -->
-                    <Border Grid.Column="3" Margin="2,4,2,4" Cursor="Hand"
+                            <!-- Graveyard -->
+                            <Border Grid.Column="3" Margin="2,4,2,4" Cursor="Hand"
                             Background="#CC000000" CornerRadius="4"
                             BorderBrush="#44FFFFFF" BorderThickness="1"
                             MouseLeftButtonDown="OppGraveyard_Click">
-                        <StackPanel VerticalAlignment="Center">
-                            <Border Name="OppGraveTopBorder" Width="44" Height="62"
+                                <StackPanel VerticalAlignment="Center">
+                                    <Border Name="OppGraveTopBorder" Width="44" Height="62"
                                     CornerRadius="3" Margin="0,0,0,2"
                                     HorizontalAlignment="Center"
                                     Visibility="Collapsed"/>
-                            <TextBlock Text="💀" Name="OppGraveIcon"
+                                    <TextBlock Text="💀" Name="OppGraveIcon"
                                        Foreground="#888888"
                                        FontSize="24" HorizontalAlignment="Center"/>
-                            <TextBlock Text="GRAVEYARD" Style="{StaticResource ZoneLabelStyle}"/>
-                            <TextBlock Name="OppGraveyardCount" Text="0"
+                                    <TextBlock Text="GRAVEYARD" Style="{StaticResource ZoneLabelStyle}"/>
+                                    <TextBlock Name="OppGraveyardCount" Text="0"
                                        Foreground="White" FontSize="11"
                                        FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
+                                </StackPanel>
+                            </Border>
 
-                    <!-- Exile -->
-                    <Border Grid.Column="4" Margin="2,4,4,4" Cursor="Hand"
+                            <!-- Exile -->
+                            <Border Grid.Column="4" Margin="2,4,4,4" Cursor="Hand"
                             Background="#CC000000" CornerRadius="4"
                             BorderBrush="#44FFFFFF" BorderThickness="1"
                             MouseLeftButtonDown="OppExile_Click">
-                        <StackPanel VerticalAlignment="Center">
-                            <Border Name="OppExileTopBorder" Width="44" Height="62"
+                                <StackPanel VerticalAlignment="Center">
+                                    <Border Name="OppExileTopBorder" Width="44" Height="62"
                                     CornerRadius="3" Margin="0,0,0,2"
                                     HorizontalAlignment="Center"
                                     Visibility="Collapsed"/>
-                            <TextBlock Text="✦" Name="OppExileIcon"
+                                    <TextBlock Text="✦" Name="OppExileIcon"
                                        Foreground="#888888"
                                        FontSize="24" HorizontalAlignment="Center"/>
-                            <TextBlock Text="EXILE" Style="{StaticResource ZoneLabelStyle}"/>
-                            <TextBlock Name="OppExileCount" Text="0"
+                                    <TextBlock Text="EXILE" Style="{StaticResource ZoneLabelStyle}"/>
+                                    <TextBlock Name="OppExileCount" Text="0"
                                        Foreground="White" FontSize="11"
                                        FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
 
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 3 — OPPONENT BATTLEFIELD (creatures/spells)   -->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="3" Panel.ZIndex="2" Background="Transparent"
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- ROW 3 — OPPONENT BATTLEFIELD (creatures/spells)   -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Border Grid.Row="3" Panel.ZIndex="2" Background="Transparent"
                         BorderBrush="Transparent" BorderThickness="0"
                         Margin="4,0"
                         MouseRightButtonDown="OppPlaymat_RightClick">
-                    <Grid>
+                            <Grid>
 
-                        <Canvas Name="OppBattlefieldCanvas"
+                                <Canvas Name="OppBattlefieldCanvas"
                                 RenderTransformOrigin="0.5,0.5">
-                            <Canvas.RenderTransform>
-                                <RotateTransform Angle="180"/>
-                            </Canvas.RenderTransform>
-                        </Canvas>
-                    </Grid>
-                </Border>
+                                    <Canvas.RenderTransform>
+                                        <RotateTransform Angle="180"/>
+                                    </Canvas.RenderTransform>
+                                </Canvas>
+                            </Grid>
+                        </Border>
 
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 4 — CENTER RAIL                               -->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Grid Grid.Row="4" Panel.ZIndex="3">
-                    <!-- Shadow above rail -->
-                    <Border Background="{DynamicResource ShadowTopBrush}"
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- ROW 4 — CENTER RAIL                               -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Grid Grid.Row="4" Panel.ZIndex="3">
+                            <!-- Shadow above rail -->
+                            <Border Background="{DynamicResource ShadowTopBrush}"
                             Height="8" VerticalAlignment="Top" Margin="0,-8,0,0"/>
 
-                    <!-- The rail itself -->
-                    <Border Background="{DynamicResource RailBrush}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
+                            <!-- The rail itself -->
+                            <Border Background="{DynamicResource RailBrush}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                            <!-- Turn counter -->
-                            <StackPanel Grid.Column="0" Orientation="Horizontal"
+                                    <!-- Turn counter -->
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal"
                                         VerticalAlignment="Center" Margin="8,0">
-                                <TextBlock Text="TURN" Foreground="#BBBBBB"
+                                        <TextBlock Text="TURN" Foreground="#BBBBBB"
                                            FontSize="9" VerticalAlignment="Center"
                                            Margin="0,0,6,0"/>
-                                <TextBlock Name="TurnCounterText" Text="1"
+                                        <TextBlock Name="TurnCounterText" Text="1"
                                            Foreground="#FFE066" FontSize="16"
                                            FontWeight="Bold" VerticalAlignment="Center"/>
-                            </StackPanel>
+                                    </StackPanel>
 
-                            <!-- Phase tracker -->
-                            <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                    <!-- Phase tracker -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal"
                                         VerticalAlignment="Center" HorizontalAlignment="Center">
-                                <Button Name="PhaseUntap"   Content="⟳ UNTAP"
+                                        <Button Name="PhaseUntap"   Content="⟳ UNTAP"
                                         Style="{StaticResource ActivePhaseButtonStyle}"
                                         Click="Phase_Click" Tag="Untap"/>
-                                <Button Name="PhaseUpkeep"  Content="↑ UPKEEP"
+                                        <Button Name="PhaseUpkeep"  Content="↑ UPKEEP"
                                         Style="{StaticResource PhaseButtonStyle}"
                                         Click="Phase_Click" Tag="Upkeep"/>
-                                <Button Name="PhaseDraw"    Content="🃏 DRAW"
+                                        <Button Name="PhaseDraw"    Content="🃏 DRAW"
                                         Style="{StaticResource PhaseButtonStyle}"
                                         Click="Phase_Click" Tag="Draw"/>
-                                <Button Name="PhaseMain1"   Content="▶ MAIN 1"
+                                        <Button Name="PhaseMain1"   Content="▶ MAIN 1"
                                         Style="{StaticResource PhaseButtonStyle}"
                                         Click="Phase_Click" Tag="Main1"/>
-                                <Button Name="PhaseCombat"  Content="⚔ COMBAT"
+                                        <Button Name="PhaseCombat"  Content="⚔ COMBAT"
                                         Style="{StaticResource PhaseButtonStyle}"
                                         Click="Phase_Click" Tag="Combat"/>
-                                <Button Name="PhaseMain2"   Content="▶ MAIN 2"
+                                        <Button Name="PhaseMain2"   Content="▶ MAIN 2"
                                         Style="{StaticResource PhaseButtonStyle}"
                                         Click="Phase_Click" Tag="Main2"/>
-                                <Button Name="PhaseEnd"     Content="🏁 END"
+                                        <Button Name="PhaseEnd"     Content="🏁 END"
                                         Style="{StaticResource PhaseButtonStyle}"
                                         Click="Phase_Click" Tag="End"/>
-                            </StackPanel>
+                                    </StackPanel>
 
-                            <!-- Stack toggle -->
-                            <Button Grid.Column="2" Name="BtnToggleStack"
+                                    <!-- Stack toggle -->
+                                    <Button Grid.Column="2" Name="BtnToggleStack"
                                     Content="STACK ▼" Style="{StaticResource TableBtnStyle}"
                                     VerticalAlignment="Center" Margin="4,0"
                                     Click="BtnToggleStack_Click"/>
 
-                            <!-- Modern mechanics strip -->
-                            <StackPanel Grid.Column="3" Orientation="Horizontal"
+                                    <!-- Modern mechanics strip -->
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal"
                                         VerticalAlignment="Center" Margin="4,0">
-                                <!-- Monarch -->
-                                <Border Name="MonarchPanel" Background="#44AA6622"
+                                        <!-- Monarch -->
+                                        <Border Name="MonarchPanel" Background="#44AA6622"
                                         CornerRadius="3" Padding="4,2" Margin="2,0"
                                         Cursor="Hand" ToolTip="Click to claim Monarch"
                                         MouseLeftButtonDown="Monarch_Click"
                                         Visibility="Visible">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="👑" FontSize="11"
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="👑" FontSize="11"
                                                    VerticalAlignment="Center"/>
-                                        <TextBlock Name="MonarchText" Text="—"
+                                                <TextBlock Name="MonarchText" Text="—"
                                                    Foreground="#CCAA44" FontSize="10"
                                                    VerticalAlignment="Center" Margin="3,0,0,0"/>
-                                    </StackPanel>
-                                </Border>
-                                <!-- Initiative -->
-                                <Border Name="InitiativePanel" Background="#44AA4422"
+                                            </StackPanel>
+                                        </Border>
+                                        <!-- Initiative -->
+                                        <Border Name="InitiativePanel" Background="#44AA4422"
                                         CornerRadius="3" Padding="4,2" Margin="2,0"
                                         Cursor="Hand" ToolTip="Click to take Initiative"
                                         MouseLeftButtonDown="Initiative_Click"
                                         Visibility="Visible">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="⚡" FontSize="11"
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚡" FontSize="11"
                                                    VerticalAlignment="Center"/>
-                                        <TextBlock Name="InitiativeText" Text="—"
+                                                <TextBlock Name="InitiativeText" Text="—"
                                                    Foreground="#CC8844" FontSize="10"
                                                    VerticalAlignment="Center" Margin="3,0,0,0"/>
-                                    </StackPanel>
-                                </Border>
-                                <!-- Energy -->
-                                <Border Background="#33AAAAFF"
+                                            </StackPanel>
+                                        </Border>
+                                        <!-- Energy -->
+                                        <Border Background="#33AAAAFF"
                                         CornerRadius="3" Padding="4,2" Margin="2,0"
                                         Cursor="Hand" ToolTip="Click to adjust energy"
                                         MouseLeftButtonDown="Energy_Click">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="⚡" FontSize="10" Foreground="#88CCFF"
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚡" FontSize="10" Foreground="#88CCFF"
                                                    VerticalAlignment="Center"/>
-                                        <TextBlock Name="EnergyText" Text="0"
+                                                <TextBlock Name="EnergyText" Text="0"
                                                    Foreground="#88CCFF" FontSize="10"
                                                    FontWeight="Bold"
                                                    VerticalAlignment="Center" Margin="2,0,0,0"/>
-                                    </StackPanel>
-                                </Border>
-                                <!-- The Ring -->
-                                <Border Name="RingPanel" Background="#33886688"
+                                            </StackPanel>
+                                        </Border>
+                                        <!-- The Ring -->
+                                        <Border Name="RingPanel" Background="#33886688"
                                         CornerRadius="3" Padding="4,2" Margin="2,0"
                                         Cursor="Hand" ToolTip="Click to advance The Ring"
                                         MouseLeftButtonDown="Ring_Click"
                                         Visibility="Visible">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="💍" FontSize="10"
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="💍" FontSize="10"
                                                    VerticalAlignment="Center"/>
-                                        <TextBlock Name="RingText" Text="—"
+                                                <TextBlock Name="RingText" Text="—"
                                                    Foreground="#BB88BB" FontSize="10"
                                                    VerticalAlignment="Center" Margin="3,0,0,0"/>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
-                                </Border>
-                            </StackPanel>
 
-                            <!-- Pass turn -->
-                            <Button Grid.Column="4" Name="BtnPassTurn"
+                                    <!-- Pass turn -->
+                                    <Button Grid.Column="4" Name="BtnPassTurn"
                                     Content="PASS TURN ⟶"
                                     Style="{StaticResource TableBtnStyle}"
                                     VerticalAlignment="Center" Margin="4,0,8,0"
                                     Click="BtnPassTurn_Click"/>
-                        </Grid>
-                    </Border>
+                                </Grid>
+                            </Border>
 
-                    <!-- Shadow below rail -->
-                    <Border Background="{DynamicResource ShadowBottomBrush}"
+                            <!-- Shadow below rail -->
+                            <Border Background="{DynamicResource ShadowBottomBrush}"
                             Height="8" VerticalAlignment="Bottom" Margin="0,0,0,-8"/>
-                </Grid>
+                        </Grid>
 
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 5 — YOUR BATTLEFIELD (creatures/spells)       -->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="5" Panel.ZIndex="2" Background="Transparent"
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- ROW 5 — YOUR BATTLEFIELD (creatures/spells)       -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Border Grid.Row="5" Panel.ZIndex="2" Background="Transparent"
                         BorderBrush="Transparent" BorderThickness="0"
                         Margin="4,0"
                         MouseRightButtonDown="YourPlaymat_RightClick">
-                    <Grid>
+                            <Grid>
 
-                        <Canvas Name="YourBattlefieldCanvas"/>
-                    </Grid>
-                </Border>
+                                <Canvas Name="YourBattlefieldCanvas"/>
+                            </Grid>
+                        </Border>
 
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 6 — YOUR MANA / LAND ZONE                    -->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Grid Grid.Row="6" Panel.ZIndex="2">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="90"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="80"/>
-                        <ColumnDefinition Width="80"/>
-                        <ColumnDefinition Width="80"/>
-                    </Grid.ColumnDefinitions>
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- ROW 6 — YOUR MANA / LAND ZONE                    -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Grid Grid.Row="6" Panel.ZIndex="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="80"/>
+                            </Grid.ColumnDefinitions>
 
-                    <!-- CMD Zone -->
-                    <Border Grid.Column="0" Margin="4,4,2,4"
+                            <!-- CMD Zone -->
+                            <Border Grid.Column="0" Margin="4,4,2,4"
                             Background="#CC000000" CornerRadius="4"
                             BorderBrush="#55FFFFFF" BorderThickness="1">
-                        <StackPanel VerticalAlignment="Top" Margin="4,4,4,4">
-                            <TextBlock Text="CMD" Style="{StaticResource ZoneLabelStyle}"
+                                <StackPanel VerticalAlignment="Top" Margin="4,4,4,4">
+                                    <TextBlock Text="CMD" Style="{StaticResource ZoneLabelStyle}"
                                        Margin="0,0,0,2"/>
-                            <TextBlock Name="YourCmdTaxText" Text="Cast: 0x (+0)"
+                                    <TextBlock Name="YourCmdTaxText" Text="Cast: 0x (+0)"
                                        Foreground="#FFD700" FontSize="9"
                                        FontWeight="SemiBold"
                                        HorizontalAlignment="Center"
                                        Margin="0,0,0,2"/>
-                            <Button Name="BtnYourCmdReturn"
+                                    <Button Name="BtnYourCmdReturn"
                                     Content="↩ Return" FontSize="9"
                                     Height="20" Margin="2,0,2,4"
                                     Visibility="Collapsed"
                                     Style="{StaticResource TableBtnStyle}"
                                     Click="BtnYourCmdReturn_Click"/>
-                            <Canvas Name="YourCommandCanvas" Height="120"/>
-                        </StackPanel>
-                    </Border>
+                                    <Canvas Name="YourCommandCanvas" Height="130"/>
+                                </StackPanel>
+                            </Border>
 
-                    <!-- Battlefield -->
-                    <Border Grid.Column="1" Style="{StaticResource ZoneBorderStyle}"
+                            <!-- Battlefield -->
+                            <Border Grid.Column="1" Style="{StaticResource ZoneBorderStyle}"
                             Margin="2,4,2,4"
                             MouseRightButtonDown="YourPlaymat_RightClick">
-                        <Grid>
+                                <Grid>
 
-                            <Canvas Name="YourLandCanvas"/>
-                        </Grid>
-                    </Border>
+                                    <Canvas Name="YourLandCanvas"/>
+                                </Grid>
+                            </Border>
 
-                    <!-- Library -->
-                    <Border Grid.Column="2" Margin="2,4,2,4" Cursor="Hand"
+                            <!-- Library -->
+                            <Border Grid.Column="2" Margin="2,4,2,4" Cursor="Hand"
                             Background="#CC000000" CornerRadius="4"
                             BorderBrush="#44FFFFFF" BorderThickness="1"
                             MouseLeftButtonDown="YourLibrary_Click"
                             MouseRightButtonDown="YourLibrary_RightClick">
-                        <StackPanel VerticalAlignment="Center">
-                            <Image Source="pack://application:,,,/Resources/Images/MTG_Back.png"
+                                <StackPanel VerticalAlignment="Center">
+                                    <Image Name="YourLibraryImage"
+                                   Source="pack://application:,,,/Resources/Images/MTG_Back.png"
                                    Width="44" Height="62" Stretch="Fill"
                                    Margin="0,0,0,4" HorizontalAlignment="Center"/>
-                            <TextBlock Text="LIBRARY" Style="{StaticResource ZoneLabelStyle}"/>
-                            <TextBlock Name="YourLibraryCount" Text="0"
+                                    <TextBlock Text="LIBRARY" Style="{StaticResource ZoneLabelStyle}"/>
+                                    <TextBlock Name="YourLibraryCount" Text="0"
                                        Foreground="White" FontSize="11"
                                        FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
+                                </StackPanel>
+                            </Border>
 
-                    <!-- Graveyard -->
-                    <Border Grid.Column="3" Margin="2,4,2,4" Cursor="Hand"
+                            <!-- Graveyard -->
+                            <Border Grid.Column="3" Margin="2,4,2,4" Cursor="Hand"
                             Background="#CC000000" CornerRadius="4"
                             BorderBrush="#44FFFFFF" BorderThickness="1"
                             MouseLeftButtonDown="YourGraveyard_Click">
-                        <StackPanel VerticalAlignment="Center">
-                            <Border Name="YourGraveTopBorder" Width="44" Height="62"
+                                <StackPanel VerticalAlignment="Center">
+                                    <Border Name="YourGraveTopBorder" Width="44" Height="62"
                                     CornerRadius="3" Margin="0,0,0,2"
                                     HorizontalAlignment="Center"
                                     Visibility="Collapsed"/>
-                            <TextBlock Text="💀" Name="YourGraveIcon"
+                                    <TextBlock Text="💀" Name="YourGraveIcon"
                                        Foreground="#888888"
                                        FontSize="24" HorizontalAlignment="Center"/>
-                            <TextBlock Text="GRAVEYARD" Style="{StaticResource ZoneLabelStyle}"/>
-                            <TextBlock Name="YourGraveyardCount" Text="0"
+                                    <TextBlock Text="GRAVEYARD" Style="{StaticResource ZoneLabelStyle}"/>
+                                    <TextBlock Name="YourGraveyardCount" Text="0"
                                        Foreground="White" FontSize="11"
                                        FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
+                                </StackPanel>
+                            </Border>
 
-                    <!-- Exile -->
-                    <Border Grid.Column="4" Margin="2,4,4,4" Cursor="Hand"
+                            <!-- Exile -->
+                            <Border Grid.Column="4" Margin="2,4,4,4" Cursor="Hand"
                             Background="#CC000000" CornerRadius="4"
                             BorderBrush="#44FFFFFF" BorderThickness="1"
                             MouseLeftButtonDown="YourExile_Click">
-                        <StackPanel VerticalAlignment="Center">
-                            <Border Name="YourExileTopBorder" Width="44" Height="62"
+                                <StackPanel VerticalAlignment="Center">
+                                    <Border Name="YourExileTopBorder" Width="44" Height="62"
                                     CornerRadius="3" Margin="0,0,0,2"
                                     HorizontalAlignment="Center"
                                     Visibility="Collapsed"/>
-                            <TextBlock Text="✦" Name="YourExileIcon"
+                                    <TextBlock Text="✦" Name="YourExileIcon"
                                        Foreground="#888888"
                                        FontSize="24" HorizontalAlignment="Center"/>
-                            <TextBlock Text="EXILE" Style="{StaticResource ZoneLabelStyle}"/>
-                            <TextBlock Name="YourExileCount" Text="0"
+                                    <TextBlock Text="EXILE" Style="{StaticResource ZoneLabelStyle}"/>
+                                    <TextBlock Name="YourExileCount" Text="0"
                                        Foreground="White" FontSize="11"
                                        FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
 
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 7 — YOUR HAND (peek strip, click to expand) -->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="7" Name="YourHandBorder" Panel.ZIndex="2" Background="#AA000000"
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- ROW 7 — YOUR HAND (peek strip, click to expand) -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Border Grid.Row="7" Name="YourHandBorder" Panel.ZIndex="2" Background="#AA000000"
                         BorderBrush="#44FFFFFF" BorderThickness="0,1,0,0"
                         Cursor="Hand" MouseLeftButtonDown="YourHand_Click">
-                    <Grid ClipToBounds="True">
-                        <!-- Peek label shown when collapsed -->
-                        <StackPanel Name="HandPeekLabel" Orientation="Horizontal"
+                            <Grid ClipToBounds="True">
+                                <!-- Peek label shown when collapsed -->
+                                <StackPanel Name="HandPeekLabel" Orientation="Horizontal"
                                     HorizontalAlignment="Center" VerticalAlignment="Top"
                                     Margin="0,4,0,0">
-                            <TextBlock Text="▲ HAND " Foreground="White"
+                                    <TextBlock Text="▲ HAND " Foreground="White"
                                        FontSize="10" FontWeight="Bold"
                                        VerticalAlignment="Center"/>
-                            <TextBlock Name="HandCountLabel" Text="(0)"
+                                    <TextBlock Name="HandCountLabel" Text="(0)"
                                        Foreground="#CCCCCC" FontSize="10"
                                        VerticalAlignment="Center"/>
-                        </StackPanel>
-                        <Canvas Name="YourHandCanvas" SizeChanged="YourHandCanvas_SizeChanged"
+                                </StackPanel>
+                                <Canvas Name="YourHandCanvas" SizeChanged="YourHandCanvas_SizeChanged"
                                 Margin="0,20,0,0"/>
-                    </Grid>
-                </Border>
+                            </Grid>
+                        </Border>
 
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- ROW 8 — YOUR INFO BAR                             -->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Border Grid.Row="8" Panel.ZIndex="2" Background="#CC000000"
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- ROW 8 — YOUR INFO BAR                             -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Border Grid.Row="8" Panel.ZIndex="2" Background="#CC000000"
                         BorderBrush="#44FFFFFF" BorderThickness="0,1,0,0"
                         CornerRadius="0,0,8,8">
-                    <Grid Margin="12,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                            <Grid Margin="12,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
 
-                        <!-- Player name -->
-                        <TextBlock Grid.Column="0" Name="YourNameLabel"
+                                <!-- Player name -->
+                                <TextBlock Grid.Column="0" Name="YourNameLabel"
                                    Text="Player" Foreground="#CCCCCC"
                                    FontSize="13" FontWeight="SemiBold"
                                    VerticalAlignment="Center" Margin="0,0,16,0"/>
 
-                        <!-- Life -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                <!-- Life -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="0,0,4,0">
-                            <TextBlock Text="❤" Foreground="#EE4444" FontSize="14"
+                                    <TextBlock Text="❤" Foreground="#EE4444" FontSize="14"
                                        VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBlock Name="YourLifeText" Text="40"
+                                    <TextBlock Name="YourLifeText" Text="40"
                                        Style="{StaticResource LifeTextStyle}"
                                        Cursor="Hand" ToolTip="Double-click to set value"
                                        MouseLeftButtonDown="YourLifeText_DoubleClick"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="0,0,12,0">
-                            <Button Content="+" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="+" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Click="YourLifeUp_Click"/>
-                            <Button Content="-" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="-" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Margin="2,0,0,0"
                                     Click="YourLifeDown_Click"/>
-                        </StackPanel>
+                                </StackPanel>
 
-                        <!-- Poison -->
-                        <StackPanel Grid.Column="3" Orientation="Horizontal"
+                                <!-- Poison -->
+                                <StackPanel Grid.Column="3" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="0,0,12,0">
-                            <TextBlock Text="☠" Foreground="#AAAAAA" FontSize="14"
+                                    <TextBlock Text="☠" Foreground="#AAAAAA" FontSize="14"
                                        VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBlock Name="YourPoisonText" Text="0"
+                                    <TextBlock Name="YourPoisonText" Text="0"
                                        Foreground="#EEEEEE" FontSize="14"
                                        FontWeight="Bold" VerticalAlignment="Center"
                                        Margin="0,0,4,0" Cursor="Hand"
                                        ToolTip="Double-click to set value"
                                        MouseLeftButtonDown="YourPoisonText_DoubleClick"/>
-                            <Button Content="+" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="+" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Click="YourPoisonUp_Click"/>
-                            <Button Content="-" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="-" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Margin="2,0,0,0"
                                     Click="YourPoisonDown_Click"/>
-                        </StackPanel>
+                                </StackPanel>
 
-                        <!-- Cmd Dmg Received (from opp commander) -->
-                        <StackPanel Grid.Column="4" Orientation="Horizontal"
+                                <!-- Cmd Dmg Received (from opp commander) -->
+                                <StackPanel Grid.Column="4" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="0,0,12,0">
-                            <TextBlock Text="⚔" Foreground="#CC6644" FontSize="12"
+                                    <TextBlock Text="⚔" Foreground="#CC6644" FontSize="12"
                                        VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBlock Name="YourCmdDmgText" Text="0"
+                                    <TextBlock Name="YourCmdDmgText" Text="0"
                                        Foreground="#EEEEEE" FontSize="14"
                                        FontWeight="Bold" VerticalAlignment="Center"
                                        Margin="0,0,4,0"/>
-                            <Button Content="+" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="+" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Click="YourCmdDmgUp_Click"/>
-                            <Button Content="-" Style="{StaticResource TableBtnStyle}"
+                                    <Button Content="-" Style="{StaticResource TableBtnStyle}"
                                     Width="20" Padding="0" Margin="2,0,0,0"
                                     Click="YourCmdDmgDown_Click"/>
-                        </StackPanel>
+                                </StackPanel>
 
-                        <!-- Spacer -->
-                        <StackPanel Grid.Column="5" Orientation="Horizontal"
+                                <!-- Spacer -->
+                                <StackPanel Grid.Column="5" Orientation="Horizontal"
                                     HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <!-- Mana pool collapsed view — Phase 6 -->
-                            <Border Name="ManaPoolBar" Background="#22FFFFFF"
+                                    <!-- Mana pool collapsed view — Phase 6 -->
+                                    <Border Name="ManaPoolBar" Background="#22FFFFFF"
                                     CornerRadius="3" Padding="8,2" Cursor="Hand"
                                     MouseLeftButtonDown="ManaPool_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="MANA POOL" Foreground="#88FFFFFF"
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="MANA POOL" Foreground="#88FFFFFF"
                                                FontSize="9" VerticalAlignment="Center"
                                                Margin="0,0,6,0"/>
-                                    <TextBlock Name="ManaPoolSummary" Text="—"
+                                            <TextBlock Name="ManaPoolSummary" Text="—"
                                                Foreground="#CCCCCC" FontSize="11"
                                                VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
-                            </Border>
-                        </StackPanel>
 
-                        <!-- Draw Card -->
-                        <Button Grid.Column="5" Content="🃏 Draw"
+                                <!-- Draw Card -->
+                                <Button Grid.Column="5" Content="🃏 Draw"
                                 Style="{StaticResource TableBtnStyle}"
                                 Margin="4,0" Click="BtnDrawCard_Click"
                                 MouseRightButtonDown="BtnDrawCard_RightClick"/>
 
-                        <!-- Dice -->
-                        <Button Grid.Column="7" Content="🎲 Dice"
+                                <!-- Dice -->
+                                <Button Grid.Column="7" Content="🎲 Dice"
                                 Style="{StaticResource TableBtnStyle}"
                                 Margin="4,0" Click="BtnDice_Click"/>
 
-                        <!-- Token -->
-                        <Button Grid.Column="8" Content="🃏 Token"
+                                <!-- Token -->
+                                <Button Grid.Column="8" Content="🃏 Token"
                                 Style="{StaticResource TableBtnStyle}"
                                 Margin="4,0" Click="BtnToken_Click"/>
 
-                        <!-- Untap All -->
-                        <Button Grid.Column="9" Content="⟳ Untap All"
+                                <!-- Untap All -->
+                                <Button Grid.Column="9" Content="⟳ Untap All"
                                 Style="{StaticResource TableBtnStyle}"
                                 Margin="4,0" Click="BtnUntapAll_Click"/>
 
-                        <!-- New Game -->
-                        <Button Grid.Column="10" Content="↺ New Game"
+                                <!-- New Game -->
+                                <Button Grid.Column="10" Content="↺ New Game"
                                 Style="{StaticResource TableBtnStyle}"
                                 Margin="4,0" Click="BtnNewGame_Click"/>
 
-                        <!-- Sleeve -->
-                        <Button Grid.Column="11" Content="🂠 Sleeve"
-                                Style="{StaticResource TableBtnStyle}"
-                                Margin="4,0" Click="BtnSleeve_Click"/>
-
-                        <!-- Settings -->
-                        <Button Grid.Column="12" Content="⚙"
+                                <!-- Settings -->
+                                <Button Grid.Column="12" Content="⚙"
                                 Style="{StaticResource TableBtnStyle}"
                                 Width="28" Margin="4,0" FontSize="14"
                                 Click="BtnTabletopSettings_Click"/>
 
-                        <!-- Close -->
-                        <Button Grid.Column="13" Content="✕"
+                                <!-- Close -->
+                                <Button Grid.Column="13" Content="✕"
                                 Style="{StaticResource TableBtnStyle}"
                                 Width="28" Margin="4,0,0,0" FontSize="14"
                                 Click="BtnTabletopClose_Click"/>
-                    </Grid>
-                </Border>
+                            </Grid>
+                        </Border>
 
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- STACK OVERLAY — collapsible, centered on rail     -->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Border Name="StackPanel" Grid.Row="4"
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- STACK OVERLAY — collapsible, centered on rail     -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <Border Name="StackPanel" Grid.Row="4"
                         Background="#EE1A1A1A"
                         BorderBrush="#66D4AF37" BorderThickness="1"
                         CornerRadius="4" Margin="200,0,200,0"
                         Visibility="Collapsed"
                         VerticalAlignment="Stretch"
                         Panel.ZIndex="10">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="22"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        <Grid Grid.Row="0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="THE STACK"
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="22"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid Grid.Row="0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="THE STACK"
                                        Foreground="#D4AF37" FontSize="9"
                                        FontWeight="Bold"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="1" Name="StackCountLabel"
+                                    <TextBlock Grid.Column="1" Name="StackCountLabel"
                                        Text="0" Foreground="#AAAAAA"
                                        FontSize="9" Margin="4,0,8,0"
                                        VerticalAlignment="Center"/>
-                            <Button Grid.Column="2" Content="✕ Clear"
+                                    <Button Grid.Column="2" Content="✕ Clear"
                                     Style="{StaticResource TableBtnStyle}"
                                     FontSize="9" Height="18" Padding="4,0"
                                     Margin="0,2,4,2"
                                     Click="BtnClearStack_Click"/>
-                        </Grid>
-                        <Canvas Grid.Row="1" Name="StackCanvas"
+                                </Grid>
+                                <Canvas Grid.Row="1" Name="StackCanvas"
                                 SizeChanged="StackCanvas_SizeChanged"/>
+                            </Grid>
+                        </Border>
+
                     </Grid>
+                </Border>
+
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- GAME LOG PANEL                                      -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <Border Name="LogPanel" Grid.Column="1" Width="280"
+                        Visibility="Collapsed"
+                        Background="#1A1A2E" CornerRadius="8"
+                        Margin="8,0,0,0">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top"
+                                   Text="📋 GAME LOG" FontSize="12"
+                                   FontWeight="Bold" Foreground="#AABBCC"
+                                   Margin="10,8,10,4"/>
+                        <Button DockPanel.Dock="Bottom"
+                                Content="Clear Log" FontSize="10"
+                                Background="#333344" Foreground="White"
+                                BorderBrush="#555566" Margin="10,4,10,8"
+                                Height="24" Click="BtnClearLog_Click"/>
+                        <ListBox Name="LogListBox"
+                                 Background="Transparent"
+                                 Foreground="#CCDDEE"
+                                 BorderThickness="0"
+                                 FontSize="11"
+                                 Margin="6,0,6,0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,1"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
                 </Border>
 
             </Grid>
         </Border>
-    </Border>
+    </DockPanel>
 </Window>

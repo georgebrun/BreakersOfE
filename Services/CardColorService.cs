@@ -95,14 +95,14 @@ namespace BreakersOfE.Services
                 return tableType switch
                 {
                     TableType.Pool => isEven
-                        ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1A, 0x1A))  // faded red dark
-                        : new SolidColorBrush(Color.FromRgb(0x25, 0x1F, 0x1F)),
+                        ? new SolidColorBrush(Color.FromRgb(0x2E, 0x1A, 0x1A))  // red-tinted dark
+                        : new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20)),
                     TableType.Deck => isEven
-                        ? new SolidColorBrush(Color.FromRgb(0x1A, 0x1E, 0x1A))  // faded green dark
-                        : new SolidColorBrush(Color.FromRgb(0x1F, 0x25, 0x1F)),
+                        ? new SolidColorBrush(Color.FromRgb(0x18, 0x2A, 0x1A))  // green-tinted dark
+                        : new SolidColorBrush(Color.FromRgb(0x1E, 0x36, 0x22)),
                     _ => isEven
-                        ? new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E))
-                        : new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
+                        ? new SolidColorBrush(Color.FromRgb(0x18, 0x22, 0x30))  // blue-tinted dark
+                        : new SolidColorBrush(Color.FromRgb(0x1E, 0x2A, 0x3C)),
                 };
             }
             else

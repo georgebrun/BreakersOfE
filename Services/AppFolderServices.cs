@@ -27,6 +27,9 @@ namespace BreakersOfE.Services
         public static string ExportsFolder =>
             EnsureFolder(Path.Combine(RootFolder, "Exports"));
 
+        public static string BackupsFolder =>
+            EnsureFolder(Path.Combine(RootFolder, "Backups"));
+
         public static string ImportsFolder =>
             EnsureFolder(Path.Combine(RootFolder, "Imports"));
 

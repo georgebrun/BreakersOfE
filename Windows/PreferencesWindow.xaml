@@ -67,13 +67,14 @@
                     </ComboBox>
                 </Grid>
 
-                <Grid Margin="0,4">
+                <Grid Margin="0,4" Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="160"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Style="{StaticResource SettingLabel}" Text="Theme"/>
                     <ComboBox Grid.Column="1" Name="CmbTheme" Height="26">
+                        <ComboBoxItem Content="System (follow Windows)" Tag="System"/>
                         <ComboBoxItem Content="Light" Tag="Light"/>
                         <ComboBoxItem Content="Dark"  Tag="Dark"/>
                     </ComboBox>
