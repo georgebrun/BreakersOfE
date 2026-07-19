@@ -8459,6 +8459,7 @@ namespace BreakersOfE
                 // Remap collection PoolIds — they change after a full pool rebuild
                 RemapCollectionPoolIds();
                 RemapSpecialCollections();
+                PropagatePoolPricesToCollection();
                 LoadCaches();
                 LoadCurrentMode();
             }

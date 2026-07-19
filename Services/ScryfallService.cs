@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
@@ -120,11 +121,12 @@ namespace BreakersOfE.Services
                 ct.ThrowIfCancellationRequested();
                 string bulkUrl = await GetBulkDataUrlAsync(ct);
 
-                // Step 2 — Download bulk JSON
+                // Step 2 — Download bulk data (JSONL gzipped)
                 Report(progress, "Downloading card database...", 5);
                 ct.ThrowIfCancellationRequested();
+                string ext = bulkUrl.Contains(".jsonl") ? ".jsonl.gz" : ".json";
                 string tempFile = Path.Combine(
-                    Path.GetTempPath(), "scryfall_bulk.json");
+                    Path.GetTempPath(), $"scryfall_bulk{ext}");
                 await DownloadWithProgressAsync(
                     bulkUrl, tempFile, progress, 5, 40, ct);
 
@@ -195,11 +197,12 @@ namespace BreakersOfE.Services
                 ct.ThrowIfCancellationRequested();
                 string bulkUrl = await GetBulkDataUrlAsync(ct);
 
-                // Download bulk JSON
+                // Download bulk data (JSONL gzipped)
                 Report(progress, "Downloading price data...", 5);
                 ct.ThrowIfCancellationRequested();
+                string ext = bulkUrl.Contains(".jsonl") ? ".jsonl.gz" : ".json";
                 string tempFile = Path.Combine(
-                    Path.GetTempPath(), "scryfall_prices.json");
+                    Path.GetTempPath(), $"scryfall_prices{ext}");
                 await DownloadWithProgressAsync(
                     bulkUrl, tempFile, progress, 5, 60, ct);
 
@@ -234,20 +237,15 @@ namespace BreakersOfE.Services
             int startPct, int endPct,
             CancellationToken ct)
         {
-            await using var fs = File.OpenRead(jsonFile);
-            using var doc = await JsonDocument.ParseAsync(fs,
-                new JsonDocumentOptions { AllowTrailingCommas = true }, ct);
-
-            var cards = doc.RootElement.EnumerateArray().ToList();
-            int total = cards.Count;
+            bool isGzip = jsonFile.EndsWith(".gz", StringComparison.OrdinalIgnoreCase);
             int updated = 0;
 
-            // Build price lookup from JSON: ScryfallId -> prices
+            // Build price lookup from JSONL/JSON: ScryfallId -> prices
             var priceLookup = new Dictionary<string, (
                 decimal? usd, decimal? usdFoil, decimal? usdEtched,
                 decimal? eur, decimal? eurFoil, decimal? tix)>();
 
-            foreach (var card in cards)
+            await foreach (var card in EnumerateCardsAsync(jsonFile, isGzip, ct))
             {
                 ct.ThrowIfCancellationRequested();
                 string id = GetString(card, "id");
@@ -320,6 +318,14 @@ namespace BreakersOfE.Services
 
                 if (type != "default_cards") continue;
 
+                // Prefer JSONL format (Scryfall is retiring JSON on July 20 2026)
+                if (item.TryGetProperty("jsonl_download_uri", out var jdl))
+                {
+                    string? url = jdl.GetString();
+                    if (!string.IsNullOrEmpty(url)) return url;
+                }
+
+                // Fall back to legacy JSON if JSONL not yet available
                 if (item.TryGetProperty("download_uri", out var dl))
                     return dl.GetString()
                         ?? throw new Exception("download_uri was null.");
@@ -329,6 +335,12 @@ namespace BreakersOfE.Services
                     string meta = await _http.GetStringAsync(
                         uri.GetString()!, ct);
                     using var md = JsonDocument.Parse(meta);
+                    if (md.RootElement.TryGetProperty(
+                            "jsonl_download_uri", out var jdl2))
+                    {
+                        string? url = jdl2.GetString();
+                        if (!string.IsNullOrEmpty(url)) return url;
+                    }
                     if (md.RootElement.TryGetProperty(
                             "download_uri", out var dl2))
                         return dl2.GetString()
@@ -475,25 +487,33 @@ namespace BreakersOfE.Services
             var artSeries = new List<ArtSeriesCard>(batchSize);
             var conspiracy = new List<ConspiracyCard>(batchSize);
 
-            await using var fs = File.OpenRead(jsonFile);
-            using var doc = await JsonDocument.ParseAsync(fs,
-                new JsonDocumentOptions { AllowTrailingCommas = true }, ct);
+            // Track seen ScryfallIds to skip duplicates in the bulk file
+            var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            var cards = doc.RootElement.EnumerateArray().ToList();
-            int total = cards.Count;
-            result.ScryfallReportedTotal = total;
+            bool isGzip = jsonFile.EndsWith(".gz", StringComparison.OrdinalIgnoreCase);
+            int i = 0;
 
-            for (int i = 0; i < total; i++)
+            // Use an async helper that yields JsonElements one at a time
+            // from either JSONL (.jsonl.gz) or legacy JSON array format
+            await foreach (var cardEl in EnumerateCardsAsync(jsonFile, isGzip, ct))
             {
                 ct.ThrowIfCancellationRequested();
+                i++;
 
                 // Skip digital-only cards (MTGO/Arena exclusives)
-                var cardEl = cards[i];
                 if (cardEl.TryGetProperty("games", out var gamesEl))
                 {
                     bool hasPaper = gamesEl.EnumerateArray()
                         .Any(g => g.GetString() == "paper");
                     if (!hasPaper) continue;
+                }
+
+                // Skip duplicate ScryfallIds (bulk files can contain dupes)
+                string scryfallId = GetString(cardEl, "id");
+                if (!string.IsNullOrEmpty(scryfallId) && !seenIds.Add(scryfallId))
+                {
+                    result.SkippedCount++;
+                    continue;
                 }
 
                 RouteCard(cardEl, GetString(cardEl, "layout"),
@@ -517,9 +537,10 @@ namespace BreakersOfE.Services
 
                 if (i % 1000 == 0)
                 {
-                    int pct = startPct +
-                        (int)((double)i / total * (endPct - startPct));
-                    string detail = $"{i:N0} of {total:N0} processed — " +
+                    // For JSONL we don't know total up front, so show count
+                    int pct = Math.Min(endPct,
+                        startPct + (int)((double)i / 120000 * (endPct - startPct)));
+                    string detail = $"{i:N0} processed — " +
                         $"Pool: {result.PoolCardsImported:N0}  " +
                         $"Tokens: {result.TokenCardsImported:N0}  " +
                         $"Planar: {result.PlanarCardsImported:N0}  " +
@@ -528,6 +549,8 @@ namespace BreakersOfE.Services
                     Report(progress, "Importing to card pool database (breakersofe.db)...", pct, detail);
                 }
             }
+
+            result.ScryfallReportedTotal = i;
 
             // Flush remaining
             if (pool.Count > 0) await FlushBatchAsync(pool, ct);
@@ -987,6 +1010,47 @@ namespace BreakersOfE.Services
             if (v.ValueKind == JsonValueKind.Number)
                 return v.GetDecimal();
             return null;
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // CARD ENUMERATOR — streams from JSONL.gz or legacy JSON array
+        // ════════════════════════════════════════════════════════════════════
+        private static async IAsyncEnumerable<JsonElement> EnumerateCardsAsync(
+            string filePath, bool isGzip,
+            [System.Runtime.CompilerServices.EnumeratorCancellation]
+            CancellationToken ct)
+        {
+            if (isGzip)
+            {
+                // JSONL format: one JSON object per line, gzipped
+                await using var fs = File.OpenRead(filePath);
+                await using var gz = new GZipStream(fs, CompressionMode.Decompress);
+                using var reader = new StreamReader(gz);
+
+                string? line;
+                while ((line = await reader.ReadLineAsync(ct)) != null)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    using var doc = JsonDocument.Parse(line);
+                    // Clone so the element outlives the disposed doc
+                    yield return doc.RootElement.Clone();
+                }
+            }
+            else
+            {
+                // Legacy JSON array format
+                await using var fs = File.OpenRead(filePath);
+                using var doc = await JsonDocument.ParseAsync(fs,
+                    new JsonDocumentOptions { AllowTrailingCommas = true }, ct);
+
+                foreach (var card in doc.RootElement.EnumerateArray())
+                {
+                    ct.ThrowIfCancellationRequested();
+                    yield return card;
+                }
+            }
         }
 
         // ════════════════════════════════════════════════════════════════════
